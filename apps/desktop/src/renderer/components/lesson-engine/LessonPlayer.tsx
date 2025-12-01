@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { LessonEngine, LessonEngineState } from './LessonEngine';
 import { Lesson, HitFeedback, LessonScore, PracticeModeSettings } from '../../types/lesson';
 import { MidiEvent } from '../../types/electron';
+import { NoteHighway } from './NoteHighway';
 import './LessonPlayer.css';
 
 interface LessonPlayerProps {
@@ -12,6 +13,7 @@ interface LessonPlayerProps {
 export function LessonPlayer({ lesson, onComplete }: LessonPlayerProps) {
   const engineRef = useRef<LessonEngine | null>(null);
   const [state, setState] = useState<LessonEngineState>('stopped');
+  const [currentTime, setCurrentTime] = useState<number>(0);
   const [score, setScore] = useState<LessonScore>({
     totalSteps: 0,
     hits: 0,
@@ -77,6 +79,20 @@ export function LessonPlayer({ lesson, onComplete }: LessonPlayerProps) {
       engineRef.current.setPracticeMode(practiceMode);
     }
   }, [practiceMode]);
+
+  // Update current time during playback
+  useEffect(() => {
+    if (state === 'playing') {
+      const startTime = Date.now();
+      const interval = setInterval(() => {
+        setCurrentTime((Date.now() - startTime) * practiceMode.speedMultiplier);
+      }, 16); // ~60fps
+
+      return () => clearInterval(interval);
+    } else if (state === 'stopped') {
+      setCurrentTime(0);
+    }
+  }, [state, practiceMode.speedMultiplier]);
 
   const handleStart = async () => {
     if (engineRef.current) {
@@ -152,6 +168,16 @@ export function LessonPlayer({ lesson, onComplete }: LessonPlayerProps) {
             <span className="difficulty-badge">Level {lesson.metadata.difficulty}</span>
           )}
         </div>
+      </div>
+
+      {/* Note Highway Visualization */}
+      <div className="highway-container">
+        <NoteHighway
+          instrument={lesson.instrument}
+          steps={lesson.steps}
+          currentTime={currentTime}
+          bpm={lesson.bpm * practiceMode.speedMultiplier}
+        />
       </div>
 
       <div className="player-layout">
