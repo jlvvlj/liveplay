@@ -1,0 +1,130 @@
+.lesson-selector {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.lesson-selector h2 {
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.lesson-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.lesson-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.lesson-card:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.lesson-card.selected {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.lesson-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.lesson-card-header h3 {
+  font-size: 1.3rem;
+  margin: 0;
+  flex: 1;
+}
+
+.instrument-tag {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.instrument-tag.keys {
+  background: #60a5fa;
+  color: white;
+}
+
+.instrument-tag.pads {
+  background: #f472b6;
+  color: white;
+}
+
+.instrument-tag.drums {
+  background: #fb923c;
+  color: white;
+}
+
+.lesson-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.lesson-description {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+.lesson-stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.lesson-stats .stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+.stat-icon {
+  font-size: 1rem;
+}
+
+.difficulty-stars {
+  color: #facc15;
+  font-size: 1rem;
+}
+
+.lesson-tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tag {
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .lesson-grid {
+    grid-template-columns: 1fr;
+  }
+}

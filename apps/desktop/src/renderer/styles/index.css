@@ -37,14 +37,82 @@ body {
 .app-header p {
   font-size: 1.2rem;
   opacity: 0.9;
+  margin-bottom: 1rem;
+}
+
+.app-nav {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.app-nav button {
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.app-nav button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.app-nav button.active {
+  background: rgba(74, 222, 128, 0.3);
+  border-color: #4ade80;
+  font-weight: bold;
 }
 
 .app-main {
   flex: 1;
   padding: 2rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: block;
+  overflow-y: auto;
+}
+
+.setup-actions {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.btn-continue {
+  padding: 1rem 2rem;
+  background: #4ade80;
+  color: #1f2937;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-continue:hover {
+  background: #22c55e;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
+}
+
+.btn-back {
+  margin-bottom: 1rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-back:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .welcome-section {

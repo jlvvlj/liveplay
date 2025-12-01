@@ -1,0 +1,305 @@
+.lesson-player {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.lesson-header {
+  margin-bottom: 2rem;
+}
+
+.lesson-header h2 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.lesson-meta {
+  display: flex;
+  gap: 1rem;
+}
+
+.instrument-badge,
+.bpm-badge,
+.difficulty-badge {
+  padding: 0.25rem 0.75rem;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+
+.player-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 2rem;
+}
+
+/* Controls Section */
+.controls-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.playback-controls,
+.practice-mode-controls {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-radius: 12px;
+}
+
+.playback-controls h3,
+.practice-mode-controls h3 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.control-buttons button {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #4ade80;
+  color: #1f2937;
+}
+
+.btn-primary:hover {
+  background: #22c55e;
+}
+
+.btn-warning {
+  background: #facc15;
+  color: #1f2937;
+}
+
+.btn-warning:hover {
+  background: #eab308;
+}
+
+.btn-danger {
+  background: #f87171;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #ef4444;
+}
+
+.state-indicator {
+  text-align: center;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.state-indicator .state-playing {
+  color: #4ade80;
+  font-weight: bold;
+}
+
+.state-indicator .state-paused {
+  color: #facc15;
+  font-weight: bold;
+}
+
+.state-indicator .state-stopped {
+  color: #9ca3af;
+}
+
+.state-indicator .state-waiting {
+  color: #60a5fa;
+  font-weight: bold;
+}
+
+/* Practice Mode Controls */
+.control-group {
+  margin-bottom: 1rem;
+}
+
+.control-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.control-group input[type='checkbox'] {
+  margin-right: 0.5rem;
+}
+
+.speed-slider {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.speed-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 0.25rem;
+}
+
+/* Feedback Section */
+.feedback-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.score-display,
+.recent-feedback {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-radius: 12px;
+}
+
+.score-display h3,
+.recent-feedback h3 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+/* Score Stats */
+.score-stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2rem;
+  align-items: center;
+}
+
+.accuracy-circle {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 6px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.accuracy-value {
+  font-size: 2rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.accuracy-label {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin-top: 0.25rem;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border-left: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+.stat.perfect {
+  border-left-color: #4ade80;
+}
+
+.stat.good {
+  border-left-color: #facc15;
+}
+
+.stat.miss {
+  border-left-color: #f87171;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  margin-top: 0.25rem;
+}
+
+/* Recent Feedback */
+.feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.no-feedback {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 2rem;
+  font-style: italic;
+}
+
+.feedback-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border-left: 4px solid;
+  font-size: 0.9rem;
+}
+
+.feedback-accuracy {
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+.feedback-note {
+  opacity: 0.8;
+}
+
+.feedback-timing {
+  font-family: monospace;
+  opacity: 0.7;
+}
+
+.feedback-points {
+  font-weight: bold;
+  color: #4ade80;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .player-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .score-stats {
+    grid-template-columns: 1fr;
+  }
+}

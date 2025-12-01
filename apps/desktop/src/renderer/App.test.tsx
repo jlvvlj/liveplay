@@ -19,6 +19,20 @@ import App from './App';
   },
 };
 
+// Mock Tone.js
+jest.mock('tone', () => ({
+  start: jest.fn().mockResolvedValue(undefined),
+  now: jest.fn().mockReturnValue(0),
+  Transport: {
+    bpm: { value: 120 },
+    start: jest.fn(),
+    stop: jest.fn(),
+    pause: jest.fn(),
+    schedule: jest.fn(),
+    cancel: jest.fn(),
+  },
+}));
+
 describe('App', () => {
   it('renders the main heading', () => {
     render(<App />);
@@ -26,9 +40,20 @@ describe('App', () => {
     expect(heading).toBeInTheDocument();
   });
 
-  it('displays MIDI Device Setup section', () => {
+  it('displays navigation buttons', () => {
+    render(<App />);
+    expect(screen.getByText('MIDI Setup')).toBeInTheDocument();
+    expect(screen.getByText('Lessons')).toBeInTheDocument();
+  });
+
+  it('shows MIDI Device Setup by default', () => {
     render(<App />);
     const deviceSetup = screen.getByText(/MIDI Device Setup/i);
     expect(deviceSetup).toBeInTheDocument();
+  });
+
+  it('shows continue to lessons button', () => {
+    render(<App />);
+    expect(screen.getByText(/Continue to Lessons/i)).toBeInTheDocument();
   });
 });
