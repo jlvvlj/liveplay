@@ -9,21 +9,35 @@ let mainWindow: BrowserWindow | null = null;
 let midiManager: MidiManager | null = null;
 
 function createWindow() {
+  const preloadPath = path.join(__dirname, 'preload.js');
+  console.log('[Main] Preload script path:', preloadPath);
+  console.log('[Main] Preload script exists:', require('fs').existsSync(preloadPath));
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
     },
   });
 
   const isDev = process.env.NODE_ENV === 'development';
 
+  console.log('[Main] Development mode:', isDev);
+
   if (isDev) {
+    console.log('[Main] Loading development URL: http://localhost:5173');
     mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools();
+
+    // Open DevTools when ready
+    mainWindow.webContents.on('did-finish-load', () => {
+      console.log('[Main] Page loaded, opening DevTools...');
+      if (mainWindow) {
+        mainWindow.webContents.openDevTools();
+      }
+    });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
