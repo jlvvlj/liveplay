@@ -1,0 +1,30 @@
+{
+  "id": "basic-keys-01",
+  "title": "C Major Scale Practice",
+  "instrument": "keys",
+  "bpm": 80,
+  "timeSignature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "steps": [
+    { "tick": 0, "note": 60, "dur": 480, "velocity": 100 },
+    { "tick": 480, "note": 62, "dur": 480, "velocity": 100 },
+    { "tick": 960, "note": 64, "dur": 480, "velocity": 100 },
+    { "tick": 1440, "note": 65, "dur": 480, "velocity": 100 },
+    { "tick": 1920, "note": 67, "dur": 480, "velocity": 100 },
+    { "tick": 2400, "note": 69, "dur": 480, "velocity": 100 },
+    { "tick": 2880, "note": 71, "dur": 480, "velocity": 100 },
+    { "tick": 3360, "note": 72, "dur": 480, "velocity": 100 }
+  ],
+  "loop": {
+    "startTick": 0,
+    "endTick": 3840
+  },
+  "metadata": {
+    "difficulty": 1,
+    "genre": "Practice",
+    "tags": ["beginner", "keys", "scales", "C major"],
+    "description": "Practice the C major scale from middle C to high C"
+  }
+}
