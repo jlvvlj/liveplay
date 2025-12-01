@@ -78,7 +78,10 @@
     ],
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.music"
+      "category": "public.app-category.music",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "hardenedRuntime": true
     },
     "win": {
       "target": "nsis"

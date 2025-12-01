@@ -9,9 +9,11 @@ export class MidiManager {
   constructor() {
     // Initialize with fallback handling
     try {
+      console.log('[MIDI Manager] Initializing MIDI input...');
       this.input = new midi.Input();
+      console.log('[MIDI Manager] MIDI input initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize MIDI input:', error);
+      console.error('[MIDI Manager] Failed to initialize MIDI input:', error);
       this.input = null;
     }
   }
@@ -25,18 +27,26 @@ export class MidiManager {
       return [];
     }
 
-    const devices: MidiDevice[] = [];
-    const portCount = this.input.getPortCount();
+    try {
+      const devices: MidiDevice[] = [];
+      const portCount = this.input.getPortCount();
 
-    for (let i = 0; i < portCount; i++) {
-      const name = this.input.getPortName(i);
-      devices.push({
-        id: `midi-${i}`,
-        name: name,
-      });
+      console.log(`[MIDI Manager] Found ${portCount} MIDI input port(s)`);
+
+      for (let i = 0; i < portCount; i++) {
+        const name = this.input.getPortName(i);
+        console.log(`[MIDI Manager] Port ${i}: ${name}`);
+        devices.push({
+          id: `midi-${i}`,
+          name: name,
+        });
+      }
+
+      return devices;
+    } catch (error) {
+      console.error('[MIDI Manager] Error listing MIDI devices:', error);
+      return [];
     }
-
-    return devices;
   }
 
   /**
