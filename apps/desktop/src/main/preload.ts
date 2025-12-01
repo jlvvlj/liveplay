@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+console.log('[Preload] Starting preload script...');
+
 export interface MidiEvent {
   timestamp: number;
   note: number;
@@ -18,16 +20,25 @@ export interface DeviceMapping {
   mappings: { [hardwareNote: number]: number };
 }
 
+console.log('[Preload] Exposing electronAPI to renderer process...');
+
 contextBridge.exposeInMainWorld('electronAPI', {
   // MIDI APIs
   midi: {
-    list: (): Promise<MidiDevice[]> => ipcRenderer.invoke('midi:list'),
-    selectDevice: (deviceId: string): Promise<void> =>
-      ipcRenderer.invoke('midi:selectDevice', deviceId),
+    list: (): Promise<MidiDevice[]> => {
+      console.log('[Preload] midi.list() called');
+      return ipcRenderer.invoke('midi:list');
+    },
+    selectDevice: (deviceId: string): Promise<void> => {
+      console.log('[Preload] midi.selectDevice() called with:', deviceId);
+      return ipcRenderer.invoke('midi:selectDevice', deviceId);
+    },
     onEvent: (callback: (event: MidiEvent) => void) => {
+      console.log('[Preload] midi.onEvent() listener registered');
       ipcRenderer.on('midi:event', (_event, data) => callback(data));
     },
     removeEventListener: () => {
+      console.log('[Preload] midi.removeEventListener() called');
       ipcRenderer.removeAllListeners('midi:event');
     },
   },
@@ -42,3 +53,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('mapping:delete', deviceId),
   },
 });
+
+console.log('[Preload] electronAPI exposed successfully');

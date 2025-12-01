@@ -29,14 +29,23 @@ export function MidiDeviceSelector() {
 
   const loadDevices = async () => {
     try {
+      console.log('[MidiDeviceSelector] Loading devices...');
+      console.log('[MidiDeviceSelector] window.electronAPI exists:', !!window.electronAPI);
+
       if (!window.electronAPI) {
+        console.error('[MidiDeviceSelector] Electron API not available');
         setError('Electron API not available');
         return;
       }
+
+      console.log('[MidiDeviceSelector] Calling window.electronAPI.midi.list()...');
       const deviceList = await window.electronAPI.midi.list();
+      console.log('[MidiDeviceSelector] Received device list:', deviceList);
+
       setDevices(deviceList);
       setError(null);
     } catch (err) {
+      console.error('[MidiDeviceSelector] Error loading devices:', err);
       setError(`Failed to load devices: ${err}`);
     }
   };
