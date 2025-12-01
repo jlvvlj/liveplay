@@ -18,7 +18,12 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
-  "keywords": ["melodics", "midi", "music", "education"],
+  "keywords": [
+    "melodics",
+    "midi",
+    "music",
+    "education"
+  ],
   "author": "Melodics MVP Team",
   "license": "MIT",
   "devDependencies": {
@@ -40,6 +45,7 @@
     "electron-builder": "^24.9.1",
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
+    "identity-obj-proxy": "^3.0.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "ts-jest": "^29.1.1",

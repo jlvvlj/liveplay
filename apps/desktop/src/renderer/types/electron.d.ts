@@ -10,12 +10,24 @@ export interface MidiDevice {
   name: string;
 }
 
+export interface DeviceMapping {
+  deviceId: string;
+  name: string;
+  mappings: { [hardwareNote: number]: number };
+}
+
 export interface ElectronAPI {
   midi: {
     list: () => Promise<MidiDevice[]>;
     selectDevice: (deviceId: string) => Promise<void>;
     onEvent: (callback: (event: MidiEvent) => void) => void;
     removeEventListener: () => void;
+  };
+  mapping: {
+    get: (deviceId: string) => Promise<DeviceMapping | null>;
+    save: (mapping: DeviceMapping) => Promise<void>;
+    getAll: () => Promise<DeviceMapping[]>;
+    delete: (deviceId: string) => Promise<void>;
   };
 }
 

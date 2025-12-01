@@ -12,6 +12,12 @@ export interface MidiDevice {
   name: string;
 }
 
+export interface DeviceMapping {
+  deviceId: string;
+  name: string;
+  mappings: { [hardwareNote: number]: number };
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   // MIDI APIs
   midi: {
@@ -24,5 +30,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     removeEventListener: () => {
       ipcRenderer.removeAllListeners('midi:event');
     },
+  },
+  // Device mapping APIs
+  mapping: {
+    get: (deviceId: string): Promise<DeviceMapping | null> =>
+      ipcRenderer.invoke('mapping:get', deviceId),
+    save: (mapping: DeviceMapping): Promise<void> =>
+      ipcRenderer.invoke('mapping:save', mapping),
+    getAll: (): Promise<DeviceMapping[]> => ipcRenderer.invoke('mapping:getAll'),
+    delete: (deviceId: string): Promise<void> =>
+      ipcRenderer.invoke('mapping:delete', deviceId),
   },
 });

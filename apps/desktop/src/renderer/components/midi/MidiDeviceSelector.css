@@ -1,0 +1,121 @@
+.midi-device-selector {
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.midi-device-selector h2 {
+  margin-bottom: 1.5rem;
+  font-size: 1.8rem;
+}
+
+.midi-device-selector h3 {
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+}
+
+.error-message {
+  background: rgba(255, 100, 100, 0.2);
+  border: 1px solid rgba(255, 100, 100, 0.5);
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  color: #ffcccc;
+}
+
+.device-list {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
+.device-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem 0;
+}
+
+.device-list li {
+  margin-bottom: 0.5rem;
+}
+
+.device-list button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.device-list button:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.device-list li.selected button {
+  background: rgba(100, 200, 255, 0.4);
+  border-color: rgba(100, 200, 255, 0.8);
+  font-weight: bold;
+}
+
+.refresh-button {
+  background: rgba(100, 200, 100, 0.3) !important;
+  border-color: rgba(100, 200, 100, 0.6) !important;
+}
+
+.refresh-button:hover {
+  background: rgba(100, 200, 100, 0.5) !important;
+}
+
+.no-devices,
+.no-events {
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+  padding: 1rem;
+}
+
+.midi-monitor {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-radius: 12px;
+}
+
+.event-list {
+  max-height: 400px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.event-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.event-list thead th {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+  font-weight: bold;
+}
+
+.event-list tbody td {
+  padding: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.event-list tbody tr.note-on {
+  background: rgba(100, 255, 100, 0.1);
+}
+
+.event-list tbody tr.note-off {
+  background: rgba(255, 100, 100, 0.1);
+}

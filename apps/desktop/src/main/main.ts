@@ -1,7 +1,12 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
+import { MidiManager } from './midi/manager';
+import { MidiEvent } from './midi/types';
+import { disconnectDb } from './data/db';
+import * as deviceMappings from './data/device-mappings';
 
 let mainWindow: BrowserWindow | null = null;
+let midiManager: MidiManager | null = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -30,6 +35,8 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  setupMidi();
+  setupIpcHandlers();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -44,4 +51,59 @@ app.on('window-all-closed', () => {
   }
 });
 
-// IPC handlers will be added here in later steps
+app.on('quit', async () => {
+  if (midiManager) {
+    midiManager.destroy();
+  }
+  await disconnectDb();
+});
+
+function setupMidi() {
+  midiManager = new MidiManager();
+
+  // Set up callback to forward MIDI events to renderer
+  midiManager.onEvent((event: MidiEvent) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('midi:event', event);
+    }
+  });
+}
+
+function setupIpcHandlers() {
+  // List available MIDI devices
+  ipcMain.handle('midi:list', async () => {
+    if (!midiManager) {
+      return [];
+    }
+    return midiManager.listDevices();
+  });
+
+  // Select a MIDI device
+  ipcMain.handle('midi:selectDevice', async (_event, deviceId: string) => {
+    if (!midiManager) {
+      throw new Error('MIDI manager not initialized');
+    }
+    const success = midiManager.selectDevice(deviceId);
+    if (!success) {
+      throw new Error(`Failed to select device: ${deviceId}`);
+    }
+    return success;
+  });
+
+  // Device mapping IPC handlers
+  ipcMain.handle('mapping:get', async (_event, deviceId: string) => {
+    return await deviceMappings.getDeviceMapping(deviceId);
+  });
+
+  ipcMain.handle('mapping:save', async (_event, mapping: deviceMappings.DeviceMapping) => {
+    await deviceMappings.saveDeviceMapping(mapping);
+  });
+
+  ipcMain.handle('mapping:getAll', async () => {
+    return await deviceMappings.getAllDeviceMappings();
+  });
+
+  ipcMain.handle('mapping:delete', async (_event, deviceId: string) => {
+    await deviceMappings.deleteDeviceMapping(deviceId);
+  });
+}

@@ -1,0 +1,46 @@
+// Prisma schema for Melodics MVP
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model DeviceMapping {
+  id        Int      @id @default(autoincrement())
+  deviceId  String   @unique
+  name      String
+  mappings  String   // JSON string of hardware note -> logical lane mappings
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LessonProgress {
+  id            Int      @id @default(autoincrement())
+  lessonId      String
+  userId        String   @default("default")
+  completed     Boolean  @default(false)
+  score         Int      @default(0)
+  accuracy      Float    @default(0)
+  bestScore     Int      @default(0)
+  bestAccuracy  Float    @default(0)
+  timesPlayed   Int      @default(0)
+  lastPlayedAt  DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([lessonId, userId])
+}
+
+model UserProfile {
+  id          Int      @id @default(autoincrement())
+  userId      String   @unique @default("default")
+  xp          Int      @default(0)
+  level       Int      @default(1)
+  trophies    String   @default("[]") // JSON array of trophy IDs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
