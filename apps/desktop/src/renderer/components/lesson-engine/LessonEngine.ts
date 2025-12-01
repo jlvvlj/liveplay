@@ -16,6 +16,7 @@ export interface LessonEngineCallbacks {
   onScoreUpdate?: (score: LessonScore) => void;
   onStateChange?: (state: LessonEngineState) => void;
   onLoop?: () => void;
+  onComplete?: (finalScore: LessonScore) => void;
 }
 
 /**
@@ -45,7 +46,6 @@ export class LessonEngine {
   private callbacks: LessonEngineCallbacks;
   private practiceMode: PracticeModeSettings;
 
-  private currentTick: number = 0;
   private scheduledSteps: Map<number, LessonStep> = new Map();
   private expectedSteps: Map<number, { step: LessonStep; time: number }> = new Map();
   private processedSteps: Set<number> = new Set();
@@ -63,7 +63,6 @@ export class LessonEngine {
 
   private loopStartTick: number = 0;
   private loopEndTick: number = 0;
-  private playbackStartTime: number = 0;
 
   constructor(callbacks: LessonEngineCallbacks = {}) {
     this.callbacks = callbacks;
@@ -129,8 +128,6 @@ export class LessonEngine {
     const effectiveBpm = this.lesson.bpm * this.practiceMode.speedMultiplier;
     Tone.Transport.bpm.value = effectiveBpm;
 
-    this.currentTick = this.loopStartTick;
-    this.playbackStartTime = Tone.now();
     this.processedSteps.clear();
     this.scheduleSteps();
 
@@ -168,7 +165,6 @@ export class LessonEngine {
   stop(): void {
     Tone.Transport.stop();
     Tone.Transport.cancel();
-    this.currentTick = this.loopStartTick;
     this.scheduledSteps.clear();
     this.expectedSteps.clear();
     this.processedSteps.clear();
@@ -185,7 +181,6 @@ export class LessonEngine {
     }
 
     // Find the closest expected step for this note
-    const currentTime = Tone.now();
     let closestMatch: { step: LessonStep; time: number; delta: number } | null = null;
 
     for (const [stepIndex, expected] of this.expectedSteps.entries()) {
@@ -291,10 +286,15 @@ export class LessonEngine {
       }
     }
 
-    // Schedule loop restart
+    // Schedule loop restart or completion
     if (this.practiceMode.loopEnabled || this.lesson.loop) {
       Tone.Transport.schedule(() => {
         this.handleLoop();
+      }, `+${loopDuration}`);
+    } else {
+      // Schedule completion when lesson ends
+      Tone.Transport.schedule(() => {
+        this.handleCompletion();
       }, `+${loopDuration}`);
     }
   }
@@ -309,7 +309,15 @@ export class LessonEngine {
     }
   }
 
-  private handleWaitModeInput(note: number, timestamp: number): void {
+  private handleCompletion(): void {
+    this.stop();
+
+    if (this.callbacks.onComplete) {
+      this.callbacks.onComplete(this.getScore());
+    }
+  }
+
+  private handleWaitModeInput(note: number, _timestamp: number): void {
     // Find the next expected step
     const nextStep = this.findNextExpectedStep();
 

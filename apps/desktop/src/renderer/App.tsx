@@ -9,7 +9,6 @@ type AppView = 'setup' | 'lessons' | 'playing';
 function App() {
   const [view, setView] = useState<AppView>('setup');
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [midiConnected, setMidiConnected] = useState(false);
 
   const handleLessonSelect = (lesson: Lesson) => {
     setSelectedLesson(lesson);
@@ -19,10 +18,6 @@ function App() {
   const handleBackToLessons = () => {
     setView('lessons');
     setSelectedLesson(null);
-  };
-
-  const handleBackToSetup = () => {
-    setView('setup');
   };
 
   return (

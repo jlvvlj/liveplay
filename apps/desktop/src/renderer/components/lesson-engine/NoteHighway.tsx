@@ -129,17 +129,6 @@ export function NoteHighway({ instrument, steps, currentTime, bpm, onNoteReached
     };
   }, [currentTime, steps, bpm]);
 
-  const markNoteHit = (stepIndex: number, accuracy: 'perfect' | 'good' | 'early' | 'late' | 'miss') => {
-    setVisualNotes((prev) => {
-      const newMap = new Map(prev);
-      const note = newMap.get(stepIndex);
-      if (note) {
-        newMap.set(stepIndex, { ...note, hit: true, accuracy });
-      }
-      return newMap;
-    });
-  };
-
   const getLaneLabel = (laneIndex: number): string => {
     if (instrument === 'pads') {
       return `P${laneIndex + 1}`;
@@ -209,7 +198,19 @@ export function NoteHighway({ instrument, steps, currentTime, bpm, onNoteReached
 
       {/* Progress bar */}
       <div className="highway-progress">
-        <div className="progress-label">Lesson Progress</div>
+        <div className="progress-bar-container">
+          <div
+            className="progress-bar-fill"
+            style={{
+              width: `${Math.min(100, (currentTime / (steps.length > 0 ? ticksToMs(steps[steps.length - 1].tick) : 1)) * 100)}%`
+            }}
+          />
+        </div>
+        <div className="progress-label">
+          {currentTime > 0
+            ? `${Math.floor((currentTime / (steps.length > 0 ? ticksToMs(steps[steps.length - 1].tick) : 1)) * 100)}%`
+            : 'Ready'}
+        </div>
       </div>
     </div>
   );

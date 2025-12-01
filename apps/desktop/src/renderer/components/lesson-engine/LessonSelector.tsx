@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Lesson } from '../../types/lesson';
 import './LessonSelector.css';
 

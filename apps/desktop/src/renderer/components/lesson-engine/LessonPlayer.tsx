@@ -14,6 +14,9 @@ export function LessonPlayer({ lesson, onComplete }: LessonPlayerProps) {
   const engineRef = useRef<LessonEngine | null>(null);
   const [state, setState] = useState<LessonEngineState>('stopped');
   const [currentTime, setCurrentTime] = useState<number>(0);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [showCompletion, setShowCompletion] = useState<boolean>(false);
+  const [finalScore, setFinalScore] = useState<LessonScore | null>(null);
   const [score, setScore] = useState<LessonScore>({
     totalSteps: 0,
     hits: 0,
@@ -48,6 +51,10 @@ export function LessonPlayer({ lesson, onComplete }: LessonPlayerProps) {
       },
       onLoop: () => {
         console.log('Loop restarted');
+      },
+      onComplete: (finalScore) => {
+        setFinalScore(finalScore);
+        setShowCompletion(true);
       },
     });
 
@@ -95,9 +102,23 @@ export function LessonPlayer({ lesson, onComplete }: LessonPlayerProps) {
   }, [state, practiceMode.speedMultiplier]);
 
   const handleStart = async () => {
-    if (engineRef.current) {
-      await engineRef.current.start();
-    }
+    // Start countdown before lesson begins
+    setCountdown(3);
+
+    const countdownInterval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          // Start the lesson after countdown
+          if (engineRef.current) {
+            engineRef.current.start();
+          }
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const handlePause = () => {
@@ -134,6 +155,32 @@ export function LessonPlayer({ lesson, onComplete }: LessonPlayerProps) {
     setPracticeMode((prev) => ({ ...prev, autoBpmEnabled: !prev.autoBpmEnabled }));
   };
 
+  const handleReplay = () => {
+    setShowCompletion(false);
+    setFinalScore(null);
+    setRecentFeedback([]);
+    setScore({
+      totalSteps: 0,
+      hits: 0,
+      misses: 0,
+      perfectHits: 0,
+      goodHits: 0,
+      accuracy: 0,
+      totalPoints: 0,
+      maxPoints: 0,
+    });
+    // Reinitialize the engine
+    if (engineRef.current) {
+      engineRef.current.loadLesson(lesson);
+    }
+  };
+
+  const handleContinue = () => {
+    if (onComplete) {
+      onComplete();
+    }
+  };
+
   const getAccuracyColor = (accuracy: number): string => {
     if (accuracy >= 90) return '#4ade80'; // green
     if (accuracy >= 75) return '#facc15'; // yellow
@@ -159,6 +206,62 @@ export function LessonPlayer({ lesson, onComplete }: LessonPlayerProps) {
 
   return (
     <div className="lesson-player">
+      {/* Countdown Overlay */}
+      {countdown !== null && (
+        <div className="countdown-overlay">
+          <div className="countdown-number">
+            {countdown === 0 ? 'GO!' : countdown}
+          </div>
+        </div>
+      )}
+
+      {/* Completion Screen */}
+      {showCompletion && finalScore && (
+        <div className="completion-overlay">
+          <div className="completion-screen">
+            <h2 className="completion-title">Lesson Complete!</h2>
+
+            <div className="completion-score">
+              <div
+                className="completion-accuracy-circle"
+                style={{ borderColor: getAccuracyColor(finalScore.accuracy) }}
+              >
+                <span className="completion-accuracy-value">{finalScore.accuracy.toFixed(1)}%</span>
+                <span className="completion-accuracy-label">Accuracy</span>
+              </div>
+            </div>
+
+            <div className="completion-stats">
+              <div className="completion-stat">
+                <span className="completion-stat-value">{finalScore.totalPoints}</span>
+                <span className="completion-stat-label">Total Points</span>
+              </div>
+              <div className="completion-stat">
+                <span className="completion-stat-value">{finalScore.perfectHits}</span>
+                <span className="completion-stat-label">Perfect Hits</span>
+              </div>
+              <div className="completion-stat">
+                <span className="completion-stat-value">{finalScore.goodHits}</span>
+                <span className="completion-stat-label">Good Hits</span>
+              </div>
+              <div className="completion-stat">
+                <span className="completion-stat-value">{finalScore.misses}</span>
+                <span className="completion-stat-label">Misses</span>
+              </div>
+            </div>
+
+            <div className="completion-actions">
+              <button className="btn-primary" onClick={handleReplay}>
+                Replay Lesson
+              </button>
+              <button className="btn-primary" onClick={handleContinue}>
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="lesson-header">
         <h2>{lesson.title}</h2>
         <div className="lesson-meta">
