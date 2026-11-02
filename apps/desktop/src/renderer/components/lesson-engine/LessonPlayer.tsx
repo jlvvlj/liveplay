@@ -962,15 +962,24 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
       const nextStep = nextStepIndex !== -1 ? lesson.steps[nextStepIndex] : null;
       const isCorrectNext = nextStep !== null && nextStep.note === translatedNote;
 
-      // Play sound for any note (free play). Use the matched step's note for sample
-      // lookup only when it's the correct next note; otherwise fall back to the pitch.
+      // Play sound for any note (free play). The sound comes from this pitch's
+      // next appearance in the chart (the next note itself when it's correct):
+      // song lessons need a step to know which moment of the recording to play.
+      let soundStep: LessonStep | null = isCorrectNext ? nextStep : null;
+      if (!soundStep) {
+        const from = Math.max(nextStepIndex, 0);
+        soundStep =
+          lesson.steps.slice(from).find((step) => step.note === translatedNote) ??
+          lesson.steps.find((step) => step.note === translatedNote) ??
+          null;
+      }
       playSound(
         translatedNote,
-        isCorrectNext ? nextStep!.note : undefined,
+        soundStep?.note,
         undefined,
-        isCorrectNext ? nextStep!.slice : undefined,
+        soundStep?.slice,
         undefined,
-        isCorrectNext ? nextStep!.semitones : undefined
+        soundStep?.semitones
       );
 
       if (isCorrectNext) {

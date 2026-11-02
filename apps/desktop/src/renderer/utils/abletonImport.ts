@@ -28,11 +28,17 @@ export interface AbletonTrack {
   sampleRootKey: number;
 }
 
+/** A file of the project folder, with its path inside that folder. */
+export interface ProjectFile {
+  path: string; // e.g. "Project/Samples/Imported/Kick.wav"
+  file: File;
+}
+
 export interface AbletonProject {
   name: string;
   tempo: number;
   tracks: AbletonTrack[]; // MIDI tracks that have notes in the arrangement
-  files: File[]; // every file in the picked folder
+  files: ProjectFile[]; // every file in the project folder
   exports: Map<string, File>; // track name -> its exported WAV (MIDI and audio tracks)
 }
 
@@ -88,10 +94,10 @@ function clipNotes(clip: Element): AbletonNote[] {
   return notes;
 }
 
-export async function readAbletonProject(files: File[]): Promise<AbletonProject> {
-  const sets = files.filter((f) => f.name.endsWith('.als') && !/(^|\/)Backup\//.test(f.webkitRelativePath));
+export async function readAbletonProject(files: ProjectFile[]): Promise<AbletonProject> {
+  const sets = files.filter((f) => f.file.name.endsWith('.als') && !/(^|\/)Backup\//.test(f.path));
   if (sets.length === 0) throw new Error('This folder has no Ableton Live Set (.als).');
-  const setFile = sets[0];
+  const setFile = sets[0].file;
   const doc = new DOMParser().parseFromString(await gunzipText(setFile), 'application/xml');
   const liveSet = doc.querySelector('Ableton > LiveSet');
   if (!liveSet) throw new Error(`${setFile.name} is not a readable Ableton Live Set.`);
@@ -136,25 +142,28 @@ const normalize = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' 
  * Pairs exported WAVs with tracks. Ableton names each file after its track
  * (with a prefix), so a file belongs to the longest track name its name ends
  * with ("Atmos Chop" beats "Chop"). The project's own samples are not exports.
+ * When a track was exported more than once, the newest export is used.
  */
-function matchExports(files: File[], trackNames: string[]): Map<string, File> {
+function matchExports(files: ProjectFile[], trackNames: string[]): Map<string, File> {
   const exports = new Map<string, File>();
   const byLength = [...new Set(trackNames)].sort((a, b) => b.length - a.length);
-  for (const file of files) {
+  for (const { path, file } of files) {
     if (!/\.(wav|aiff?)$/i.test(file.name)) continue;
-    if (/(^|\/)(Samples|Backup)\//.test(file.webkitRelativePath)) continue;
+    if (/(^|\/)(Samples|Backup)\//.test(path)) continue;
     const base = normalize(file.name.replace(/\.[^.]+$/, ''));
     const track = byLength.find((name) => base === normalize(name) || base.endsWith(' ' + normalize(name)));
-    if (track && !exports.has(track)) exports.set(track, file);
+    if (!track) continue;
+    const current = exports.get(track);
+    if (!current || file.lastModified > current.lastModified) exports.set(track, file);
   }
   return exports;
 }
 
-/** The picked folder's copy of a track's sample, preferring the project's Samples folder. */
+/** The folder's copy of a track's sample, preferring the project's Samples folder. */
 export function findSampleFile(project: AbletonProject, track: AbletonTrack): File | null {
   if (!track.sampleName) return null;
-  const matches = project.files.filter((f) => f.name === track.sampleName);
-  return matches.find((f) => /(^|\/)Samples\//.test(f.webkitRelativePath)) ?? matches[0] ?? null;
+  const matches = project.files.filter((f) => f.file.name === track.sampleName);
+  return (matches.find((f) => /(^|\/)Samples\//.test(f.path)) ?? matches[0])?.file ?? null;
 }
 
 /** A track can be practised if its export or its Simpler sample is in the folder. */
