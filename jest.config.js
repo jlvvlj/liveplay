@@ -12,5 +12,6 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+    '/instrument-lab/engine/synth\\.mjs$': '<rootDir>/tests/mocks/instrumentLabSynth.ts',
   },
 };

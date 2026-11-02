@@ -1,25 +1,8 @@
 import { Lesson } from '../../types/lesson';
 
-// Songs for the Jam tab. Their audio is rendered by
+// Songs for the Jam tab. Their notes are played with the Jam tab's synth
+// sounds (jamSynth.ts); the backing groove is rendered by
 // scripts/make-pentatonic-jam-audio.mjs into audio/samples/pentatonic_jam/.
-
-const JAM_NOTES = [45, 48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81];
-
-const jamSamples = (setId: string): { [note: number]: string } =>
-  Object.fromEntries(JAM_NOTES.map((note) => [note, `samples/pentatonic_jam/${setId}-${note}.wav`]));
-
-// Sounds the notes can be played with, chosen in the Jam tab's sidebar
-export interface JamSoundSet {
-  id: string;
-  label: string;
-  samples: { [note: number]: string };
-}
-
-export const JAM_SOUND_SETS: JamSoundSet[] = [
-  { id: 'stab', label: '8-bit stab', samples: jamSamples('stab') },
-  { id: 'bell', label: 'Synth bell', samples: jamSamples('bell') },
-  { id: 'wood', label: 'Woody', samples: jamSamples('wood') },
-];
 
 export const PENTATONIC_GROOVE_JAM: Lesson = {
   id: 'pentatonic-groove-jam',
@@ -83,7 +66,6 @@ export const PENTATONIC_GROOVE_JAM: Lesson = {
     startTick: 0,
     endTick: 15360, // 8 bars, the length of the groove loop
   },
-  samples: jamSamples('stab'),
   backingTrack: 'samples/pentatonic_jam/groove.wav',
   metadata: {
     difficulty: 1,

@@ -1737,3 +1737,74 @@
   text-align: center;
 }
 
+/* Jam settings: sound grid, waveform choice, compact sliders */
+.jam-sound-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.jam-sound-grid .jam-sound-option {
+  padding: 0.45rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.jam-family-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+
+.jam-family-options .jam-sound-option {
+  padding: 0.35rem 0.3rem;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.jam-slider {
+  margin-top: 0.55rem;
+}
+
+.jam-slider-head {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.55rem 0 0.25rem;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.jam-slider .jam-slider-head {
+  margin-top: 0;
+}
+
+.jam-slider-value {
+  color: #4ade80;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-subhead {
+  margin-top: 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.jam-reset {
+  margin-left: auto;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.jam-reset:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+

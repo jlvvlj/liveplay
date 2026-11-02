@@ -4,7 +4,15 @@ import { LessonEngine, LessonEngineState } from './LessonEngine';
 import { Lesson, LessonStep, HitFeedback, LessonScore, PracticeModeSettings } from '../../types/lesson';
 import { MidiEvent, DeviceMapping } from '../../types/electron';
 import { NoteHighway, HighwayMode, JamNote } from './NoteHighway';
-import type { JamSoundSet } from './jamSongs';
+import { JamSettingsPanel } from './JamSettingsPanel';
+import {
+  renderJamSamples,
+  DEFAULT_JAM_EFFECTS,
+  JAM_ECHO_BEATS,
+  type JamSoundPreset,
+  type JamSynthPatch,
+  type JamEffects,
+} from './jamSynth';
 import './LessonPlayer.css';
 
 interface LessonPlayerProps {
@@ -12,8 +20,8 @@ interface LessonPlayerProps {
   onComplete?: () => void;
   // Jam tab: the highway is always in jam mode and always running
   jamOnly?: boolean;
-  // Jam tab: sounds to choose from in the sidebar; the first is the default
-  jamSoundSets?: JamSoundSet[];
+  // Jam tab: synth sounds to choose from in the sidebar; the first is the default
+  jamSounds?: JamSoundPreset[];
 }
 
 const MIN_EFFECTIVE_SPEED = 0.01;
@@ -34,6 +42,44 @@ const JAM_HOLD_LOOKAHEAD_S = 0.1;
 // stays clearly audible
 const JAM_BACKING_TOP_DB = -2 + 20 * Math.log10(1.3);
 const DEFAULT_JAM_NOTES_VOLUME = 0.75;
+
+// Jam tab settings remembered in this browser: chosen sound, edited synth
+// settings per sound, and the effects
+interface JamSettings {
+  soundId: string;
+  patches: Record<string, JamSynthPatch>;
+  effects: JamEffects;
+}
+const JAM_SETTINGS_KEY = 'melodics.jamSettings.v1';
+
+function loadJamSettings(sounds: JamSoundPreset[]): JamSettings {
+  const defaults: JamSettings = {
+    soundId: sounds[0].id,
+    patches: Object.fromEntries(sounds.map((sound) => [sound.id, sound.patch])),
+    effects: DEFAULT_JAM_EFFECTS,
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(JAM_SETTINGS_KEY) ?? 'null') as Partial<JamSettings> | null;
+    if (!saved) return defaults;
+    return {
+      soundId: sounds.some((sound) => sound.id === saved.soundId) ? saved.soundId! : defaults.soundId,
+      patches: Object.fromEntries(
+        sounds.map((sound) => [sound.id, { ...sound.patch, ...saved.patches?.[sound.id] }])
+      ),
+      effects: { ...DEFAULT_JAM_EFFECTS, ...saved.effects },
+    };
+  } catch {
+    return defaults; // storage unavailable: start from the presets
+  }
+}
+
+function saveJamSettings(settings: JamSettings) {
+  try {
+    localStorage.setItem(JAM_SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // storage unavailable: settings last for this visit only
+  }
+}
 
 // Lesson audio is either a file under the app's /audio/ folder or already a
 // full URL (blob: for files read from a picked Ableton project folder).
@@ -72,13 +118,37 @@ function saveDisabledNotes(lesson: Lesson, notes: number[], disabled: Set<number
   }
 }
 
-export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, jamSoundSets }: LessonPlayerProps) {
-  // Jam tab: the chosen sound set supplies the note samples
-  const [jamSoundSetId, setJamSoundSetId] = useState<string | undefined>(jamSoundSets?.[0]?.id);
-  const fullLesson = useMemo<Lesson>(() => {
-    const soundSet = jamSoundSets?.find((set) => set.id === jamSoundSetId);
-    return soundSet ? { ...lessonProp, samples: soundSet.samples } : lessonProp;
-  }, [lessonProp, jamSoundSets, jamSoundSetId]);
+export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, jamSounds }: LessonPlayerProps) {
+  // Jam tab: the chosen synth sound, its (editable) settings and the effects,
+  // remembered between visits
+  const [jamSettings, setJamSettings] = useState<JamSettings | null>(() =>
+    jamSounds?.length ? loadJamSettings(jamSounds) : null
+  );
+  useEffect(() => {
+    if (jamSettings) saveJamSettings(jamSettings);
+  }, [jamSettings]);
+  const jamPatch = jamSettings ? jamSettings.patches[jamSettings.soundId] : undefined;
+
+  // The chosen sound is rendered into one clip per note, re-rendered shortly
+  // after its settings stop changing
+  const [jamSamples, setJamSamples] = useState<{ [note: number]: string } | undefined>(undefined);
+  useEffect(() => {
+    if (!jamPatch) return;
+    const notes = Array.from(new Set(lessonProp.steps.map((s) => s.note)));
+    const timer = setTimeout(() => setJamSamples(renderJamSamples(jamPatch, notes)), 120);
+    return () => clearTimeout(timer);
+  }, [jamPatch, lessonProp.steps]);
+  // Free replaced clips once their players have been swapped out
+  useEffect(
+    () => () => {
+      if (jamSamples) setTimeout(() => Object.values(jamSamples).forEach((url) => URL.revokeObjectURL(url)), 2000);
+    },
+    [jamSamples]
+  );
+  const fullLesson = useMemo<Lesson>(
+    () => (jamSamples ? { ...lessonProp, samples: jamSamples } : lessonProp),
+    [lessonProp, jamSamples]
+  );
 
   // Sounds (lanes) the player switched off are removed from the practice
   // entirely: off the highway, not scored, never auto-played, and their pad
@@ -367,6 +437,41 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
     };
   }, []);
 
+  // Jam tab: played notes run through an echo and a reverb before the output
+  const jamNotesBusRef = useRef<Tone.Gain | null>(null);
+  const jamEchoRef = useRef<Tone.FeedbackDelay | null>(null);
+  const jamReverbRef = useRef<Tone.Reverb | null>(null);
+  useEffect(() => {
+    if (!jamOnly) return;
+    const bus = new Tone.Gain(1);
+    const echo = new Tone.FeedbackDelay();
+    const reverb = new Tone.Reverb();
+    bus.chain(echo, reverb, Tone.getDestination());
+    jamNotesBusRef.current = bus;
+    jamEchoRef.current = echo;
+    jamReverbRef.current = reverb;
+    return () => {
+      bus.dispose();
+      echo.dispose();
+      reverb.dispose();
+      jamNotesBusRef.current = null;
+      jamEchoRef.current = null;
+      jamReverbRef.current = null;
+    };
+  }, [jamOnly]);
+
+  const jamEffects = jamSettings?.effects;
+  useEffect(() => {
+    const echo = jamEchoRef.current;
+    const reverb = jamReverbRef.current;
+    if (!echo || !reverb || !jamEffects) return;
+    echo.wet.value = jamEffects.echoMix;
+    echo.feedback.value = jamEffects.echoFeedback;
+    echo.delayTime.value = (JAM_ECHO_BEATS[jamEffects.echoTime] * 60) / lessonProp.bpm;
+    reverb.wet.value = jamEffects.reverbMix;
+    if (reverb.decay !== jamEffects.reverbSize) reverb.decay = jamEffects.reverbSize;
+  }, [jamEffects, lessonProp.bpm, jamOnly]);
+
   // Load audio samples when lesson has samples defined
   useEffect(() => {
     // Cleanup previous sample players
@@ -501,7 +606,7 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
                     setSamplesLoaded(loadedCount > 0);
                   }
                 }
-              }).toDestination();
+              }).connect(jamNotesBusRef.current ?? Tone.getDestination());
               player.volume.value = -6;
               return player;
             });
@@ -1794,98 +1899,32 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
             <span className="settings-icon">&#9881;</span>
           </button>
         )}
-        {jamOnly && showJamSettings && (
-          <div className="game-settings-sidebar">
-            <div className="game-settings-header">
-              <h3>Settings</h3>
-              <button className="close-sidebar" onClick={() => setShowJamSettings(false)}>
-                &times;
-              </button>
-            </div>
-
-            <div className="game-settings-content">
-              {jamSoundSets && jamSoundSets.length > 1 && (
-                <div className="setting-group">
-                  <label className="setting-label">
-                    <span className="setting-icon">&#127927;</span>
-                    Sound
-                  </label>
-                  <div className="jam-sound-options">
-                    {jamSoundSets.map((set) => (
-                      <button
-                        key={set.id}
-                        className={`jam-sound-option ${set.id === jamSoundSetId ? 'active' : ''}`}
-                        onClick={() => setJamSoundSetId(set.id)}
-                      >
-                        {set.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="setting-group">
-                <label className="setting-label">
-                  <span className="setting-icon">&#128257;</span>
-                  Hold repeat
-                  <span className="setting-value">1/{jamHoldDivision}</span>
-                </label>
-                <div className="jam-sound-options jam-hold-options">
-                  {JAM_HOLD_DIVISIONS.map((division) => (
-                    <button
-                      key={division}
-                      className={`jam-sound-option ${division === jamHoldDivision ? 'active' : ''}`}
-                      onClick={() => setJamHoldDivision(division)}
-                    >
-                      {division}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="setting-group">
-                <label className="setting-label">
-                  <span className="setting-icon">&#127929;</span>
-                  Notes
-                  <span className="setting-value">{Math.round(jamNotesVolume * 100)}%</span>
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={jamNotesVolume}
-                  onChange={(e) => setJamNotesVolume(parseFloat(e.target.value))}
-                  className="volume-slider"
-                />
-                <div className="slider-labels">
-                  <span>Off</span>
-                  <span>Full</span>
-                </div>
-              </div>
-
-              <div className="setting-group">
-                <label className="setting-label">
-                  <span className="setting-icon">&#127926;</span>
-                  Backing Track
-                  <span className="setting-value">{Math.round(backingTrackVolume * 100)}%</span>
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={backingTrackVolume}
-                  onChange={(e) => setBackingTrackVolume(parseFloat(e.target.value))}
-                  className="volume-slider"
-                />
-                <div className="slider-labels">
-                  <span>Off</span>
-                  <span>Full</span>
-                </div>
-              </div>
-            </div>
-          </div>
+        {jamOnly && showJamSettings && jamSettings && jamSounds && (
+          <JamSettingsPanel
+            sounds={jamSounds}
+            soundId={jamSettings.soundId}
+            onSoundChange={(soundId) => setJamSettings({ ...jamSettings, soundId })}
+            patch={jamSettings.patches[jamSettings.soundId]}
+            onPatchChange={(patch) =>
+              setJamSettings({ ...jamSettings, patches: { ...jamSettings.patches, [jamSettings.soundId]: patch } })
+            }
+            onPatchReset={() => {
+              const preset = jamSounds.find((sound) => sound.id === jamSettings.soundId);
+              if (preset) {
+                setJamSettings({ ...jamSettings, patches: { ...jamSettings.patches, [preset.id]: preset.patch } });
+              }
+            }}
+            holdDivisions={JAM_HOLD_DIVISIONS}
+            holdDivision={jamHoldDivision}
+            onHoldDivisionChange={setJamHoldDivision}
+            notesVolume={jamNotesVolume}
+            onNotesVolumeChange={setJamNotesVolume}
+            backingVolume={backingTrackVolume}
+            onBackingVolumeChange={setBackingTrackVolume}
+            effects={jamSettings.effects}
+            onEffectsChange={(effects) => setJamSettings({ ...jamSettings, effects })}
+            onClose={() => setShowJamSettings(false)}
+          />
         )}
 
         {/* Game mode settings toggle button - left side */}
