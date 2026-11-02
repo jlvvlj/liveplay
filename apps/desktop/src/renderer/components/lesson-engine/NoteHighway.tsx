@@ -682,6 +682,29 @@ export function NoteHighway({
     onJamPointer?.(null);
   };
 
+  // Jam mode backdrop that never stops moving: a beat grid scrolling with the
+  // music (16ths, beats, bars) and two layers of specks drifting slower behind it
+  const renderJamMotion = () => {
+    const scroll = hitZoneOffset - currentTime * JAM_PIXELS_PER_MS;
+    const sixteenthPx = (60000 / bpm / 4) * JAM_PIXELS_PER_MS;
+    const sizes = [sixteenthPx * 16, sixteenthPx * 4, sixteenthPx];
+    return (
+      <div className="jam-motion">
+        <div
+          className="jam-motion-specks"
+          style={{ backgroundPositionX: `${-currentTime * JAM_PIXELS_PER_MS * 0.2}px, ${-currentTime * JAM_PIXELS_PER_MS * 0.4}px` }}
+        />
+        <div
+          className="jam-motion-grid"
+          style={{
+            backgroundSize: sizes.map((size) => `${size}px 100%`).join(', '),
+            backgroundPositionX: sizes.map(() => `${scroll}px`).join(', '),
+          }}
+        />
+      </div>
+    );
+  };
+
   const formatClock = (ms: number): string => {
     const minutes = Math.floor(ms / 60000);
     const seconds = Math.floor((ms % 60000) / 1000);
@@ -713,12 +736,7 @@ export function NoteHighway({
       {mode === 'play' && (
         <div className={`timing-line ${hasActivePad ? 'active' : ''}`} />
       )}
-      {mode === 'jam' && (
-        <div
-          className={`timing-line ${hasActivePad ? 'active' : ''}`}
-          style={{ left: `${JAM_LINE_PERCENT * 100}%` }}
-        />
-      )}
+      {mode === 'jam' && renderJamMotion()}
 
       {/* Floating timing judgments (early / late / perfect) at the hit zone */}
       {renderTimingPopups()}

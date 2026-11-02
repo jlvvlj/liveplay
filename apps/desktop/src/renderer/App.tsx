@@ -3,12 +3,13 @@ import { InstrumentLab } from './components/instrument-lab/InstrumentLab';
 import { MidiDeviceSelector } from './components/midi/MidiDeviceSelector';
 import { LessonSelector } from './components/lesson-engine/LessonSelector';
 import { LessonPlayer } from './components/lesson-engine/LessonPlayer';
+import { JAM_SONGS } from './components/lesson-engine/jamSongs';
 import { SongPracticePlayer } from './components/song-practice/SongPracticePlayer';
 import { StemSoundEditor } from './components/stem-editor/StemSoundEditor';
 import { Lesson } from './types/lesson';
 import { Song } from './types/song';
 
-type AppView = 'lessons' | 'playing' | 'settings' | 'song-practice' | 'stem-editor' | 'instrument-lab';
+type AppView = 'lessons' | 'jam' | 'playing' | 'settings' | 'song-practice' | 'stem-editor' | 'instrument-lab';
 
 function App() {
   const [view, setView] = useState<AppView>('lessons');
@@ -43,13 +44,16 @@ function App() {
   };
 
   return (
-    <div className="app">
+    <div className={`app ${view === 'jam' ? 'app-jam' : ''}`}>
       <header className="app-header">
         <h1>Melodics-like MVP — DEV</h1>
         <p>Interactive MIDI Lessons Platform</p>
         <nav className="app-nav">
           <button onClick={() => setView('lessons')} className={view === 'lessons' ? 'active' : ''}>
             Lessons
+          </button>
+          <button onClick={() => setView('jam')} className={view === 'jam' ? 'active' : ''}>
+            Jam
           </button>
           <button onClick={() => { setSelectedSong(null); setView('instrument-lab'); }} className={view === 'instrument-lab' ? 'active' : ''}>
             Instrument Lab
@@ -73,6 +77,9 @@ function App() {
             onSongEdit={handleSongEdit}
             onSongInstrumentEdit={(song) => { setSelectedSong(song); setView('instrument-lab'); }}
           />
+        )}
+        {view === 'jam' && (
+          <LessonPlayer key={JAM_SONGS[0].id} lesson={JAM_SONGS[0]} jamOnly />
         )}
         {view === 'instrument-lab' && (
           <InstrumentLab song={selectedSong} onExit={handleBackToLessons} />

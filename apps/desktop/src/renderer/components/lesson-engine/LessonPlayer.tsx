@@ -9,6 +9,8 @@ import './LessonPlayer.css';
 interface LessonPlayerProps {
   lesson: Lesson;
   onComplete?: () => void;
+  // Jam tab: the highway is always in jam mode and always running
+  jamOnly?: boolean;
 }
 
 const MIN_EFFECTIVE_SPEED = 0.01;
@@ -22,6 +24,11 @@ const JAM_NOTE_LIFETIME_MS = 4000;
 // scheduled this far ahead on the audio clock
 const JAM_HOLD_REPEAT_SIXTEENTHS = 2;
 const JAM_HOLD_LOOKAHEAD_S = 0.1;
+
+// Jam tab volumes: the backing track tops out 4 dB louder than in lessons
+// and the played notes start below it, so the groove stays audible
+const JAM_BACKING_TOP_DB = -2;
+const DEFAULT_JAM_NOTES_VOLUME = 0.75;
 
 // Lesson audio is either a file under the app's /audio/ folder or already a
 // full URL (blob: for files read from a picked Ableton project folder).
@@ -60,7 +67,7 @@ function saveDisabledNotes(lesson: Lesson, notes: number[], disabled: Set<number
   }
 }
 
-export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerProps) {
+export function LessonPlayer({ lesson: fullLesson, onComplete, jamOnly = false }: LessonPlayerProps) {
   // Sounds (lanes) the player switched off are removed from the practice
   // entirely: off the highway, not scored, never auto-played, and their pad
   // is silent. Everything below plays and scores `lesson`, the practice
@@ -116,7 +123,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
   });
 
   // Current mode tab: free (default), wait, play, or jam
-  const [currentMode, setCurrentMode] = useState<HighwayMode>('free');
+  const [currentMode, setCurrentMode] = useState<HighwayMode>(jamOnly ? 'jam' : 'free');
   // Jam mode: free play over the pulse. Notes snap to the next 16th and are
   // drawn as dots on their pitch row, scrolling away from the line.
   const [jamNotes, setJamNotes] = useState<JamNote[]>([]);
@@ -146,6 +153,9 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
   const [backingTrackVolume, setBackingTrackVolume] = useState<number>(lesson.backingTrack ? 1 : 0);
   // Metronome volume (0 = off, 1 = full volume)
   const [metronomeVolume, setMetronomeVolume] = useState<number>(0);
+  // Jam tab: volume of the notes you play, and its settings sidebar
+  const [jamNotesVolume, setJamNotesVolume] = useState<number>(DEFAULT_JAM_NOTES_VOLUME);
+  const [showJamSettings, setShowJamSettings] = useState<boolean>(true);
 
   // Default keys for note assignments (in order of preference)
   // Expanded to support lessons with many unique notes (up to 36 keys)
@@ -545,10 +555,13 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
             audioPath = audioUrl(lesson.backingTrack!);
           }
 
-          backingTrackRef.current = new Tone.Player({
+          const player: Tone.Player = new Tone.Player({
             url: audioPath,
             loop: true,
             onload: () => {
+              // A player replaced before it finished loading (e.g. React's
+              // double mount in development) must not mark the current one loaded
+              if (backingTrackRef.current !== player) return;
               console.log('[LessonPlayer] Backing track loaded successfully');
               setBackingTrackLoaded(true);
             },
@@ -556,7 +569,8 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
               console.error('[LessonPlayer] Failed to load backing track:', err);
             },
           }).toDestination();
-          backingTrackRef.current.volume.value = -Infinity; // Start muted
+          backingTrackRef.current = player;
+          player.volume.value = -Infinity; // Start muted
         } catch (err) {
           console.error('[LessonPlayer] Error loading backing track:', err);
         }
@@ -583,12 +597,13 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     }
   }, [metronomeVolume]);
 
-  // Update backing track volume when slider changes
+  // Update backing track volume when slider changes, and once the track has loaded
   useEffect(() => {
     if (backingTrackRef.current) {
-      backingTrackRef.current.volume.value = backingTrackVolume === 0 ? -Infinity : -6 + (backingTrackVolume - 1) * 20;
+      const topDb = jamOnly ? JAM_BACKING_TOP_DB : -6;
+      backingTrackRef.current.volume.value = backingTrackVolume === 0 ? -Infinity : topDb + (backingTrackVolume - 1) * 20;
     }
-  }, [backingTrackVolume]);
+  }, [backingTrackVolume, backingTrackLoaded, jamOnly]);
 
   useEffect(() => {
     if (backingTrackRef.current) {
@@ -696,8 +711,8 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     let cancelled = false;
     let clockInterval: ReturnType<typeof setInterval> | null = null;
     let pulseInterval: ReturnType<typeof setInterval> | null = null;
-    const backing =
-      backingTrackRef.current && backingTrackLoaded && backingTrackVolume > 0 ? backingTrackRef.current : null;
+    // Its level is the volume slider's job, so moving the slider never restarts the jam
+    const backing = backingTrackRef.current?.loaded && backingTrackLoaded ? backingTrackRef.current : null;
 
     const begin = async () => {
       await Tone.start();
@@ -756,7 +771,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
       setJamNotes([]);
       setCurrentTime(0);
     };
-  }, [currentMode, lesson.bpm, lesson.timeSignature, backingTrackLoaded, backingTrackVolume]);
+  }, [currentMode, lesson.bpm, lesson.timeSignature, backingTrackLoaded]);
 
   const playSound = (
     note: number,
@@ -915,7 +930,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     // The same pitch twice on one 16th sounds once
     const prev = jamNotesRef.current;
     if (prev.some((n) => n.note === row && n.timeMs === timeMs)) return slot;
-    playSound(row, step?.note, undefined, step?.slice, Math.max(start + slot * sixteenth, Tone.now()), step?.semitones);
+    playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, Math.max(start + slot * sixteenth, Tone.now()), step?.semitones);
     const next = [
       ...prev.filter((n) => n.timeMs > elapsed * 1000 - JAM_NOTE_LIFETIME_MS),
       { id: ++jamNoteIdRef.current, note: row, timeMs },
@@ -923,7 +938,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     jamNotesRef.current = next;
     setJamNotes(next);
     return slot;
-  }, [jamRows, lesson.steps, lesson.bpm]);
+  }, [jamRows, lesson.steps, lesson.bpm, jamOnly, jamNotesVolume]);
 
   // Pointer play on the jam highway: pressing plays the row at once (on the
   // next 16th), holding repeats it every 8th, dragging changes the row
@@ -1422,7 +1437,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
   };
 
   return (
-    <div className="lesson-player">
+    <div className={`lesson-player ${jamOnly ? 'jam-only' : ''}`}>
       {/* Countdown Overlay */}
       {countdown !== null && (
         <div className="countdown-overlay">
@@ -1484,18 +1499,21 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
         <div className="lesson-toolbar">
           {/* Left: Exit and Title */}
           <div className="toolbar-left">
-            <button className="toolbar-btn exit-btn" onClick={handleContinue} title="Exit Lesson">
-              ←
-            </button>
+            {!jamOnly && (
+              <button className="toolbar-btn exit-btn" onClick={handleContinue} title="Exit Lesson">
+                ←
+              </button>
+            )}
             <span className="toolbar-title">{lesson.title}</span>
             <span className="toolbar-badge">{lesson.bpm} BPM</span>
-            {lesson.metadata?.difficulty && (
+            {!jamOnly && lesson.metadata?.difficulty && (
               <span className="toolbar-badge">Lv.{lesson.metadata.difficulty}</span>
             )}
           </div>
 
           {/* Center: Mode Tabs */}
           <div className="toolbar-center">
+            {!jamOnly && (
             <div className="toolbar-mode-tabs">
               <button
                 className={`toolbar-mode-tab ${currentMode === 'free' ? 'active' : ''}`}
@@ -1522,6 +1540,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
                 Jam
               </button>
             </div>
+            )}
 
             {/* Wait mode progress indicator */}
             {currentMode === 'wait' && (
@@ -1557,7 +1576,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
             </button>
 
             {/* Sound selection button */}
-            {allLaneNotes.length > 1 && (
+            {!jamOnly && allLaneNotes.length > 1 && (
               <button
                 className={`toolbar-btn ${showSoundSettings ? 'active' : ''} ${disabledNotes.size > 0 ? 'has-off' : ''}`}
                 onClick={() => setShowSoundSettings(!showSoundSettings)}
@@ -1598,7 +1617,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
       )}
 
       {/* Note Highway Visualization - fullscreen only in actual game mode */}
-      <div className={`highway-container ${isGameMode ? 'fullscreen' : ''}`}>
+      <div className={`highway-container ${isGameMode ? 'fullscreen' : ''} ${jamOnly && showJamSettings ? 'with-jam-settings' : ''}`}>
 
         {/* Sound selection panel */}
         {!isGameMode && showSoundSettings && (
@@ -1741,11 +1760,76 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
           onNoteReached={isGameMode ? handleNoteReached : undefined}
         />
 
-        {/* Play button - bottom right of highway */}
-        {!isGameMode && (
+        {/* Play button - bottom right of highway (the Jam tab is always running) */}
+        {!isGameMode && !jamOnly && (
           <button className="highway-play-btn" onClick={handleStart} title="Start Game">
             <span className="play-icon">&#9654;</span>
           </button>
+        )}
+
+        {/* Jam tab settings: volumes, in a collapsible sidebar on the left */}
+        {jamOnly && !showJamSettings && (
+          <button
+            className="game-settings-toggle"
+            onClick={() => setShowJamSettings(true)}
+            title="Jam Settings"
+          >
+            <span className="settings-icon">&#9881;</span>
+          </button>
+        )}
+        {jamOnly && showJamSettings && (
+          <div className="game-settings-sidebar">
+            <div className="game-settings-header">
+              <h3>Settings</h3>
+              <button className="close-sidebar" onClick={() => setShowJamSettings(false)}>
+                &times;
+              </button>
+            </div>
+
+            <div className="game-settings-content">
+              <div className="setting-group">
+                <label className="setting-label">
+                  <span className="setting-icon">&#127929;</span>
+                  Notes
+                  <span className="setting-value">{Math.round(jamNotesVolume * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={jamNotesVolume}
+                  onChange={(e) => setJamNotesVolume(parseFloat(e.target.value))}
+                  className="volume-slider"
+                />
+                <div className="slider-labels">
+                  <span>Off</span>
+                  <span>Full</span>
+                </div>
+              </div>
+
+              <div className="setting-group">
+                <label className="setting-label">
+                  <span className="setting-icon">&#127926;</span>
+                  Backing Track
+                  <span className="setting-value">{Math.round(backingTrackVolume * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={backingTrackVolume}
+                  onChange={(e) => setBackingTrackVolume(parseFloat(e.target.value))}
+                  className="volume-slider"
+                />
+                <div className="slider-labels">
+                  <span>Off</span>
+                  <span>Full</span>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Game mode settings toggle button - left side */}

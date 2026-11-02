@@ -1684,3 +1684,18 @@
   border-color: #facc15;
   color: #facc15;
 }
+
+/* Jam tab: the open settings sidebar sits beside the highway, not over its rows */
+.highway-container.with-jam-settings {
+  padding-left: calc(280px + 1rem);
+}
+
+/* Jam tab: part of the page under the app nav, not a full-screen overlay */
+.lesson-player.jam-only {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  flex: 1;
+  min-height: 0;
+}
+
