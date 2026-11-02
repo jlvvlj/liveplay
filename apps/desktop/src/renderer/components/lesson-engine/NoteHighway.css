@@ -441,7 +441,9 @@
   }
 }
 
-/* Jam mode: the cursor can be pushed far right, so keep the right-edge fade off it */
+/* Jam mode: the cursor rests near the left and can be pushed far right, so
+   keep both edge fades narrow */
+.note-highway.jam::before,
 .note-highway.jam::after {
   width: 80px;
 }

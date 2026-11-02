@@ -54,10 +54,10 @@ const JAM_FADE_MS = 2500; // Jam dots fade out over this long after they sound
 const JAM_PIXELS_PER_MS = 0.6; // Jam dots scroll twice as fast as play-mode notes
 // Jam cursor: rests at a fixed point, each played note pushes it right like an
 // engine burst, and it drifts slowly back home (fractions of the highway width)
-const JAM_CURSOR_HOME_PERCENT = 0.45;
+const JAM_CURSOR_HOME_PERCENT = 0.2;
 const JAM_CURSOR_MAX_PERCENT = 0.85;
-const JAM_CURSOR_PUSH = 0.025; // Distance one note moves it
-const JAM_CURSOR_DRIFT = 0.035; // Speed back home, per second
+const JAM_CURSOR_PUSH = 0.016; // Distance one note moves it
+const JAM_CURSOR_DRIFT = 0.07; // Speed back home, per second
 const JAM_CURSOR_BURST_DECAY = 8; // 1/s: how fast one push eases out
 const JAM_CURSOR_FULL_THRUST = 6; // Notes per second that show the full engine flame
 const JAM_CURSOR_TAIL_PX = 16; // From the cursor point back to just behind the ship's tail (see .jam-cursor-ship)
