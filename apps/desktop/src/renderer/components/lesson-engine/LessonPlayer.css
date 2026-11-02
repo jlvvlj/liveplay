@@ -1728,3 +1728,12 @@
   color: #fff;
 }
 
+.jam-hold-options {
+  flex-direction: row;
+}
+
+.jam-hold-options .jam-sound-option {
+  flex: 1;
+  text-align: center;
+}
+

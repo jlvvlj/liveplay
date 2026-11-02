@@ -23,9 +23,10 @@ const MIN_EFFECTIVE_SPEED = 0.01;
 const JAM_LATE_GRACE_S = 0.03;
 // Jam dots older than this have scrolled off the highway
 const JAM_NOTE_LIFETIME_MS = 4000;
-// A held pointer in jam mode replays its pitch every 8th note (two 16ths),
+// A held pointer in jam mode replays its pitch this many times per bar (4/4),
 // scheduled this far ahead on the audio clock
-const JAM_HOLD_REPEAT_SIXTEENTHS = 2;
+const JAM_HOLD_DIVISIONS = [4, 8, 16, 32];
+const DEFAULT_JAM_HOLD_DIVISION = 16;
 const JAM_HOLD_LOOKAHEAD_S = 0.1;
 
 // Jam tab volumes: the backing track tops out about 6 dB louder than in
@@ -143,6 +144,10 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
   const jamNotesRef = useRef<JamNote[]>([]); // Mirrors jamNotes so input never reads a stale list
   const jamHoldRef = useRef<{ note: number; nextSlot: number } | null>(null); // Pitch under a held pointer
   const jamHoldTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Jam tab: how often a held note repeats, in notes per bar
+  const [jamHoldDivision, setJamHoldDivision] = useState<number>(DEFAULT_JAM_HOLD_DIVISION);
+  const jamHoldDivisionRef = useRef<number>(DEFAULT_JAM_HOLD_DIVISION);
+  jamHoldDivisionRef.current = jamHoldDivision;
   // Track current step index for wait mode
   const [waitModeStepIndex, setWaitModeStepIndex] = useState<number>(0);
   // Track played notes for free/wait modes
@@ -923,7 +928,7 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
     [lesson.steps]
   );
 
-  // Plays the row nearest `note` on the given 16th (default: the next one) and
+  // Plays the row nearest `note` on the given 16th (default: the next one; half steps are 32nds) and
   // returns that 16th, or null when the jam clock isn't running
   const playJamNote = useCallback((note: number, atSlot?: number): number | null => {
     const start = jamStartRef.current;
@@ -952,7 +957,8 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
   }, [jamRows, lesson.steps, lesson.bpm, jamOnly, jamNotesVolume]);
 
   // Pointer play on the jam highway: pressing plays the row at once (on the
-  // next 16th), holding repeats it every 8th, dragging changes the row
+  // next 16th), holding repeats it at the chosen rate, dragging changes the row.
+  // Positions are counted in 16ths; a 32nd is half a 16th.
   const handleJamPointer = useCallback((note: number | null) => {
     if (note === null) {
       if (jamHoldTimerRef.current) clearInterval(jamHoldTimerRef.current);
@@ -966,7 +972,7 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
     }
     const slot = playJamNote(note);
     if (slot === null) return;
-    jamHoldRef.current = { note, nextSlot: slot + JAM_HOLD_REPEAT_SIXTEENTHS };
+    jamHoldRef.current = { note, nextSlot: slot + 16 / jamHoldDivisionRef.current };
     jamHoldTimerRef.current = setInterval(() => {
       const hold = jamHoldRef.current;
       const start = jamStartRef.current;
@@ -974,7 +980,7 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
       const sixteenth = 60 / lesson.bpm / 4;
       while (start + hold.nextSlot * sixteenth < Tone.now() + JAM_HOLD_LOOKAHEAD_S) {
         playJamNote(hold.note, hold.nextSlot);
-        hold.nextSlot += JAM_HOLD_REPEAT_SIXTEENTHS;
+        hold.nextSlot += 16 / jamHoldDivisionRef.current;
       }
     }, 25);
   }, [playJamNote, lesson.bpm]);
@@ -1817,6 +1823,25 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
                   </div>
                 </div>
               )}
+
+              <div className="setting-group">
+                <label className="setting-label">
+                  <span className="setting-icon">&#128257;</span>
+                  Hold repeat
+                  <span className="setting-value">1/{jamHoldDivision}</span>
+                </label>
+                <div className="jam-sound-options jam-hold-options">
+                  {JAM_HOLD_DIVISIONS.map((division) => (
+                    <button
+                      key={division}
+                      className={`jam-sound-option ${division === jamHoldDivision ? 'active' : ''}`}
+                      onClick={() => setJamHoldDivision(division)}
+                    >
+                      {division}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="setting-group">
                 <label className="setting-label">
