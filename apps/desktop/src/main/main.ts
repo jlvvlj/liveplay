@@ -23,7 +23,7 @@ let midiManager: MidiManager | null = null;
 function createWindow() {
   const preloadPath = path.join(__dirname, 'preload.js');
   console.log('[Main] Preload script path:', preloadPath);
-  console.log('[Main] Preload script exists:', require('fs').existsSync(preloadPath));
+  console.log('[Main] Preload script exists:', fs.existsSync(preloadPath));
 
   mainWindow = new BrowserWindow({
     width: 1200,

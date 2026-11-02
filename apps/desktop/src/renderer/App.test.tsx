@@ -2,22 +2,31 @@ import { render, screen } from '@testing-library/react';
 import App from './App';
 
 // Mock window.electronAPI
-(global as any).window = {
-  electronAPI: {
-    midi: {
-      list: jest.fn().mockResolvedValue([]),
-      selectDevice: jest.fn().mockResolvedValue(undefined),
-      onEvent: jest.fn(),
-      removeEventListener: jest.fn(),
-    },
-    mapping: {
-      get: jest.fn().mockResolvedValue(null),
-      save: jest.fn().mockResolvedValue(undefined),
-      getAll: jest.fn().mockResolvedValue([]),
-      delete: jest.fn().mockResolvedValue(undefined),
-    },
+(window as any).electronAPI = {
+  midi: {
+    list: jest.fn().mockResolvedValue([]),
+    selectDevice: jest.fn().mockResolvedValue(undefined),
+    onEvent: jest.fn(),
+    removeEventListener: jest.fn(),
+  },
+  mapping: {
+    get: jest.fn().mockResolvedValue(null),
+    save: jest.fn().mockResolvedValue(undefined),
+    getAll: jest.fn().mockResolvedValue([]),
+    delete: jest.fn().mockResolvedValue(undefined),
   },
 };
+
+// Songs and pieces APIs return empty lists
+(global as any).fetch = jest.fn().mockResolvedValue({
+  ok: true,
+  json: () => Promise.resolve([]),
+});
+
+// Instrument Lab is a separate browser client (JSX + ES modules, audio worklets)
+jest.mock('./components/instrument-lab/InstrumentLab', () => ({
+  InstrumentLab: () => <div>Instrument Lab view</div>,
+}));
 
 // Mock Tone.js
 jest.mock('tone', () => ({
@@ -34,26 +43,22 @@ jest.mock('tone', () => ({
 }));
 
 describe('App', () => {
-  it('renders the main heading', () => {
+  it('renders the main heading', async () => {
     render(<App />);
-    const heading = screen.getByText(/Melodics-like MVP — DEV/i);
-    expect(heading).toBeInTheDocument();
+    expect(screen.getByText(/Melodics-like MVP — DEV/i)).toBeInTheDocument();
+    await screen.findByText('Choose a Lesson');
   });
 
-  it('displays navigation buttons', () => {
+  it('displays navigation buttons', async () => {
     render(<App />);
-    expect(screen.getByText('MIDI Setup')).toBeInTheDocument();
-    expect(screen.getByText('Lessons')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lessons' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Instrument Lab' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+    await screen.findByText('Choose a Lesson');
   });
 
-  it('shows MIDI Device Setup by default', () => {
+  it('shows the lesson selector by default', async () => {
     render(<App />);
-    const deviceSetup = screen.getByText(/MIDI Device Setup/i);
-    expect(deviceSetup).toBeInTheDocument();
-  });
-
-  it('shows continue to lessons button', () => {
-    render(<App />);
-    expect(screen.getByText(/Continue to Lessons/i)).toBeInTheDocument();
+    expect(await screen.findByText('Choose a Lesson')).toBeInTheDocument();
   });
 });

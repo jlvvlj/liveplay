@@ -1259,39 +1259,9 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     }, 1000);
   };
 
-  const handlePause = () => {
-    if (engineRef.current) {
-      engineRef.current.pause();
-    }
-  };
-
-  const handleResume = () => {
-    if (engineRef.current) {
-      engineRef.current.resume();
-    }
-  };
-
-  const handleStop = () => {
-    if (engineRef.current) {
-      engineRef.current.stop();
-    }
-  };
-
   const handleSpeedChange = (speed: number) => {
     const clampedSpeed = Math.max(0, Math.min(2, speed));
     setPracticeMode((prev) => ({ ...prev, speedMultiplier: clampedSpeed }));
-  };
-
-  const handleLoopToggle = () => {
-    setPracticeMode((prev) => ({ ...prev, loopEnabled: !prev.loopEnabled }));
-  };
-
-  const handleWaitModeToggle = () => {
-    setPracticeMode((prev) => ({ ...prev, waitModeEnabled: !prev.waitModeEnabled }));
-  };
-
-  const handleAutoBpmToggle = () => {
-    setPracticeMode((prev) => ({ ...prev, autoBpmEnabled: !prev.autoBpmEnabled }));
   };
 
   // Handle mode tab change
@@ -1712,7 +1682,6 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
           </div>
         )}
         <NoteHighway
-          instrument={lesson.instrument}
           steps={lesson.steps}
           currentTime={currentTime}
           bpm={lesson.bpm}

@@ -124,7 +124,6 @@ export async function midiToLesson(
 
   // Get BPM from the first tempo event, default to 120
   const bpm = midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120;
-  const ppq = midi.header.ppq; // Pulses per quarter note
 
   // If trackIndex is specified, only use that track
   const tracks = trackIndex !== undefined

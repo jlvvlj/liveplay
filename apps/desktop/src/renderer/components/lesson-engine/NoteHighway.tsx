@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, useMemo } from 'react';
-import { LessonStep, InstrumentType, HitFeedback } from '../../types/lesson';
+import { LessonStep, HitFeedback } from '../../types/lesson';
 import './NoteHighway.css';
 
 export type HighwayMode = 'free' | 'wait' | 'play' | 'jam';
@@ -12,7 +12,6 @@ export interface JamNote {
 }
 
 interface NoteHighwayProps {
-  instrument: InstrumentType;
   steps: LessonStep[];
   currentTime: number;
   bpm: number;
@@ -54,7 +53,6 @@ const JAM_LINE_PERCENT = 0.8; // Jam mode plays at the right, so the trail of pl
 const JAM_FADE_MS = 4000; // Jam dots fade out over this long after they sound
 
 export function NoteHighway({
-  instrument,
   steps,
   currentTime,
   bpm,
