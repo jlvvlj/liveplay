@@ -136,3 +136,22 @@ export const DEFAULT_JAM_EFFECTS: JamEffects = {
   echoTime: '1/8.',
   echoFeedback: 0.35,
 };
+
+// Recorded sample sets kept on this machine only (git-ignored audio folder),
+// listed by scripts/make-jam-reference-sounds.mjs; shown as "Reference" sounds
+export interface JamSampleSound {
+  id: string;
+  label: string;
+  samples: { [note: number]: string };
+}
+
+export const JAM_REFERENCE_SOUNDS_URL = '/audio/samples/jam_reference/sounds.json';
+
+// The reference list, or none when this machine has no reference folder
+export async function loadJamReferenceSounds(): Promise<JamSampleSound[]> {
+  // /audio/ is served with a year-long cache; the list must reflect the latest script run
+  const response = await fetch(JAM_REFERENCE_SOUNDS_URL, { cache: 'no-store' });
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`Reference sounds list: HTTP ${response.status}`);
+  return (await response.json()) as JamSampleSound[];
+}

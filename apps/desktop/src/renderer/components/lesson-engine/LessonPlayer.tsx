@@ -7,9 +7,11 @@ import { NoteHighway, HighwayMode, JamNote } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
 import {
   renderJamSamples,
+  loadJamReferenceSounds,
   DEFAULT_JAM_EFFECTS,
   JAM_ECHO_BEATS,
   type JamSoundPreset,
+  type JamSampleSound,
   type JamSynthPatch,
   type JamEffects,
 } from './jamSynth';
@@ -62,7 +64,8 @@ function loadJamSettings(sounds: JamSoundPreset[]): JamSettings {
     const saved = JSON.parse(localStorage.getItem(JAM_SETTINGS_KEY) ?? 'null') as Partial<JamSettings> | null;
     if (!saved) return defaults;
     return {
-      soundId: sounds.some((sound) => sound.id === saved.soundId) ? saved.soundId! : defaults.soundId,
+      // A reference sound id is kept too; it is checked once the reference list loads
+      soundId: typeof saved.soundId === 'string' ? saved.soundId : defaults.soundId,
       patches: Object.fromEntries(
         sounds.map((sound) => [sound.id, { ...sound.patch, ...saved.patches?.[sound.id] }])
       ),
@@ -129,9 +132,38 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
   }, [jamSettings]);
   const jamPatch = jamSettings ? jamSettings.patches[jamSettings.soundId] : undefined;
 
+  // Jam tab: recorded reference sounds on this machine, if any
+  const [jamReferenceSounds, setJamReferenceSounds] = useState<JamSampleSound[] | null>(null);
+  useEffect(() => {
+    if (!jamOnly) return;
+    let cancelled = false;
+    loadJamReferenceSounds()
+      .then((sounds) => {
+        if (!cancelled) setJamReferenceSounds(sounds);
+      })
+      .catch((err) => {
+        console.error('[LessonPlayer] Could not load the jam reference sounds list:', err);
+        if (!cancelled) setJamReferenceSounds([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [jamOnly]);
+  const jamReference = jamReferenceSounds?.find((sound) => sound.id === jamSettings?.soundId);
+  // A remembered reference sound that is no longer on this machine: back to the first preset
+  useEffect(() => {
+    if (!jamSettings || !jamSounds?.length || jamReferenceSounds === null) return;
+    if (!jamSettings.patches[jamSettings.soundId] && !jamReference) {
+      setJamSettings({ ...jamSettings, soundId: jamSounds[0].id });
+    }
+  }, [jamSettings, jamSounds, jamReferenceSounds, jamReference]);
+
   // The chosen sound is rendered into one clip per note, re-rendered shortly
   // after its settings stop changing
   const [jamSamples, setJamSamples] = useState<{ [note: number]: string } | undefined>(undefined);
+  useEffect(() => {
+    if (jamReference) setJamSamples(jamReference.samples);
+  }, [jamReference]);
   useEffect(() => {
     if (!jamPatch) return;
     const notes = Array.from(new Set(lessonProp.steps.map((s) => s.note)));
@@ -141,7 +173,10 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
   // Free replaced clips once their players have been swapped out
   useEffect(
     () => () => {
-      if (jamSamples) setTimeout(() => Object.values(jamSamples).forEach((url) => URL.revokeObjectURL(url)), 2000);
+      if (jamSamples) {
+        const blobs = Object.values(jamSamples).filter((url) => url.startsWith('blob:'));
+        setTimeout(() => blobs.forEach((url) => URL.revokeObjectURL(url)), 2000);
+      }
     },
     [jamSamples]
   );
@@ -1903,6 +1938,7 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
         {jamOnly && showJamSettings && jamSettings && jamSounds && (
           <JamSettingsPanel
             sounds={jamSounds}
+            referenceSounds={jamReferenceSounds ?? []}
             soundId={jamSettings.soundId}
             onSoundChange={(soundId) => setJamSettings({ ...jamSettings, soundId })}
             patch={jamSettings.patches[jamSettings.soundId]}

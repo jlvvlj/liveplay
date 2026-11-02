@@ -3,6 +3,7 @@ import {
   JAM_ECHO_BEATS,
   SYNTH_FAMILIES,
   type JamSoundPreset,
+  type JamSampleSound,
   type JamSynthPatch,
   type JamSynthControl,
   type JamEffects,
@@ -11,9 +12,11 @@ import {
 
 interface JamSettingsPanelProps {
   sounds: JamSoundPreset[];
+  referenceSounds: JamSampleSound[];
   soundId: string;
   onSoundChange: (id: string) => void;
-  patch: JamSynthPatch;
+  // Settings of the chosen synth sound; none for a recorded reference sound
+  patch: JamSynthPatch | undefined;
   onPatchChange: (patch: JamSynthPatch) => void;
   onPatchReset: () => void;
   holdDivisions: number[];
@@ -95,6 +98,7 @@ function Slider({
 
 export function JamSettingsPanel({
   sounds,
+  referenceSounds,
   soundId,
   onSoundChange,
   patch,
@@ -185,8 +189,25 @@ export function JamSettingsPanel({
               </button>
             ))}
           </div>
+          {referenceSounds.length > 0 && (
+            <>
+              <div className="jam-subhead">Reference</div>
+              <div className="jam-sound-grid">
+                {referenceSounds.map((sound) => (
+                  <button
+                    key={sound.id}
+                    className={`jam-sound-option ${sound.id === soundId ? 'active' : ''}`}
+                    onClick={() => onSoundChange(sound.id)}
+                  >
+                    {sound.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
+        {patch && (
         <div className="setting-group">
           <label className="setting-label">
             <span className="setting-icon">&#127899;</span>
@@ -221,6 +242,7 @@ export function JamSettingsPanel({
             )
           )}
         </div>
+        )}
 
         <div className="setting-group">
           <label className="setting-label">
