@@ -2,7 +2,14 @@ import { Fragment, useEffect, useRef, useState, useMemo } from 'react';
 import { LessonStep, InstrumentType, HitFeedback } from '../../types/lesson';
 import './NoteHighway.css';
 
-export type HighwayMode = 'free' | 'wait' | 'play';
+export type HighwayMode = 'free' | 'wait' | 'play' | 'jam';
+
+// A note played in jam mode, already snapped to its 16th (ms on the jam clock)
+export interface JamNote {
+  id: number;
+  note: number;
+  timeMs: number;
+}
 
 interface NoteHighwayProps {
   instrument: InstrumentType;
@@ -20,6 +27,7 @@ interface NoteHighwayProps {
   // Note labels for practice modes
   noteToKeyMap?: { [note: number]: string }; // Map of MIDI note to key binding
   labelMode?: 'letters' | 'numbers'; // Display key letters or note order numbers
+  jamNotes?: JamNote[]; // Notes played in jam mode
 }
 
 interface NoteHitState {
@@ -42,6 +50,8 @@ const NOTE_SPACING_PX = 110; // Fixed spacing between notes in pixels (for free/
 const HIT_ZONE_PERCENT = 0.33; // Position of hit zone as percentage from left (33% = 1/3 from left)
 const PIXELS_PER_MS = 0.3; // How fast notes scroll in play mode (pixels per millisecond)
 const VISIBLE_BUFFER_MS = 3000; // Show notes this long after they pass the hit zone (play mode)
+const JAM_LINE_PERCENT = 0.8; // Jam mode plays at the right, so the trail of played notes fills the highway
+const JAM_FADE_MS = 4000; // Jam dots fade out over this long after they sound
 
 export function NoteHighway({
   instrument,
@@ -56,7 +66,8 @@ export function NoteHighway({
   playedSteps = new Set(),
   isCollapsed = false,
   noteToKeyMap,
-  labelMode = 'letters'
+  labelMode = 'letters',
+  jamNotes = [],
 }: NoteHighwayProps) {
   const [noteHitStates, setNoteHitStates] = useState<Map<number, NoteHitState>>(new Map());
   const [timingPopups, setTimingPopups] = useState<TimingPopup[]>([]);
@@ -83,8 +94,8 @@ export function NoteHighway({
 
   // Calculate hit zone offset based on container width
   const hitZoneOffset = useMemo(() => {
-    return containerWidth * HIT_ZONE_PERCENT;
-  }, [containerWidth]);
+    return containerWidth * (mode === 'jam' ? JAM_LINE_PERCENT : HIT_ZONE_PERCENT);
+  }, [containerWidth, mode]);
 
   // Get unique notes from the lesson (sorted by MIDI value)
   const uniqueNotes = useMemo(() =>
@@ -609,6 +620,39 @@ export function NoteHighway({
       });
   };
 
+  // Render jam mode dots: each sits on its pitch row at the 16th it sounds on,
+  // waits just right of the line until then, and drifts left as it fades.
+  const renderJamNotes = (laneIndex: number) => {
+    const dotSize = noteSize * 0.55;
+    return jamNotes
+      .filter((jamNote) => noteToLane(jamNote.note) === laneIndex)
+      .map((jamNote) => {
+        const age = currentTime - jamNote.timeMs;
+        const sounded = age >= 0;
+        const opacity = sounded ? Math.max(0, 1 - age / JAM_FADE_MS) : 0.5;
+        if (opacity === 0) return null;
+        return (
+          <div
+            key={jamNote.id}
+            className={`jam-dot ${sounded ? 'sounded' : 'queued'}`}
+            style={{
+              left: `${jamNote.timeMs * PIXELS_PER_MS}px`,
+              width: `${dotSize}px`,
+              height: `${dotSize}px`,
+              opacity,
+              color: getLaneColor(laneIndex),
+            }}
+          />
+        );
+      });
+  };
+
+  const formatClock = (ms: number): string => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   // Progress calculation
   const getProgress = () => {
     if (mode === 'play') {
@@ -619,28 +663,55 @@ export function NoteHighway({
   };
 
   const getProgressLabel = () => {
+    if (mode === 'jam') {
+      return formatClock(currentTime);
+    }
     if (mode === 'play') {
-      const minutes = Math.floor(currentTime / 60000);
-      const seconds = Math.floor((currentTime % 60000) / 1000);
-      const totalMinutes = Math.floor(totalDuration / 60000);
-      const totalSeconds = Math.floor((totalDuration % 60000) / 1000);
-      return `${minutes}:${seconds.toString().padStart(2, '0')} / ${totalMinutes}:${totalSeconds.toString().padStart(2, '0')}`;
+      return `${formatClock(currentTime)} / ${formatClock(totalDuration)}`;
     }
     return `${playedSteps.size} / ${steps.length} notes`;
   };
 
   return (
-    <div ref={containerRef} className={`note-highway ${isCollapsed ? 'collapsed' : ''}`}>
+    <div ref={containerRef} className={`note-highway ${isCollapsed ? 'collapsed' : ''} ${mode === 'jam' ? 'jam' : ''}`}>
       {/* Hit zone indicator line - fixed position (for play mode) */}
       {mode === 'play' && (
         <div className={`timing-line ${hasActivePad ? 'active' : ''}`} />
+      )}
+      {mode === 'jam' && (
+        <div
+          className={`timing-line ${hasActivePad ? 'active' : ''}`}
+          style={{ left: `${JAM_LINE_PERCENT * 100}%` }}
+        />
       )}
 
       {/* Floating timing judgments (early / late / perfect) at the hit zone */}
       {renderTimingPopups()}
 
-      {/* Collapsed view: single lane with all notes */}
-      {isCollapsed ? (
+      {mode === 'jam' ? (
+        /* Jam mode: one row per pitch, played notes scroll left from the line */
+        <div className="lanes">
+          {Array.from({ length: laneCount }).map((_, laneIndex) => (
+            <div
+              key={laneIndex}
+              className={`lane ${activePads && Array.from(activePads).some(note => noteToLane(note) === laneIndex) ? 'lane-active' : ''}`}
+            >
+              <div className="lane-label" style={{ color: getLaneColor(laneIndex) }}>
+                {getNoteLabel(uniqueNotes[laneIndex]) ?? getLaneLabel(laneIndex)}
+              </div>
+
+              <div
+                className="notes-scroll-container"
+                style={{
+                  transform: `translateX(${hitZoneOffset - playModeScrollOffset}px)`,
+                }}
+              >
+                {renderJamNotes(laneIndex)}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : isCollapsed ? (
         mode === 'play' ? (
           /* Play mode collapsed: time-based positioning */
           <div className="lanes collapsed-lanes">
@@ -725,12 +796,14 @@ export function NoteHighway({
 
       {/* Progress bar */}
       <div className="highway-progress">
-        <div className="progress-bar-container">
-          <div
-            className="progress-bar-fill"
-            style={{ width: `${getProgress()}%` }}
-          />
-        </div>
+        {mode !== 'jam' && (
+          <div className="progress-bar-container">
+            <div
+              className="progress-bar-fill"
+              style={{ width: `${getProgress()}%` }}
+            />
+          </div>
+        )}
         <div className="progress-label">
           {getProgressLabel()}
         </div>

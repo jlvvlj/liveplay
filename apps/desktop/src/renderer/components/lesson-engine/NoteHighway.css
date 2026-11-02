@@ -440,3 +440,54 @@
     font-size: 1rem;
   }
 }
+
+/* Jam mode: the line sits at 80%, so keep the right-edge fade off it */
+.note-highway.jam::after {
+  width: 80px;
+}
+
+/* Jam mode dots - colored by row via `color`, glowing, with a fading tail */
+.jam-dot {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 18px currentColor, 0 0 36px currentColor;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.jam-dot::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160%;
+  height: 34%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(90deg, currentColor 0%, transparent 100%);
+  opacity: 0.45;
+  z-index: -1;
+}
+
+.jam-dot.queued {
+  transform: translate(-50%, -50%) scale(0.6);
+  box-shadow: none;
+}
+
+.jam-dot.sounded {
+  animation: jamDotPop 0.35s ease-out;
+}
+
+@keyframes jamDotPop {
+  0% {
+    transform: translate(-50%, -50%) scale(1.8);
+    filter: brightness(1.8);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    filter: none;
+  }
+}

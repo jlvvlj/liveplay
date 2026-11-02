@@ -3,7 +3,7 @@ import * as Tone from 'tone';
 import { LessonEngine, LessonEngineState } from './LessonEngine';
 import { Lesson, LessonStep, HitFeedback, LessonScore, PracticeModeSettings } from '../../types/lesson';
 import { MidiEvent, DeviceMapping } from '../../types/electron';
-import { NoteHighway, HighwayMode } from './NoteHighway';
+import { NoteHighway, HighwayMode, JamNote } from './NoteHighway';
 import './LessonPlayer.css';
 
 interface LessonPlayerProps {
@@ -12,6 +12,12 @@ interface LessonPlayerProps {
 }
 
 const MIN_EFFECTIVE_SPEED = 0.01;
+
+// Jam mode quantizes every note to the 16th grid. A hit this soon after a 16th
+// still sounds on it (immediately); later hits wait for the next 16th.
+const JAM_LATE_GRACE_S = 0.03;
+// Jam dots older than this have scrolled off the highway
+const JAM_NOTE_LIFETIME_MS = 8000;
 
 // Lesson audio is either a file under the app's /audio/ folder or already a
 // full URL (blob: for files read from a picked Ableton project folder).
@@ -105,8 +111,13 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     waitModeEnabled: false,
   });
 
-  // Current mode tab: free (default), wait, or play
+  // Current mode tab: free (default), wait, play, or jam
   const [currentMode, setCurrentMode] = useState<HighwayMode>('free');
+  // Jam mode: free play over the pulse. Notes snap to the next 16th and are
+  // drawn as dots on their pitch row, scrolling away from the line.
+  const [jamNotes, setJamNotes] = useState<JamNote[]>([]);
+  const jamStartRef = useRef<number | null>(null); // Tone time the jam clock started at
+  const jamNoteIdRef = useRef<number>(0);
   // Track current step index for wait mode
   const [waitModeStepIndex, setWaitModeStepIndex] = useState<number>(0);
   // Track played notes for free/wait modes
@@ -646,7 +657,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
         backingTrackRef.current.playbackRate = Math.max(practiceMode.speedMultiplier, MIN_EFFECTIVE_SPEED);
         backingTrackRef.current.start();
       }
-    } else {
+    } else if (currentMode !== 'jam') {
       // Stop metronome
       if (metronomeLoopRef.current) {
         clearInterval(metronomeLoopRef.current);
@@ -668,7 +679,73 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
         metronomeLoopRef.current = null;
       }
     };
-  }, [isGameMode, state, lesson.bpm, lesson.beatGrid, lesson.timeSignature, practiceMode.speedMultiplier, playMetronomeTick, backingTrackLoaded, backingTrackVolume]);
+  }, [isGameMode, currentMode, state, lesson.bpm, lesson.beatGrid, lesson.timeSignature, practiceMode.speedMultiplier, playMetronomeTick, backingTrackLoaded, backingTrackVolume]);
+
+  // Jam mode clock and pulse: the backing track loops when the lesson has one,
+  // otherwise a soft click marks the beats. Runs for as long as the Jam tab is open.
+  useEffect(() => {
+    if (currentMode !== 'jam') return;
+
+    let cancelled = false;
+    let clockInterval: ReturnType<typeof setInterval> | null = null;
+    let pulseInterval: ReturnType<typeof setInterval> | null = null;
+    const backing =
+      backingTrackRef.current && backingTrackLoaded && backingTrackVolume > 0 ? backingTrackRef.current : null;
+
+    const begin = async () => {
+      await Tone.start();
+      if (cancelled) return;
+
+      const start = Tone.now() + 0.1;
+      jamStartRef.current = start;
+
+      if (backing) {
+        backing.loop = true;
+        backing.playbackRate = 1;
+        backing.start(start);
+      } else {
+        const beatSeconds = 60 / lesson.bpm;
+        const beatsPerBar = (lesson.timeSignature || { numerator: 4, denominator: 4 }).numerator;
+        let nextBeat = 0;
+        // Schedule clicks slightly ahead on the audio clock so they never drift
+        pulseInterval = setInterval(() => {
+          const horizon = Tone.now() + 0.15;
+          while (start + nextBeat * beatSeconds < horizon) {
+            const isDownbeat = nextBeat % beatsPerBar === 0;
+            metronomeRef.current?.triggerAttackRelease(
+              isDownbeat ? 'C5' : 'C4',
+              '16n',
+              start + nextBeat * beatSeconds,
+              isDownbeat ? 0.35 : 0.2
+            );
+            nextBeat++;
+          }
+        }, 50);
+      }
+
+      clockInterval = setInterval(() => {
+        setCurrentTime(Math.max(0, (Tone.now() - start) * 1000));
+      }, 16);
+    };
+    begin();
+
+    return () => {
+      cancelled = true;
+      if (clockInterval) clearInterval(clockInterval);
+      if (pulseInterval) clearInterval(pulseInterval);
+      if (backing) {
+        backing.loop = false;
+        try {
+          backing.stop();
+        } catch (e) {
+          // Ignore if not started
+        }
+      }
+      jamStartRef.current = null;
+      setJamNotes([]);
+      setCurrentTime(0);
+    };
+  }, [currentMode, lesson.bpm, lesson.timeSignature, backingTrackLoaded, backingTrackVolume]);
 
   const playSound = (
     note: number,
@@ -803,6 +880,36 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     }
   }, [autoPlayVolume, isGameMode]);
 
+  // Jam rows are the lesson's pitches; any other note plays the nearest row
+  const jamRows = useMemo(
+    () => Array.from(new Set(lesson.steps.map((s) => s.note))).sort((a, b) => a - b),
+    [lesson.steps]
+  );
+
+  const playJamNote = useCallback((note: number) => {
+    const start = jamStartRef.current;
+    if (start === null || jamRows.length === 0) return;
+
+    const row = jamRows.reduce((nearest, candidate) =>
+      Math.abs(candidate - note) < Math.abs(nearest - note) ? candidate : nearest
+    );
+    const step = lesson.steps.find((s) => s.note === row);
+    const sixteenth = 60 / lesson.bpm / 4;
+    const elapsed = Tone.now() - start;
+    const slot = Math.max(0, Math.ceil((elapsed - JAM_LATE_GRACE_S) / sixteenth));
+    const timeMs = slot * sixteenth * 1000;
+
+    setJamNotes((prev) => {
+      // The same pitch twice on one 16th sounds once
+      if (prev.some((n) => n.note === row && n.timeMs === timeMs)) return prev;
+      playSound(row, step?.note, undefined, step?.slice, Math.max(start + slot * sixteenth, Tone.now()), step?.semitones);
+      return [
+        ...prev.filter((n) => n.timeMs > elapsed * 1000 - JAM_NOTE_LIFETIME_MS),
+        { id: ++jamNoteIdRef.current, note: row, timeMs },
+      ];
+    });
+  }, [jamRows, lesson.steps, lesson.bpm]);
+
   // Shared function to handle note input from both MIDI and keyboard
   const handleNoteInput = useCallback((hardwareNote: number, timestamp: number) => {
     // Translate note
@@ -890,6 +997,8 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
         }
       }
       // Wrong note - do nothing (no sound, no feedback)
+    } else if (currentMode === 'jam') {
+      playJamNote(translatedNote);
     } else {
       // Process note if engine is playing
       if (engineRef.current && engineRef.current.getState() === 'playing') {
@@ -913,7 +1022,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
         return newSet;
       });
     }, 200);
-  }, [deviceMapping, currentMode, waitModeStepIndex, lesson.steps, lesson.stemAudio, playedNotes, getPlayableStepForInput, disabledNotes]);
+  }, [deviceMapping, currentMode, waitModeStepIndex, lesson.steps, lesson.stemAudio, playedNotes, getPlayableStepForInput, disabledNotes, playJamNote]);
 
   useEffect(() => {
     // Initialize engine
@@ -1393,6 +1502,12 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
               >
                 Play
               </button>
+              <button
+                className={`toolbar-mode-tab ${currentMode === 'jam' ? 'active' : ''}`}
+                onClick={() => handleModeChange('jam')}
+              >
+                Jam
+              </button>
             </div>
 
             {/* Wait mode progress indicator */}
@@ -1455,14 +1570,16 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
               </button>
             </div>
 
-            {/* Collapse toggle */}
-            <button
-              className={`toolbar-btn ${isCollapsed ? 'active' : ''}`}
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              title={isCollapsed ? 'Expand lanes' : 'Collapse lanes'}
-            >
-              {isCollapsed ? '⬍' : '⬌'}
-            </button>
+            {/* Collapse toggle (jam always shows one row per pitch) */}
+            {currentMode !== 'jam' && (
+              <button
+                className={`toolbar-btn ${isCollapsed ? 'active' : ''}`}
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                title={isCollapsed ? 'Expand lanes' : 'Collapse lanes'}
+              >
+                {isCollapsed ? '⬍' : '⬌'}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1604,9 +1721,10 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
           mode={currentMode}
           currentStepIndex={waitModeStepIndex}
           playedSteps={playedNotes}
-          isCollapsed={isCollapsed && !isGameMode}
+          isCollapsed={isCollapsed && !isGameMode && currentMode !== 'jam'}
           noteToKeyMap={noteToKeyMap}
           labelMode={labelMode}
+          jamNotes={jamNotes}
           onNoteReached={isGameMode ? handleNoteReached : undefined}
         />
 
