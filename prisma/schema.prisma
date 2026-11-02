@@ -35,6 +35,21 @@ model LessonProgress {
   @@unique([lessonId, userId])
 }
 
+model Song {
+  id         String   @id @default(cuid())
+  title      String
+  sourcePath String   // absolute path of the copied source mp3
+  status     String   @default("imported") // imported | queued | separating | ready | error
+  error      String?
+  duration   Float?   // seconds, set when separation completes
+  drumsPath  String?  // relative to repo audio/ dir, e.g. "stems/<id>/drums.wav"
+  bassPath   String?
+  vocalsPath String?
+  otherPath  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 model UserProfile {
   id          Int      @id @default(autoincrement())
   userId      String   @unique @default("default")

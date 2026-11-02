@@ -1,0 +1,207 @@
+.song-practice {
+  padding: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.song-practice-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.song-practice-header h2 {
+  margin: 0;
+}
+
+.song-practice-subtitle {
+  margin: 0.25rem 0 0;
+  opacity: 0.7;
+  font-size: 0.95rem;
+}
+
+.song-practice-back {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.song-practice-back:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.song-practice-loading,
+.song-practice-error {
+  padding: 2rem;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.song-practice-error {
+  color: #f87171;
+}
+
+/* Focus stem selector */
+.focus-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.focus-label {
+  opacity: 0.7;
+  margin-right: 0.5rem;
+}
+
+.focus-button {
+  padding: 0.6rem 1.2rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.focus-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.focus-button.active {
+  background: #4ade80;
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+/* Mixer */
+.stem-mixer {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stem-strip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  transition: border-color 0.2s, opacity 0.2s;
+}
+
+.stem-strip.focused {
+  border-color: #4ade80;
+}
+
+.stem-strip.muted {
+  opacity: 0.55;
+}
+
+.stem-strip-name {
+  font-weight: 600;
+}
+
+.stem-volume {
+  width: 100%;
+  accent-color: #4ade80;
+}
+
+.stem-strip-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.stem-button {
+  width: 2.2rem;
+  height: 2.2rem;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.stem-button:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.stem-button.active-mute {
+  background: #f87171;
+  color: #1a1a1a;
+}
+
+.stem-button.active-solo {
+  background: #facc15;
+  color: #1a1a1a;
+}
+
+/* Transport */
+.transport-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.transport-button {
+  width: 2.8rem;
+  height: 2.8rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.transport-button:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.transport-play {
+  background: #4ade80;
+  color: #1a1a1a;
+}
+
+.transport-time {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+  min-width: 3rem;
+  text-align: center;
+}
+
+.transport-seek {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.transport-seek-fill {
+  height: 100%;
+  background: #4ade80;
+}
+
+.midi-status {
+  text-align: center;
+  opacity: 0.6;
+  font-size: 0.9rem;
+}

@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { MidiDevice, MidiEvent } from '../../types/electron';
+import { DeviceMapper } from './DeviceMapper';
 import './MidiDeviceSelector.css';
 
 export function MidiDeviceSelector() {
   const [devices, setDevices] = useState<MidiDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  const [selectedDeviceName, setSelectedDeviceName] = useState<string>('');
   const [midiEvents, setMidiEvents] = useState<MidiEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showMapper, setShowMapper] = useState<boolean>(false);
+  const [instrumentType, setInstrumentType] = useState<'pads' | 'keys' | 'drums'>('pads');
 
   useEffect(() => {
     loadDevices();
@@ -50,7 +54,7 @@ export function MidiDeviceSelector() {
     }
   };
 
-  const handleSelectDevice = async (deviceId: string) => {
+  const handleSelectDevice = async (deviceId: string, deviceName: string) => {
     try {
       if (!window.electronAPI) {
         setError('Electron API not available');
@@ -58,11 +62,17 @@ export function MidiDeviceSelector() {
       }
       await window.electronAPI.midi.selectDevice(deviceId);
       setSelectedDevice(deviceId);
+      setSelectedDeviceName(deviceName);
       setMidiEvents([]);
       setError(null);
+      setShowMapper(false);
     } catch (err) {
       setError(`Failed to select device: ${err}`);
     }
+  };
+
+  const handleConfigureMapping = () => {
+    setShowMapper(true);
   };
 
   return (
@@ -84,7 +94,7 @@ export function MidiDeviceSelector() {
                 key={device.id}
                 className={selectedDevice === device.id ? 'selected' : ''}
               >
-                <button onClick={() => handleSelectDevice(device.id)}>
+                <button onClick={() => handleSelectDevice(device.id, device.name)}>
                   {device.name}
                 </button>
               </li>
@@ -96,7 +106,7 @@ export function MidiDeviceSelector() {
         </button>
       </div>
 
-      {selectedDevice && (
+      {selectedDevice && !showMapper && (
         <div className="midi-monitor">
           <h3>MIDI Events (Live)</h3>
           <div className="event-list">
@@ -127,6 +137,50 @@ export function MidiDeviceSelector() {
               </table>
             )}
           </div>
+
+          <div className="mapping-section">
+            <h3>Configure Device Mapping</h3>
+            <p>Select your instrument type and configure note mapping:</p>
+            <div className="instrument-selector">
+              <button
+                className={`instrument-btn ${instrumentType === 'pads' ? 'active' : ''}`}
+                onClick={() => setInstrumentType('pads')}
+              >
+                Pads (4)
+              </button>
+              <button
+                className={`instrument-btn ${instrumentType === 'keys' ? 'active' : ''}`}
+                onClick={() => setInstrumentType('keys')}
+              >
+                Keys (8)
+              </button>
+              <button
+                className={`instrument-btn ${instrumentType === 'drums' ? 'active' : ''}`}
+                onClick={() => setInstrumentType('drums')}
+              >
+                Drums (5)
+              </button>
+            </div>
+            <button className="btn-configure" onClick={handleConfigureMapping}>
+              Configure Mapping →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {selectedDevice && showMapper && (
+        <div>
+          <button className="btn-back-mapper" onClick={() => setShowMapper(false)}>
+            ← Back to Device Monitor
+          </button>
+          <DeviceMapper
+            deviceId={selectedDevice}
+            deviceName={selectedDeviceName}
+            instrument={instrumentType}
+            onMappingSaved={() => {
+              console.log('Mapping saved successfully');
+            }}
+          />
         </div>
       )}
     </div>

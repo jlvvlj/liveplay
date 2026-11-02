@@ -21,13 +21,17 @@ export interface LessonEngineCallbacks {
 
 /**
  * Timing windows for hit detection (in milliseconds)
+ * NOTE: Very forgiving for testing - tighten for production
  */
 const TIMING_WINDOWS = {
-  perfect: 50,   // ±50ms
-  good: 100,     // ±100ms
-  early: 200,    // up to 200ms early
-  late: 200,     // up to 200ms late
+  perfect: 100,   
+  good: 300,     
+  early: 400,  
+  late: 400,   
 };
+
+const TICKS_PER_BEAT = 480;
+const MIN_TIMER_SPEED = 0.01;
 
 /**
  * Points awarded for each accuracy level
@@ -63,6 +67,10 @@ export class LessonEngine {
 
   private loopStartTick: number = 0;
   private loopEndTick: number = 0;
+  private scheduleVersion: number = 0;
+  private timeoutIds: number[] = [];
+  private playbackStartRealTime: number | null = null;
+  private playbackStartLessonTime: number = 0;
 
   constructor(callbacks: LessonEngineCallbacks = {}) {
     this.callbacks = callbacks;
@@ -124,14 +132,15 @@ export class LessonEngine {
 
     await Tone.start();
 
-    // Set BPM with speed multiplier
-    const effectiveBpm = this.lesson.bpm * this.practiceMode.speedMultiplier;
-    Tone.Transport.bpm.value = effectiveBpm;
+    Tone.Transport.stop();
+    Tone.Transport.cancel();
 
     this.processedSteps.clear();
-    this.scheduleSteps();
+    this.playbackStartLessonTime = 0;
+    this.playbackStartRealTime = Tone.now();
+    this.scheduleSteps(0);
 
-    Tone.Transport.start();
+    console.log('[LessonEngine] Lesson clock started at 0');
     this.setState('playing');
   }
 
@@ -143,7 +152,9 @@ export class LessonEngine {
       return;
     }
 
-    Tone.Transport.pause();
+    this.playbackStartLessonTime = this.getCurrentTimeSeconds();
+    this.playbackStartRealTime = null;
+    this.clearScheduledTimeouts();
     this.setState('paused');
   }
 
@@ -155,7 +166,8 @@ export class LessonEngine {
       return;
     }
 
-    Tone.Transport.start();
+    this.playbackStartRealTime = Tone.now();
+    this.scheduleSteps(this.playbackStartLessonTime);
     this.setState('playing');
   }
 
@@ -163,8 +175,12 @@ export class LessonEngine {
    * Stop the lesson
    */
   stop(): void {
+    this.scheduleVersion++;
     Tone.Transport.stop();
     Tone.Transport.cancel();
+    this.clearScheduledTimeouts();
+    this.playbackStartRealTime = null;
+    this.playbackStartLessonTime = 0;
     this.scheduledSteps.clear();
     this.expectedSteps.clear();
     this.processedSteps.clear();
@@ -174,56 +190,87 @@ export class LessonEngine {
   /**
    * Process a MIDI input note
    */
-  processNote(note: number, timestamp: number): void {
+  processNote(note: number, timestamp: number): HitFeedback | null {
+    console.log('[LessonEngine] processNote called:', {
+      note,
+      timestamp,
+      state: this.state,
+      expectedStepsCount: this.expectedSteps.size,
+      processedStepsCount: this.processedSteps.size,
+    });
+
     if (this.state === 'waiting') {
       this.handleWaitModeInput(note, timestamp);
-      return;
+      return null;
     }
 
-    // Find the closest expected step for this note
-    let closestMatch: { step: LessonStep; time: number; delta: number } | null = null;
+    const currentTime = this.getCurrentTimeSeconds();
+    console.log('[LessonEngine] Current lesson time:', currentTime);
 
+    // Strict sequential play: the ONLY hittable note is the next unprocessed step,
+    // in order. This prevents matching an identical pitch further down the track
+    // (e.g. next is A then D, D, J — pressing J must do nothing; only A counts).
+    let targetIndex = -1;
+    let target: { step: LessonStep; time: number } | null = null;
     for (const [stepIndex, expected] of this.expectedSteps.entries()) {
-      if (expected.step.note === note && !this.processedSteps.has(stepIndex)) {
-        const delta = (timestamp - expected.time) * 1000; // Convert to ms
-
-        if (Math.abs(delta) < TIMING_WINDOWS.late + TIMING_WINDOWS.early) {
-          if (!closestMatch || Math.abs(delta) < Math.abs(closestMatch.delta)) {
-            closestMatch = { step: expected.step, time: expected.time, delta };
-          }
-        }
+      if (this.processedSteps.has(stepIndex)) continue;
+      if (targetIndex === -1 || stepIndex < targetIndex) {
+        targetIndex = stepIndex;
+        target = expected;
       }
     }
 
-    if (closestMatch) {
-      const feedback = this.generateFeedback(
-        closestMatch.step,
-        note,
-        timestamp,
-        closestMatch.delta
-      );
-      this.updateScore(feedback);
-
-      // Mark as processed
-      const stepIndex = this.lesson!.steps.indexOf(closestMatch.step);
-      this.processedSteps.add(stepIndex);
-
-      if (this.callbacks.onHitFeedback) {
-        this.callbacks.onHitFeedback(feedback);
-      }
+    if (targetIndex === -1 || !target) {
+      console.log('[LessonEngine] No pending note to hit for input:', note);
+      return null;
     }
+
+    // Wrong note: the input does not match the next expected note — ignore it.
+    if (target.step.note !== note) {
+      console.log(`[LessonEngine] Ignoring note ${note}: next expected note is ${target.step.note} (step ${targetIndex})`);
+      return null;
+    }
+
+    // Right note, but only counts near the hit line.
+    // delta > 0 = pressed after the note's time (late), delta < 0 = before (early).
+    const delta = (currentTime - target.time) * 1000;
+    const withinWindow = delta <= TIMING_WINDOWS.late && delta >= -TIMING_WINDOWS.early;
+    if (!withinWindow) {
+      console.log(`[LessonEngine] Note ${note} matches next step ${targetIndex} but OUTSIDE timing window. Delta: ${delta.toFixed(0)}ms, Window: [-${TIMING_WINDOWS.early}, +${TIMING_WINDOWS.late}]ms`);
+      return null;
+    }
+
+    console.log(`[LessonEngine] ✓ Hit on next step ${targetIndex}. Delta: ${delta.toFixed(0)}ms`);
+    const feedback = this.generateFeedback(target.step, note, currentTime, delta);
+    this.updateScore(feedback);
+    this.processedSteps.add(targetIndex);
+
+    if (this.callbacks.onHitFeedback) {
+      this.callbacks.onHitFeedback(feedback);
+    } else {
+      console.warn('[LessonEngine] No onHitFeedback callback registered!');
+    }
+
+    return feedback;
   }
 
   /**
    * Update practice mode settings
    */
   setPracticeMode(settings: Partial<PracticeModeSettings>): void {
+    const speedChanged = settings.speedMultiplier !== undefined && settings.speedMultiplier !== this.practiceMode.speedMultiplier;
+    const currentTime = this.state === 'playing' && this.lesson ? this.getCurrentTimeSeconds() : this.playbackStartLessonTime;
     this.practiceMode = { ...this.practiceMode, ...settings };
 
     // Update BPM if playing
     if (this.state === 'playing' && this.lesson) {
-      const effectiveBpm = this.lesson.bpm * this.practiceMode.speedMultiplier;
-      Tone.Transport.bpm.value = effectiveBpm;
+      this.playbackStartLessonTime = currentTime;
+      this.playbackStartRealTime = Tone.now();
+
+      if (speedChanged) {
+        this.clearScheduledTimeouts();
+        this.scheduleSteps(currentTime);
+      }
     }
   }
 
@@ -241,68 +288,116 @@ export class LessonEngine {
     return this.state;
   }
 
-  private scheduleSteps(): void {
+  getCurrentTimeSeconds(): number {
+    if (this.state === 'playing' && this.playbackStartRealTime !== null) {
+      return this.playbackStartLessonTime + (Tone.now() - this.playbackStartRealTime) * this.getEffectiveSpeed();
+    }
+    return this.playbackStartLessonTime;
+  }
+
+  private scheduleSteps(fromTime: number = 0): void {
     if (!this.lesson) return;
 
+    const version = ++this.scheduleVersion;
+    this.clearScheduledTimeouts();
     const loopDuration = this.ticksToSeconds(this.loopEndTick - this.loopStartTick);
+    this.expectedSteps.clear();
+    console.log('[LessonEngine] Scheduling steps:', {
+      loopStartTick: this.loopStartTick,
+      loopEndTick: this.loopEndTick,
+      loopDuration,
+      fromTime,
+      totalSteps: this.lesson.steps.length,
+    });
 
+    // Pre-populate ALL expected steps with their calculated times
+    // This allows hitting notes early (before the scheduled callback fires)
     for (let i = 0; i < this.lesson.steps.length; i++) {
       const step = this.lesson.steps[i];
 
-      // Only schedule steps within the current loop
+      // Only include steps within the current loop
       if (step.tick >= this.loopStartTick && step.tick < this.loopEndTick) {
         const offsetTick = step.tick - this.loopStartTick;
-        const timeOffset = this.ticksToSeconds(offsetTick);
-        const scheduleTime = `+${timeOffset}`;
+        const expectedTime = this.ticksToSeconds(offsetTick);
 
-        Tone.Transport.schedule((time) => {
-          this.expectedSteps.set(i, { step, time });
+        console.log('[LessonEngine] Adding expected step:', {
+          stepIndex: i,
+          note: step.note,
+          tick: step.tick,
+          offsetTick,
+          expectedTime,
+        });
 
-          if (this.callbacks.onStepExpected) {
-            this.callbacks.onStepExpected(step, time);
-          }
+        // Add to expectedSteps immediately with pre-calculated time
+        this.expectedSteps.set(i, { step, time: expectedTime });
 
-          // Check for missed notes after timing window
-          Tone.Transport.schedule(() => {
-            if (!this.processedSteps.has(i)) {
-              const feedback: HitFeedback = {
-                expectedStep: step,
-                actualNote: step.note,
-                actualTime: time + TIMING_WINDOWS.late / 1000,
-                timingDelta: TIMING_WINDOWS.late,
-                accuracy: 'miss',
-                points: POINTS.miss,
-              };
-              this.updateScore(feedback);
-              this.processedSteps.add(i);
-
-              if (this.callbacks.onHitFeedback) {
-                this.callbacks.onHitFeedback(feedback);
-              }
+        // Schedule miss check after the timing window
+        const secondsUntilStep = expectedTime - fromTime;
+        const missCheckTime = Math.max(0, secondsUntilStep + (TIMING_WINDOWS.late / 1000));
+        const markMiss = () => {
+          if (version !== this.scheduleVersion || this.state !== 'playing') return;
+          if (!this.processedSteps.has(i)) {
+            const actualTime = this.getCurrentTimeSeconds();
+            const timingDelta = (actualTime - expectedTime) * 1000;
+            if (timingDelta < TIMING_WINDOWS.late) {
+              this.scheduleTimeout(markMiss, (TIMING_WINDOWS.late - timingDelta + 25) / 1000);
+              return;
             }
-          }, time + TIMING_WINDOWS.late / 1000);
+            console.log('[LessonEngine] Step missed:', { stepIndex: i, note: step.note });
+            const feedback: HitFeedback = {
+              expectedStep: step,
+              actualNote: step.note,
+              actualTime,
+              timingDelta,
+              accuracy: 'miss',
+              points: POINTS.miss,
+            };
+            this.updateScore(feedback);
+            this.processedSteps.add(i);
 
-        }, scheduleTime);
+            if (this.callbacks.onHitFeedback) {
+              this.callbacks.onHitFeedback(feedback);
+            }
+          }
+        };
+        this.scheduleTimeout(markMiss, missCheckTime);
       }
     }
 
+    console.log('[LessonEngine] All expected steps pre-populated:', this.expectedSteps.size);
+
     // Schedule loop restart or completion
-    if (this.practiceMode.loopEnabled || this.lesson.loop) {
-      Tone.Transport.schedule(() => {
+    // Practice mode loopEnabled setting takes precedence
+    if (this.practiceMode.loopEnabled) {
+      const secondsUntilLoop = Math.max(0, loopDuration - fromTime);
+      console.log('[LessonEngine] Scheduling loop restart at', secondsUntilLoop, 'seconds');
+      this.scheduleTimeout(() => {
+        if (version !== this.scheduleVersion) return;
         this.handleLoop();
-      }, `+${loopDuration}`);
+      }, secondsUntilLoop);
     } else {
       // Schedule completion when lesson ends
-      Tone.Transport.schedule(() => {
+      const secondsUntilCompletion = Math.max(0, loopDuration - fromTime);
+      console.log('[LessonEngine] Scheduling completion at', secondsUntilCompletion, 'seconds');
+      this.scheduleTimeout(() => {
+        if (version !== this.scheduleVersion) return;
         this.handleCompletion();
-      }, `+${loopDuration}`);
+      }, secondsUntilCompletion);
     }
   }
 
   private handleLoop(): void {
+    console.log('[LessonEngine] Handling loop - resetting Transport position');
+
+    // Clear processed and expected steps
     this.processedSteps.clear();
     this.expectedSteps.clear();
-    this.scheduleSteps();
+
+    this.playbackStartLessonTime = 0;
+    this.playbackStartRealTime = Tone.now();
+    this.scheduleSteps(0);
+
+    console.log('[LessonEngine] Lesson clock restarted for loop');
 
     if (this.callbacks.onLoop) {
       this.callbacks.onLoop();
@@ -310,10 +405,14 @@ export class LessonEngine {
   }
 
   private handleCompletion(): void {
+    console.log('[LessonEngine] Lesson completed! Final score:', this.getScore());
     this.stop();
 
     if (this.callbacks.onComplete) {
+      console.log('[LessonEngine] Calling onComplete callback');
       this.callbacks.onComplete(this.getScore());
+    } else {
+      console.warn('[LessonEngine] No onComplete callback registered!');
     }
   }
 
@@ -392,10 +491,28 @@ export class LessonEngine {
 
   private ticksToSeconds(ticks: number): number {
     if (!this.lesson) return 0;
-    const bpm = this.lesson.bpm * this.practiceMode.speedMultiplier;
-    const ticksPerBeat = 480; // Standard MIDI ticks per quarter note
+    const bpm = this.lesson.bpm;
     const beatsPerSecond = bpm / 60;
-    return ticks / (ticksPerBeat * beatsPerSecond);
+    return ticks / (TICKS_PER_BEAT * beatsPerSecond);
+  }
+
+  private getEffectiveSpeed(): number {
+    return Math.max(this.practiceMode.speedMultiplier, 0);
+  }
+
+  private scheduleTimeout(callback: () => void, lessonSeconds: number): void {
+    const speed = this.getEffectiveSpeed();
+    if (speed <= 0) return;
+    const delayMs = Math.max(0, (lessonSeconds / Math.max(speed, MIN_TIMER_SPEED)) * 1000);
+    const id = window.setTimeout(callback, delayMs);
+    this.timeoutIds.push(id);
+  }
+
+  private clearScheduledTimeouts(): void {
+    for (const id of this.timeoutIds) {
+      window.clearTimeout(id);
+    }
+    this.timeoutIds = [];
   }
 
   private setState(state: LessonEngineState): void {

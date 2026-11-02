@@ -5,7 +5,7 @@ import { app } from 'electron';
 // Initialize Prisma Client with custom database path
 const dbPath = app.isPackaged
   ? path.join(app.getPath('userData'), 'melodics.db')
-  : path.join(__dirname, '../../../../prisma/dev.db');
+  : path.join(__dirname, '../../../prisma/dev.db');
 
 export const prisma = new PrismaClient({
   datasources: {

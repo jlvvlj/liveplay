@@ -1,9 +1,21 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import { MidiManager } from './midi/manager';
 import { MidiEvent } from './midi/types';
 import { disconnectDb } from './data/db';
 import * as deviceMappings from './data/device-mappings';
+
+// Get the project root directory (where package.json is)
+function getProjectRoot(): string {
+  // In development, __dirname is apps/desktop/dist/main
+  // Project root is 4 levels up
+  let root = __dirname;
+  for (let i = 0; i < 4; i++) {
+    root = path.dirname(root);
+  }
+  return root;
+}
 
 let mainWindow: BrowserWindow | null = null;
 let midiManager: MidiManager | null = null;
@@ -119,5 +131,27 @@ function setupIpcHandlers() {
 
   ipcMain.handle('mapping:delete', async (_event, deviceId: string) => {
     await deviceMappings.deleteDeviceMapping(deviceId);
+  });
+
+  // Audio file path handler
+  ipcMain.handle('audio:getPath', async (_event, filename: string) => {
+    const projectRoot = getProjectRoot();
+    const audioPath = path.join(projectRoot, 'audio', filename);
+    console.log('[Main] audio:getPath:', { filename, audioPath, exists: fs.existsSync(audioPath) });
+    if (fs.existsSync(audioPath)) {
+      return `file://${audioPath}`;
+    }
+    throw new Error(`Audio file not found: ${filename}`);
+  });
+
+  // Get all audio files in the audio folder
+  ipcMain.handle('audio:listFiles', async () => {
+    const projectRoot = getProjectRoot();
+    const audioDir = path.join(projectRoot, 'audio');
+    console.log('[Main] audio:listFiles:', audioDir);
+    if (fs.existsSync(audioDir)) {
+      return fs.readdirSync(audioDir).filter(f => f.endsWith('.wav') || f.endsWith('.mp3'));
+    }
+    return [];
   });
 }

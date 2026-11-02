@@ -1,8 +1,14 @@
 .lesson-player {
-  padding: 2rem;
-  max-width: 1400px;
-  margin: 0 auto;
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* Countdown Overlay */
@@ -184,22 +190,575 @@
   min-width: 180px;
 }
 
-.lesson-header {
-  margin-bottom: 1.5rem;
+/* Compact Toolbar */
+.lesson-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toolbar-btn {
+  padding: 0.4rem 0.6rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.toolbar-btn.active {
+  background: rgba(74, 222, 128, 0.2);
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+.toolbar-btn.exit-btn {
+  font-size: 1rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.toolbar-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar-badge {
+  padding: 0.2rem 0.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.toolbar-mode-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.toolbar-mode-tab {
+  padding: 0.4rem 0.8rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toolbar-mode-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.toolbar-mode-tab.active {
+  background: rgba(74, 222, 128, 0.25);
+  color: #4ade80;
+}
+
+.toolbar-mode-tab:not(:last-child) {
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.toolbar-progress {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0.2rem 0.5rem;
+  background: rgba(96, 165, 250, 0.15);
+  border-radius: 4px;
+}
+
+.toolbar-midi {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
+}
+
+.toolbar-midi.active {
+  background: rgba(74, 222, 128, 0.15);
+  border-color: #4ade80;
+}
+
+.toolbar-midi .midi-dot {
+  width: 6px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+.toolbar-midi.active .midi-dot {
+  background: #4ade80;
+  box-shadow: 0 0 6px #4ade80;
+}
+
+.toolbar-keys {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.toolbar-keys kbd {
+  padding: 0.15rem 0.35rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.7rem;
+  font-weight: bold;
+}
+
+.toolbar-keys span {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.7rem;
+}
+
+.toolbar-label-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.toolbar-label-tab {
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toolbar-label-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.toolbar-label-tab.active {
+  background: rgba(74, 222, 128, 0.25);
+  color: #4ade80;
+}
+
+.toolbar-label-tab:first-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .highway-container {
-  margin-bottom: 2rem;
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  margin: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Highway controls container */
+.highway-controls {
+  position: absolute;
+  top: 1rem;
+  right: 2.5rem;
+  z-index: 20;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Label mode tabs */
+.label-mode-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.label-tab {
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.label-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.label-tab.active {
+  background: rgba(74, 222, 128, 0.3);
+  color: #4ade80;
+}
+
+.label-tab:first-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Collapse toggle button */
+.collapse-toggle {
+  width: 40px;
+  height: 40px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.collapse-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.collapse-toggle.collapsed {
+  background: rgba(74, 222, 128, 0.2);
+  border-color: #4ade80;
+}
+
+/* Settings toggle button */
+.settings-toggle {
+  padding: 0.5rem 0.75rem;
+  height: 40px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.settings-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.settings-toggle.active {
+  background: rgba(74, 222, 128, 0.2);
+  border-color: #4ade80;
+}
+
+/* Key settings panel */
+.key-settings-panel {
+  position: absolute;
+  top: 4rem;
+  right: 2.5rem;
+  z-index: 25;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 1rem;
+  min-width: 220px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.key-settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.key-settings-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: #4ade80;
+}
+
+.close-settings {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.close-settings:hover {
+  color: white;
+}
+
+.key-bindings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.key-binding-row {
+  display: grid;
+  grid-template-columns: 30px 1fr 50px;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.note-number {
+  font-weight: bold;
+  color: #4ade80;
+  text-align: center;
+}
+
+.note-value {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.key-input {
+  width: 100%;
+  padding: 0.4rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: white;
+  font-size: 1rem;
+  font-weight: bold;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.key-input:focus {
+  outline: none;
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.reset-keys {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* Recent Hits in settings panel */
+.recent-hits-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.recent-hits-section h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.feedback-list-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.feedback-list-compact .no-feedback {
+  font-size: 0.8rem;
+  padding: 0.75rem;
+  margin: 0;
+}
+
+.feedback-item-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  border-left: 3px solid;
+  font-size: 0.8rem;
+}
+
+.feedback-item-compact .feedback-accuracy {
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+}
+
+.feedback-item-compact .feedback-points {
+  font-weight: bold;
+  color: #4ade80;
+  font-size: 0.75rem;
+}
+
+/* Compact Score Section in settings panel */
+.score-section-compact {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.score-section-compact h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.score-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.score-accuracy {
+  font-size: 1.5rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.score-details {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Compact Speed Section in settings panel */
+.speed-section-compact {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.speed-section-compact h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.speed-slider-compact {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+/* Restart button in settings panel */
+.restart-btn {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* Play button - bottom right of highway */
+.highway-play-btn {
+  position: absolute;
+  bottom: 4rem;
+  right: 2rem;
+  z-index: 20;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(74, 222, 128, 0.4), 0 0 30px rgba(74, 222, 128, 0.2);
+  transition: all 0.2s ease;
+}
+
+.highway-play-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 30px rgba(74, 222, 128, 0.5), 0 0 40px rgba(74, 222, 128, 0.3);
+}
+
+.highway-play-btn:active {
+  transform: scale(0.95);
+}
+
+.highway-play-btn .play-icon {
+  font-size: 1.75rem;
+  color: #1f2937;
+  margin-left: 4px; /* Optical centering for play icon */
+}
+
+.highway-container.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0;
+  z-index: 200;
 }
 
 .lesson-header h2 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
+  font-size: 1.8rem;
+  margin: 0;
 }
 
 .lesson-meta {
   display: flex;
   gap: 1rem;
+  align-items: center;
 }
 
 .instrument-badge,
@@ -212,9 +771,84 @@
 }
 
 .player-layout {
+  padding: 2rem;
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: 2rem;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.exit-lesson-btn {
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.exit-lesson-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Floating Controls during playback */
+.floating-controls {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.5rem 2rem;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+}
+
+.floating-score {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding-right: 1.5rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.floating-accuracy {
+  font-size: 2rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.floating-points {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  color: #4ade80;
+}
+
+.floating-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.floating-buttons button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 /* Controls Section */
@@ -477,6 +1111,478 @@
   color: #4ade80;
 }
 
+/* MIDI Input Indicator */
+.midi-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.midi-indicator.active {
+  background: rgba(74, 222, 128, 0.2);
+  border-color: #4ade80;
+  box-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
+}
+
+.midi-dot {
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.midi-indicator.active .midi-dot {
+  background: #4ade80;
+  box-shadow: 0 0 10px #4ade80;
+  animation: midiBlink 0.5s ease-in-out;
+}
+
+@keyframes midiBlink {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.5);
+  }
+}
+
+/* Keyboard Hint */
+.keyboard-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  font-size: 0.9rem;
+}
+
+.keyboard-hint .hint-label {
+  opacity: 0.7;
+  font-size: 0.85rem;
+}
+
+.keyboard-hint kbd {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9rem;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  min-width: 24px;
+  text-align: center;
+}
+
+.keyboard-hint .more-keys {
+  font-size: 0.8rem;
+  opacity: 0.7;
+  margin-left: 0.25rem;
+}
+
+/* Mode Instructions */
+.mode-instructions {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-radius: 12px;
+}
+
+.mode-instructions h3 {
+  font-size: 1.2rem;
+  margin-bottom: 0.75rem;
+  color: #4ade80;
+}
+
+.mode-instructions p {
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.btn-secondary {
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Mode Tabs */
+.mode-tabs-container {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.mode-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.mode-tab.active {
+  background: rgba(74, 222, 128, 0.15);
+  border-color: #4ade80;
+  color: white;
+}
+
+.mode-tab .mode-icon {
+  font-size: 1.5rem;
+}
+
+.mode-tab .mode-name {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.mode-tab .mode-desc {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* Wait Mode Progress in header */
+.wait-mode-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: rgba(96, 165, 250, 0.15);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: 12px;
+}
+
+.wait-step-counter {
+  font-weight: 600;
+  color: #60a5fa;
+}
+
+.wait-progress-mini {
+  width: 100px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.wait-progress-mini-fill {
+  height: 100%;
+  background: #60a5fa;
+  transition: width 0.2s ease;
+}
+
+/* Game Mode Settings Toggle Button - LEFT side */
+.game-settings-toggle {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 210;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.game-settings-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.game-settings-toggle .settings-icon {
+  font-size: 1.5rem;
+  color: white;
+  transition: transform 0.3s ease;
+}
+
+.game-settings-toggle:hover .settings-icon {
+  transform: rotate(90deg);
+}
+
+/* Game Mode Settings Sidebar - LEFT side */
+.game-settings-sidebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  background: rgba(15, 23, 42, 0.95);
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 205;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(20px);
+  animation: slideInLeft 0.3s ease-out;
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.game-settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.game-settings-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #4ade80;
+}
+
+.close-sidebar {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.75rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.close-sidebar:hover {
+  color: white;
+}
+
+.game-settings-content {
+  flex: 1;
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+}
+
+.setting-group {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.setting-group:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 0.35rem;
+}
+
+.setting-label .setting-icon {
+  font-size: 1.1rem;
+}
+
+.setting-value {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.setting-description {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 0.75rem 0;
+  line-height: 1.3;
+}
+
+.volume-slider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.volume-slider:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(74, 222, 128, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 12px rgba(74, 222, 128, 0.6);
+}
+
+.volume-slider:disabled::-webkit-slider-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 8px rgba(74, 222, 128, 0.4);
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Game Control Buttons */
+.game-controls {
+  display: flex;
+  justify-content: space-around;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.game-control-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 70px;
+}
+
+.game-control-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.game-control-btn:active {
+  transform: translateY(0);
+}
+
+.game-control-btn .control-icon {
+  font-size: 1.5rem;
+  color: white;
+  line-height: 1;
+}
+
+.game-control-btn .control-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Back button - subtle red on hover */
+.game-control-btn.back-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.game-control-btn.back-btn:hover .control-icon {
+  color: #f87171;
+}
+
+/* Play/Pause button - green on hover */
+.game-control-btn.play-pause-btn:hover {
+  background: rgba(74, 222, 128, 0.15);
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.game-control-btn.play-pause-btn:hover .control-icon {
+  color: #4ade80;
+}
+
+/* Restart button - yellow/amber on hover */
+.game-control-btn.restart-btn:hover {
+  background: rgba(250, 204, 21, 0.15);
+  border-color: rgba(250, 204, 21, 0.4);
+}
+
+.game-control-btn.restart-btn:hover .control-icon {
+  color: #facc15;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .player-layout {
@@ -486,4 +1592,95 @@
   .score-stats {
     grid-template-columns: 1fr;
   }
+
+  .mode-tabs-container {
+    flex-direction: column;
+  }
+}
+
+/* Sound selection (switch lanes in/out of the practice) */
+.sound-settings-panel {
+  min-width: 240px;
+}
+
+.sound-settings-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.sound-toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 50vh; /* piano pieces can have dozens of notes */
+  overflow-y: auto;
+}
+
+.sound-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.45);
+  border-radius: 8px;
+  color: white;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.sound-toggle:hover:not(:disabled) {
+  background: rgba(74, 222, 128, 0.22);
+}
+
+.sound-toggle.off {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sound-toggle.off:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.sound-toggle.off .sound-toggle-label {
+  text-decoration: line-through;
+}
+
+.sound-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.sound-toggle kbd {
+  min-width: 1.4rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.sound-toggle-label {
+  flex: 1;
+}
+
+.sound-toggle-state {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #4ade80;
+}
+
+.sound-toggle.off .sound-toggle-state {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.toolbar-btn.has-off {
+  border-color: #facc15;
+  color: #facc15;
 }

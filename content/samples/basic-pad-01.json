@@ -2,7 +2,7 @@
   "id": "basic-pad-01",
   "title": "Basic 4/4 Pad Groove",
   "instrument": "pads",
-  "bpm": 100,
+  "bpm": 80,
   "timeSignature": {
     "numerator": 4,
     "denominator": 4
@@ -14,8 +14,8 @@
     { "tick": 1440, "note": 41, "dur": 120, "velocity": 100, "lane": 3 },
     { "tick": 1920, "note": 36, "dur": 120, "velocity": 100, "lane": 0 },
     { "tick": 2400, "note": 38, "dur": 120, "velocity": 100, "lane": 1 },
-    { "tick": 2880, "note": 40, "dur": 120, "velocity": 90, "lane": 2 },
-    { "tick": 3360, "note": 41, "dur": 120, "velocity": 90, "lane": 3 }
+    { "tick": 2880, "note": 40, "dur": 120, "velocity": 100, "lane": 2 },
+    { "tick": 3360, "note": 41, "dur": 120, "velocity": 100, "lane": 3 }
   ],
   "loop": {
     "startTick": 0,
