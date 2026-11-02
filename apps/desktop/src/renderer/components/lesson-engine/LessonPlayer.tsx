@@ -118,6 +118,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
   const [jamNotes, setJamNotes] = useState<JamNote[]>([]);
   const jamStartRef = useRef<number | null>(null); // Tone time the jam clock started at
   const jamNoteIdRef = useRef<number>(0);
+  const jamNotesRef = useRef<JamNote[]>([]); // Mirrors jamNotes so input never reads a stale list
   // Track current step index for wait mode
   const [waitModeStepIndex, setWaitModeStepIndex] = useState<number>(0);
   // Track played notes for free/wait modes
@@ -742,6 +743,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
         }
       }
       jamStartRef.current = null;
+      jamNotesRef.current = [];
       setJamNotes([]);
       setCurrentTime(0);
     };
@@ -899,15 +901,16 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     const slot = Math.max(0, Math.ceil((elapsed - JAM_LATE_GRACE_S) / sixteenth));
     const timeMs = slot * sixteenth * 1000;
 
-    setJamNotes((prev) => {
-      // The same pitch twice on one 16th sounds once
-      if (prev.some((n) => n.note === row && n.timeMs === timeMs)) return prev;
-      playSound(row, step?.note, undefined, step?.slice, Math.max(start + slot * sixteenth, Tone.now()), step?.semitones);
-      return [
-        ...prev.filter((n) => n.timeMs > elapsed * 1000 - JAM_NOTE_LIFETIME_MS),
-        { id: ++jamNoteIdRef.current, note: row, timeMs },
-      ];
-    });
+    // The same pitch twice on one 16th sounds once
+    const prev = jamNotesRef.current;
+    if (prev.some((n) => n.note === row && n.timeMs === timeMs)) return;
+    playSound(row, step?.note, undefined, step?.slice, Math.max(start + slot * sixteenth, Tone.now()), step?.semitones);
+    const next = [
+      ...prev.filter((n) => n.timeMs > elapsed * 1000 - JAM_NOTE_LIFETIME_MS),
+      { id: ++jamNoteIdRef.current, note: row, timeMs },
+    ];
+    jamNotesRef.current = next;
+    setJamNotes(next);
   }, [jamRows, lesson.steps, lesson.bpm]);
 
   // Shared function to handle note input from both MIDI and keyboard
