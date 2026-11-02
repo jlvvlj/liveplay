@@ -8,7 +8,7 @@ export function SourceStemPanel({project,projects,onExit,onAudition,onStartLesso
  const visited=new Set<string>();
  while(source && !source.sourceSongIds?.length && !visited.has(source.id)) {
   visited.add(source.id);
-  const parent=source.analysisSourceProjectId || source.samSourceProjectId || source.parentProjectId;
+  const parent:string|undefined=source.analysisSourceProjectId || source.samSourceProjectId || source.parentProjectId;
   source=projects.find(p=>p.id===parent);
  }
  const songId=source?.sourceSongIds?.[0];

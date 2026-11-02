@@ -1,30 +1,58 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { LessonPlayer } from './LessonPlayer';
 import { Lesson } from '../../types/lesson';
 
 // Mock window.electronAPI
-(global as any).window = {
-  electronAPI: {
-    midi: {
-      onEvent: jest.fn(),
-      removeEventListener: jest.fn(),
-    },
+(window as any).electronAPI = {
+  midi: {
+    list: jest.fn().mockResolvedValue([]),
+    selectDevice: jest.fn().mockResolvedValue(undefined),
+    onEvent: jest.fn(),
+    removeEventListener: jest.fn(),
+  },
+  mapping: {
+    getAll: jest.fn().mockResolvedValue([]),
   },
 };
 
 // Mock Tone.js
-jest.mock('tone', () => ({
-  start: jest.fn().mockResolvedValue(undefined),
-  now: jest.fn().mockReturnValue(0),
-  Transport: {
-    bpm: { value: 120 },
-    start: jest.fn(),
-    stop: jest.fn(),
-    pause: jest.fn(),
-    schedule: jest.fn(),
-    cancel: jest.fn(),
-  },
-}));
+jest.mock('tone', () => {
+  class MockInstrument {
+    volume = { value: 0 };
+    toDestination() {
+      return this;
+    }
+    triggerAttackRelease = jest.fn();
+    dispose = jest.fn();
+  }
+  class MockPlayer extends MockInstrument {
+    fadeOut = 0;
+    loaded = false;
+    start = jest.fn();
+    stop = jest.fn();
+  }
+  return {
+    start: jest.fn().mockResolvedValue(undefined),
+    now: jest.fn().mockReturnValue(0),
+    Transport: {
+      bpm: { value: 120 },
+      start: jest.fn(),
+      stop: jest.fn(),
+      pause: jest.fn(),
+      schedule: jest.fn(),
+      cancel: jest.fn(),
+    },
+    Synth: MockInstrument,
+    PolySynth: MockInstrument,
+    MembraneSynth: MockInstrument,
+    Sampler: MockInstrument,
+    Player: MockPlayer,
+    ToneAudioBuffer: class {
+      dispose = jest.fn();
+    },
+    Frequency: () => ({ toNote: () => 'C4' }),
+  };
+});
 
 const mockLesson: Lesson = {
   id: 'test-lesson',
@@ -53,36 +81,27 @@ describe('LessonPlayer', () => {
 
   it('displays lesson metadata', () => {
     render(<LessonPlayer lesson={mockLesson} />);
-    expect(screen.getByText('pads')).toBeInTheDocument();
     expect(screen.getByText('100 BPM')).toBeInTheDocument();
-    expect(screen.getByText('Level 2')).toBeInTheDocument();
+    expect(screen.getByText('Lv.2')).toBeInTheDocument();
   });
 
-  it('shows playback controls', () => {
+  it('shows practice mode tabs', () => {
     render(<LessonPlayer lesson={mockLesson} />);
-    expect(screen.getByText('Playback')).toBeInTheDocument();
-    expect(screen.getByText('Start')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Free' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Wait' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
   });
 
-  it('shows practice mode controls', () => {
+  it('shows the start game button', () => {
     render(<LessonPlayer lesson={mockLesson} />);
-    expect(screen.getByText('Practice Mode')).toBeInTheDocument();
-    expect(screen.getByText(/Loop Enabled/i)).toBeInTheDocument();
-    expect(screen.getByText(/Speed:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Auto-BPM/i)).toBeInTheDocument();
-    expect(screen.getByText(/Wait Mode/i)).toBeInTheDocument();
+    expect(screen.getByTitle('Start Game')).toBeInTheDocument();
   });
 
-  it('displays score section', () => {
+  it('shows score and recent hits in the key bindings panel', () => {
     render(<LessonPlayer lesson={mockLesson} />);
+    fireEvent.click(screen.getByTitle('Key Bindings'));
+    expect(screen.getByText('Key Bindings')).toBeInTheDocument();
     expect(screen.getByText('Score')).toBeInTheDocument();
-    expect(screen.getByText('Accuracy')).toBeInTheDocument();
-    expect(screen.getByText('Points')).toBeInTheDocument();
-    expect(screen.getByText('Hits')).toBeInTheDocument();
-  });
-
-  it('shows recent hits section', () => {
-    render(<LessonPlayer lesson={mockLesson} />);
     expect(screen.getByText('Recent Hits')).toBeInTheDocument();
   });
 });

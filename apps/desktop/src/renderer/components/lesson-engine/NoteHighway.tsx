@@ -1,11 +1,10 @@
 import { Fragment, useEffect, useRef, useState, useMemo } from 'react';
-import { LessonStep, InstrumentType, HitFeedback } from '../../types/lesson';
+import { LessonStep, HitFeedback } from '../../types/lesson';
 import './NoteHighway.css';
 
 export type HighwayMode = 'free' | 'wait' | 'play';
 
 interface NoteHighwayProps {
-  instrument: InstrumentType;
   steps: LessonStep[];
   currentTime: number;
   bpm: number;
@@ -44,7 +43,6 @@ const PIXELS_PER_MS = 0.3; // How fast notes scroll in play mode (pixels per mil
 const VISIBLE_BUFFER_MS = 3000; // Show notes this long after they pass the hit zone (play mode)
 
 export function NoteHighway({
-  instrument,
   steps,
   currentTime,
   bpm,

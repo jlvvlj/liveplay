@@ -1,3 +1,4 @@
+import * as Tone from 'tone';
 import { LessonEngine } from '../apps/desktop/src/renderer/components/lesson-engine/LessonEngine';
 import { Lesson, HitFeedback, LessonScore } from '../apps/desktop/src/renderer/types/lesson';
 
@@ -136,7 +137,6 @@ describe('LessonEngine', () => {
       await engine.start();
 
       // BPM should be multiplied by speed
-      const Tone = require('tone');
       expect(Tone.Transport.bpm.value).toBeGreaterThanOrEqual(0);
     });
   });
