@@ -1,0 +1,1404 @@
+{
+  "date": "2026-10-05",
+  "productionReady": false,
+  "conditions": [
+    {
+      "condition": "supplied-spans",
+      "model": "facebook/sam-audio-large",
+      "modelRevision": "5f2cd3a9471a08c7282c06036be6893e18de8b70",
+      "codeCommit": "bb4c6999d2677c7402360e426afc01ddfad6dce0",
+      "status": "finished",
+      "candidates": 1,
+      "inputChannels": 2,
+      "outputChannels": 1,
+      "sourceMetrics": [
+        {
+          "id": "distinct-duet--bass",
+          "case": "distinct-duet",
+          "seconds": 5.364,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.06597934663295746,
+          "levelErrorDb": -0.4126662768343597,
+          "siSdrDb": 24.694793161125297,
+          "siSdrImprovementDb": 25.643151918388806,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.06230190396308899,
+              "outputVsMixtureDb": -3.6356480632568204,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.06261280179023743,
+              "outputVsMixtureDb": -3.9027348201748846,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 0.11563361436128616,
+              "outputVsMixtureDb": -5.692373214636602,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": true,
+          "notes": {
+            "f1": 0.5797101449275363,
+            "matched": 20,
+            "expected": 20,
+            "detected": 49,
+            "meanOnsetErrorMs": 5.725782312925309,
+            "meanOffsetErrorMs": 104.71732426303862
+          }
+        },
+        {
+          "id": "distinct-duet--lead",
+          "case": "distinct-duet",
+          "seconds": 4.523,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.2722913026809692,
+          "levelErrorDb": -1.336051877174039,
+          "siSdrDb": -45.346287566754306,
+          "siSdrImprovementDb": -46.22905692585733,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 1.2932528257369995,
+              "outputVsMixtureDb": -3.6591135166188797,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 1.2737493515014648,
+              "outputVsMixtureDb": -3.905282481637935,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.1521003246307373,
+              "outputVsMixtureDb": -5.679646956804757,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false,
+          "notes": {
+            "f1": 0.0,
+            "matched": 0,
+            "expected": 24,
+            "detected": 49,
+            "meanOnsetErrorMs": null,
+            "meanOffsetErrorMs": null
+          }
+        },
+        {
+          "id": "chords-and-drums--bass",
+          "case": "chords-and-drums",
+          "seconds": 4.514,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.10934653133153915,
+          "levelErrorDb": -0.7061204251590556,
+          "siSdrDb": 20.174821232314596,
+          "siSdrImprovementDb": 25.89877232777084,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.1211564689874649,
+              "outputVsMixtureDb": -8.299083888512808,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.09541330486536026,
+              "outputVsMixtureDb": -7.950064919056348,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 0.12790925800800323,
+              "outputVsMixtureDb": -6.320432797853906,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": true,
+          "notes": {
+            "f1": 0.5333333333333333,
+            "matched": 20,
+            "expected": 20,
+            "detected": 55,
+            "meanOnsetErrorMs": 6.306281179138418,
+            "meanOffsetErrorMs": 75.38845804988655
+          }
+        },
+        {
+          "id": "chords-and-drums--lead",
+          "case": "chords-and-drums",
+          "seconds": 4.528,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.255928874015808,
+          "levelErrorDb": -1.6185550091277947,
+          "siSdrDb": -47.67976342197164,
+          "siSdrImprovementDb": -42.20355704036857,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 1.272126317024231,
+              "outputVsMixtureDb": -8.273939217558514,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 1.259657859802246,
+              "outputVsMixtureDb": -7.971027987669654,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.1470650434494019,
+              "outputVsMixtureDb": -6.335542860467407,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false,
+          "notes": {
+            "f1": 0.0,
+            "matched": 0,
+            "expected": 24,
+            "detected": 57,
+            "meanOnsetErrorMs": null,
+            "meanOffsetErrorMs": null
+          }
+        },
+        {
+          "id": "chords-and-drums--pad",
+          "case": "chords-and-drums",
+          "seconds": 4.518,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.9994333386421204,
+          "levelErrorDb": -41.518762319384635,
+          "siSdrDb": -47.34379369980111,
+          "siSdrImprovementDb": -48.199883347595545,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.998781681060791,
+              "outputVsMixtureDb": -47.24462841589446,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.9999815821647644,
+              "outputVsMixtureDb": -59.03520334958766,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": false,
+              "spectralError": null,
+              "outputVsMixtureDb": -30.499169723685444,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false,
+          "notes": {
+            "f1": 0.0,
+            "matched": 0,
+            "expected": 9,
+            "detected": 5,
+            "meanOnsetErrorMs": null,
+            "meanOffsetErrorMs": null
+          }
+        },
+        {
+          "id": "chords-and-drums--kick",
+          "case": "chords-and-drums",
+          "seconds": 4.515,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 2.203016519546509,
+          "levelErrorDb": 6.817516485721514,
+          "siSdrDb": -24.72194899743168,
+          "siSdrImprovementDb": -10.960521331264962,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 2.175201416015625,
+              "outputVsMixtureDb": -8.366911774611822,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 2.3125619888305664,
+              "outputVsMixtureDb": -8.009587801655162,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.7294095754623413,
+              "outputVsMixtureDb": -6.376192528984462,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "similar-overlapping-synths--pulse-a",
+          "case": "similar-overlapping-synths",
+          "seconds": 4.532,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.9999511241912842,
+          "levelErrorDb": -36.606365979750606,
+          "siSdrDb": -56.90165909990584,
+          "siSdrImprovementDb": -56.44279733856638,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.9997342228889465,
+              "outputVsMixtureDb": -48.43614215881377,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.9999940991401672,
+              "outputVsMixtureDb": -53.779804524326124,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": false,
+              "spectralError": null,
+              "outputVsMixtureDb": -25.571264536737463,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false,
+          "notes": {
+            "f1": 0.0,
+            "matched": 0,
+            "expected": 18,
+            "detected": 9,
+            "meanOnsetErrorMs": null,
+            "meanOffsetErrorMs": null
+          }
+        },
+        {
+          "id": "similar-overlapping-synths--pulse-b",
+          "case": "similar-overlapping-synths",
+          "seconds": 4.522,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.0000131130218506,
+          "levelErrorDb": -36.52643447099009,
+          "siSdrDb": -61.954659042358074,
+          "siSdrImprovementDb": -61.68263538177294,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.9997698068618774,
+              "outputVsMixtureDb": -46.46361810517054,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.9999925494194031,
+              "outputVsMixtureDb": -53.77890192689661,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.0013773441314697,
+              "outputVsMixtureDb": -25.524486928113397,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false,
+          "notes": {
+            "f1": 0.0,
+            "matched": 0,
+            "expected": 16,
+            "detected": 5,
+            "meanOnsetErrorMs": null,
+            "meanOffsetErrorMs": null
+          }
+        },
+        {
+          "id": "absent-target--kick",
+          "case": "absent-target",
+          "seconds": 4.52,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.0001773834228516,
+          "levelErrorDb": -30.36796414029318,
+          "siSdrDb": -76.84634154925195,
+          "siSdrImprovementDb": -215.2847345319869,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.9998041987419128,
+              "outputVsMixtureDb": -43.69953101305296,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.9998084306716919,
+              "outputVsMixtureDb": -43.68365969468668,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.0045920610427856,
+              "outputVsMixtureDb": -20.13923050200866,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "absent-target--missing-lead",
+          "case": "absent-target",
+          "seconds": 9.009,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "absentTargetLevelDb": -30.3666118955765,
+          "audioGate": true,
+          "notes": {
+            "f1": 0.0,
+            "matched": 0,
+            "expected": 0,
+            "detected": 2,
+            "meanOnsetErrorMs": null
+          }
+        }
+      ],
+      "summedStems": [
+        {
+          "case": "distinct-duet",
+          "monoSpectralError": 0.9057388305664062,
+          "levelErrorDb": 2.128223462569125
+        },
+        {
+          "case": "chords-and-drums",
+          "monoSpectralError": 0.9749298095703125,
+          "levelErrorDb": 1.4770692085392385
+        },
+        {
+          "case": "similar-overlapping-synths",
+          "monoSpectralError": 0.999997615814209,
+          "levelErrorDb": -33.4713768866885
+        },
+        {
+          "case": "absent-target",
+          "monoSpectralError": 1.0001773834228516,
+          "levelErrorDb": -30.36796414029318
+        }
+      ],
+      "pairCorrelation": {
+        "distinct-duet": 0.9999703201883301,
+        "chords-and-drums": 0.9998303463949442,
+        "similar-overlapping-synths": 0.9696488552358302
+      }
+    },
+    {
+      "condition": "text-only",
+      "model": "facebook/sam-audio-large",
+      "modelRevision": "5f2cd3a9471a08c7282c06036be6893e18de8b70",
+      "codeCommit": "bb4c6999d2677c7402360e426afc01ddfad6dce0",
+      "status": "finished",
+      "candidates": 1,
+      "inputChannels": 2,
+      "outputChannels": 1,
+      "sourceMetrics": [
+        {
+          "id": "distinct-duet--bass",
+          "case": "distinct-duet",
+          "seconds": 5.442,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.06590604037046432,
+          "levelErrorDb": -0.4121442094300698,
+          "siSdrDb": 24.7031082964539,
+          "siSdrImprovementDb": 25.651467054168393,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.06215896084904671,
+              "outputVsMixtureDb": -3.634215614425859,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.06258707493543625,
+              "outputVsMixtureDb": -3.902970047826375,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 0.11562590301036835,
+              "outputVsMixtureDb": -5.692488333569522,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": true
+        },
+        {
+          "id": "distinct-duet--lead",
+          "case": "distinct-duet",
+          "seconds": 4.509,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.2727172374725342,
+          "levelErrorDb": -1.329499148401745,
+          "siSdrDb": -45.298629599847075,
+          "siSdrImprovementDb": -46.18139895986899,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 1.2945492267608643,
+              "outputVsMixtureDb": -3.640189547518946,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 1.2735201120376587,
+              "outputVsMixtureDb": -3.9088678302676816,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.151973843574524,
+              "outputVsMixtureDb": -5.683114573703908,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "chords-and-drums--bass",
+          "case": "chords-and-drums",
+          "seconds": 4.507,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.10782161355018616,
+          "levelErrorDb": -0.6950394601459711,
+          "siSdrDb": 20.26424322342784,
+          "siSdrImprovementDb": 25.988194260880633,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.11900542676448822,
+              "outputVsMixtureDb": -8.28448113873624,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.09443709254264832,
+              "outputVsMixtureDb": -7.941459618006431,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 0.12741361558437347,
+              "outputVsMixtureDb": -6.315372031599411,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": true
+        },
+        {
+          "id": "chords-and-drums--lead",
+          "case": "chords-and-drums",
+          "seconds": 4.514,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.2543786764144897,
+          "levelErrorDb": -1.6439877701462067,
+          "siSdrDb": -47.55164726173508,
+          "siSdrImprovementDb": -42.07544086622298,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 1.2699164152145386,
+              "outputVsMixtureDb": -8.307755770183187,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 1.258494257926941,
+              "outputVsMixtureDb": -7.990304598266373,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.1465831995010376,
+              "outputVsMixtureDb": -6.34887505772334,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "chords-and-drums--pad",
+          "case": "chords-and-drums",
+          "seconds": 4.506,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.9827402234077454,
+          "levelErrorDb": -5.377430806067556,
+          "siSdrDb": -30.329651865765154,
+          "siSdrImprovementDb": -31.18574149884887,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.986458420753479,
+              "outputVsMixtureDb": -8.322840505067283,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.9660047292709351,
+              "outputVsMixtureDb": -8.010964025690669,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": false,
+              "spectralError": null,
+              "outputVsMixtureDb": -6.366661787379449,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "chords-and-drums--kick",
+          "case": "chords-and-drums",
+          "seconds": 4.511,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 2.2046849727630615,
+          "levelErrorDb": 6.824620794100261,
+          "siSdrDb": -24.727036977926844,
+          "siSdrImprovementDb": -10.96560965332217,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 2.177248477935791,
+              "outputVsMixtureDb": -8.358116447243475,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 2.3140385150909424,
+              "outputVsMixtureDb": -8.003576314828331,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.730021357536316,
+              "outputVsMixtureDb": -6.372981006227207,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "similar-overlapping-synths--pulse-a",
+          "case": "similar-overlapping-synths",
+          "seconds": 4.519,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.05448754131793976,
+          "levelErrorDb": -0.054184942472552886,
+          "siSdrDb": 21.36096073606528,
+          "siSdrImprovementDb": 21.819822503597052,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.04620949551463127,
+              "outputVsMixtureDb": -2.045966766778038,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.058744993060827255,
+              "outputVsMixtureDb": -3.363457375823896,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": false,
+              "spectralError": null,
+              "outputVsMixtureDb": -25.505867559150325,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": true
+        },
+        {
+          "id": "similar-overlapping-synths--pulse-b",
+          "case": "similar-overlapping-synths",
+          "seconds": 4.514,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.3268654346466064,
+          "levelErrorDb": -0.1621062788477871,
+          "siSdrDb": -28.258540571040275,
+          "siSdrImprovementDb": -27.98651691642923,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 1.5485045909881592,
+              "outputVsMixtureDb": -2.0595116008308834,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 1.240433931350708,
+              "outputVsMixtureDb": -3.386755598190232,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.0013850927352905,
+              "outputVsMixtureDb": -25.501279112018445,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "absent-target--kick",
+          "case": "absent-target",
+          "seconds": 4.506,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.0001778602600098,
+          "levelErrorDb": -30.36612324072908,
+          "siSdrDb": -76.84257965743127,
+          "siSdrImprovementDb": -215.28097253441996,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.9998041987419128,
+              "outputVsMixtureDb": -43.69953225739509,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.9998084306716919,
+              "outputVsMixtureDb": -43.68365956716399,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.0045942068099976,
+              "outputVsMixtureDb": -20.137308335118846,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "absent-target--missing-lead",
+          "case": "absent-target",
+          "seconds": 4.518,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "absentTargetLevelDb": -30.366611840352252,
+          "audioGate": true
+        }
+      ],
+      "summedStems": [
+        {
+          "case": "distinct-duet",
+          "monoSpectralError": 0.9060777425765991,
+          "levelErrorDb": 2.131780378111689
+        },
+        {
+          "case": "chords-and-drums",
+          "monoSpectralError": 1.2476977109909058,
+          "levelErrorDb": 3.9674316340193454
+        },
+        {
+          "case": "similar-overlapping-synths",
+          "monoSpectralError": 0.9696344137191772,
+          "levelErrorDb": 3.0884289409237295
+        },
+        {
+          "case": "absent-target",
+          "monoSpectralError": 1.0001778602600098,
+          "levelErrorDb": -30.36612324072908
+        }
+      ],
+      "pairCorrelation": {
+        "distinct-duet": 0.9999798713824904,
+        "chords-and-drums": 0.9999351266959089,
+        "similar-overlapping-synths": 0.9999803359980804
+      }
+    },
+    {
+      "condition": "predicted-spans-four-candidates",
+      "model": "facebook/sam-audio-large",
+      "modelRevision": "5f2cd3a9471a08c7282c06036be6893e18de8b70",
+      "codeCommit": "bb4c6999d2677c7402360e426afc01ddfad6dce0",
+      "status": "finished",
+      "candidates": 4,
+      "inputChannels": 2,
+      "outputChannels": 1,
+      "sourceMetrics": [
+        {
+          "id": "distinct-duet--bass",
+          "case": "distinct-duet",
+          "seconds": 21.612,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.06499378383159637,
+          "levelErrorDb": -0.4085416110249208,
+          "siSdrDb": 24.720431926676987,
+          "siSdrImprovementDb": 25.668790684391478,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.061979979276657104,
+              "outputVsMixtureDb": -3.607105179179946,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.061345454305410385,
+              "outputVsMixtureDb": -3.9257085705351535,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 0.11260140687227249,
+              "outputVsMixtureDb": -5.6321237816797325,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": true
+        },
+        {
+          "id": "distinct-duet--lead",
+          "case": "distinct-duet",
+          "seconds": 14.845,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.2729490995407104,
+          "levelErrorDb": -1.3257689870127007,
+          "siSdrDb": -45.24829003789303,
+          "siSdrImprovementDb": -46.131059397914946,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 1.2947992086410522,
+              "outputVsMixtureDb": -3.6363664984581137,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 1.2737678289413452,
+              "outputVsMixtureDb": -3.904970485990823,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.1519957780838013,
+              "outputVsMixtureDb": -5.682147690112869,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "chords-and-drums--bass",
+          "case": "chords-and-drums",
+          "seconds": 14.844,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.09460071474313736,
+          "levelErrorDb": -0.5749823069354932,
+          "siSdrDb": 20.579534216437136,
+          "siSdrImprovementDb": 26.303485253889928,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.10513488948345184,
+              "outputVsMixtureDb": -8.175934026678558,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.08406645804643631,
+              "outputVsMixtureDb": -7.841293183884588,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 0.09725511074066162,
+              "outputVsMixtureDb": -5.884089054902136,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": true
+        },
+        {
+          "id": "chords-and-drums--lead",
+          "case": "chords-and-drums",
+          "seconds": 14.83,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.675882339477539,
+          "levelErrorDb": 3.307284004075246,
+          "siSdrDb": -63.07077413127254,
+          "siSdrImprovementDb": -57.59456773576045,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 1.751330852508545,
+              "outputVsMixtureDb": -2.9980472812885957,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 1.7005850076675415,
+              "outputVsMixtureDb": -2.962114504046172,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.0007508993148804,
+              "outputVsMixtureDb": -30.42592974343385,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "chords-and-drums--pad",
+          "case": "chords-and-drums",
+          "seconds": 14.892,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 0.11775124073028564,
+          "levelErrorDb": -0.46162243961890803,
+          "siSdrDb": 15.386293358275474,
+          "siSdrImprovementDb": 14.530203725191758,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.1139293685555458,
+              "outputVsMixtureDb": -3.1172460731898406,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.12072744965553284,
+              "outputVsMixtureDb": -2.9558007251990954,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": false,
+              "spectralError": null,
+              "outputVsMixtureDb": -30.47626523502673,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": true
+        },
+        {
+          "id": "chords-and-drums--kick",
+          "case": "chords-and-drums",
+          "seconds": 14.826,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 2.1897356510162354,
+          "levelErrorDb": 6.850327751119119,
+          "siSdrDb": -21.698220123399402,
+          "siSdrImprovementDb": -7.936792798794729,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 2.1613290309906006,
+              "outputVsMixtureDb": -8.341073020400843,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 2.2916462421417236,
+              "outputVsMixtureDb": -8.005341510021793,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.7696826457977295,
+              "outputVsMixtureDb": -5.985468006700736,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "similar-overlapping-synths--pulse-a",
+          "case": "similar-overlapping-synths",
+          "seconds": 14.895,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.0000838041305542,
+          "levelErrorDb": -36.644337874199394,
+          "siSdrDb": -101.45963531281602,
+          "siSdrImprovementDb": -101.00077354528425,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.9999951720237732,
+              "outputVsMixtureDb": -52.4910670487626,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.9999943375587463,
+              "outputVsMixtureDb": -53.8283623257455,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": false,
+              "spectralError": null,
+              "outputVsMixtureDb": -25.46531302177457,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "similar-overlapping-synths--pulse-b",
+          "case": "similar-overlapping-synths",
+          "seconds": 14.901,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.325811505317688,
+          "levelErrorDb": -0.17386688719389148,
+          "siSdrDb": -28.250589503054726,
+          "siSdrImprovementDb": -27.978565848443683,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 1.5469835996627808,
+              "outputVsMixtureDb": -2.0728470236970673,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 1.2395514249801636,
+              "outputVsMixtureDb": -3.396942408313217,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.0013761520385742,
+              "outputVsMixtureDb": -25.528655095029947,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "absent-target--kick",
+          "case": "absent-target",
+          "seconds": 14.829,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "spectralError": 1.0001741647720337,
+          "levelErrorDb": -30.407060678548035,
+          "siSdrDb": -76.8857343366536,
+          "siSdrImprovementDb": -215.3241272136423,
+          "intervals": [
+            {
+              "start": 0.0,
+              "end": 5.0,
+              "active": true,
+              "spectralError": 0.9998041987419128,
+              "outputVsMixtureDb": -43.69912743252301,
+              "quietOutput": false
+            },
+            {
+              "start": 5.0,
+              "end": 10.0,
+              "active": true,
+              "spectralError": 0.9998084306716919,
+              "outputVsMixtureDb": -43.68324095055875,
+              "quietOutput": false
+            },
+            {
+              "start": 10.0,
+              "end": 12.0,
+              "active": true,
+              "spectralError": 1.0045472383499146,
+              "outputVsMixtureDb": -20.180080079070066,
+              "quietOutput": false
+            }
+          ],
+          "audioGate": false
+        },
+        {
+          "id": "absent-target--missing-lead",
+          "case": "absent-target",
+          "seconds": 14.839,
+          "inputChannels": 2,
+          "outputChannels": 1,
+          "absentTargetLevelDb": -30.27568294027803,
+          "audioGate": true
+        }
+      ],
+      "summedStems": [
+        {
+          "case": "distinct-duet",
+          "monoSpectralError": 0.9057354927062988,
+          "levelErrorDb": 2.131632062249534
+        },
+        {
+          "case": "chords-and-drums",
+          "monoSpectralError": 0.8439399600028992,
+          "levelErrorDb": 4.202371640208516
+        },
+        {
+          "case": "similar-overlapping-synths",
+          "monoSpectralError": 0.6790106892585754,
+          "levelErrorDb": -2.950344630771366
+        },
+        {
+          "case": "absent-target",
+          "monoSpectralError": 1.0001741647720337,
+          "levelErrorDb": -30.407060678548035
+        }
+      ],
+      "pairCorrelation": {
+        "distinct-duet": 0.9982242307881392,
+        "chords-and-drums": 0.03475771066937537,
+        "similar-overlapping-synths": 0.018347411145851814
+      }
+    }
+  ],
+  "downstream": {
+    "supplied-spans": [
+      {
+        "id": "distinct-duet--bass",
+        "parts": 1,
+        "notes": {
+          "f1": 1.0,
+          "matched": 20,
+          "expected": 20,
+          "detected": 20,
+          "meanOnsetErrorMs": 4.474999999999946,
+          "meanOffsetErrorMs": 2.6899999999998534
+        },
+        "rebuiltVsSeparatedSpectralError": 0.1191922053694725,
+        "spectralError": 0.1373768001794815,
+        "levelErrorDb": -0.9422316587089629,
+        "engines": [
+          "pulse"
+        ],
+        "seconds": 13.68
+      },
+      {
+        "id": "distinct-duet--lead",
+        "parts": 1,
+        "notes": {
+          "f1": 0.0,
+          "matched": 0,
+          "expected": 24,
+          "detected": 20,
+          "meanOnsetErrorMs": null,
+          "meanOffsetErrorMs": null
+        },
+        "rebuiltVsSeparatedSpectralError": 0.12051639705896378,
+        "spectralError": 1.2484525442123413,
+        "levelErrorDb": -1.870026377693694,
+        "engines": [
+          "pulse"
+        ],
+        "seconds": 11.85
+      },
+      {
+        "id": "chords-and-drums--bass",
+        "parts": 1,
+        "notes": {
+          "f1": 1.0,
+          "matched": 20,
+          "expected": 20,
+          "detected": 20,
+          "meanOnsetErrorMs": 5.010000000000003,
+          "meanOffsetErrorMs": 3.7499999999998646
+        },
+        "rebuiltVsSeparatedSpectralError": 0.13138562440872192,
+        "spectralError": 0.16649378836154938,
+        "levelErrorDb": -1.2498734818074937,
+        "engines": [
+          "pulse"
+        ],
+        "seconds": 12.35
+      },
+      {
+        "id": "chords-and-drums--lead",
+        "parts": 1,
+        "notes": {
+          "f1": 0.0,
+          "matched": 0,
+          "expected": 24,
+          "detected": 20,
+          "meanOnsetErrorMs": null,
+          "meanOffsetErrorMs": null
+        },
+        "rebuiltVsSeparatedSpectralError": 0.12485624849796295,
+        "spectralError": 1.2317678928375244,
+        "levelErrorDb": -2.1653748445471384,
+        "engines": [
+          "pulse"
+        ],
+        "seconds": 11.48
+      },
+      {
+        "id": "chords-and-drums--pad",
+        "error": "Command '['/Users/jimmylevagueresse/Code/PROJECTS/melodics/instrument-lab/.venv/bin/python', '/Users/jimmylevagueresse/Code/PROJECTS/melodics/instrument-lab/analysis/analyze.py', '--input', '/Users/jimmylevagueresse/Documents/Codex/2026-10-04/let/work/sam-audio-validation/hf-results/inference/chords-and-drums--pad-target.wav', '--output', '/Users/jimmylevagueresse/Documents/Codex/2026-10-04/let/work/sam-rebuilt-stem-baseline/chords-and-drums--pad', '--catalog', '/Users/jimmylevagueresse/Code/PROJECTS/melodics/instrument-lab/data/catalog.json', '--max-parts', '1']' returned non-zero exit status 1.",
+        "seconds": 4.9
+      },
+      {
+        "id": "similar-overlapping-synths--pulse-a",
+        "parts": 1,
+        "notes": {
+          "f1": 0.0,
+          "matched": 0,
+          "expected": 18,
+          "detected": 4,
+          "meanOnsetErrorMs": null,
+          "meanOffsetErrorMs": null
+        },
+        "rebuiltVsSeparatedSpectralError": 1.0232956409454346,
+        "spectralError": 0.9997872114181519,
+        "levelErrorDb": -46.07593637026948,
+        "engines": [
+          "fm"
+        ],
+        "seconds": 5.25
+      },
+      {
+        "id": "similar-overlapping-synths--pulse-b",
+        "parts": 1,
+        "notes": {
+          "f1": 0.0,
+          "matched": 0,
+          "expected": 16,
+          "detected": 1,
+          "meanOnsetErrorMs": null,
+          "meanOffsetErrorMs": null
+        },
+        "rebuiltVsSeparatedSpectralError": 1.0275135040283203,
+        "spectralError": 0.9999760389328003,
+        "levelErrorDb": -47.216311163789165,
+        "engines": [
+          "saw"
+        ],
+        "seconds": 5.25
+      }
+    ],
+    "text-only": [
+      {
+        "id": "similar-overlapping-synths--pulse-a",
+        "parts": 1,
+        "notes": {
+          "f1": 1.0,
+          "matched": 18,
+          "expected": 18,
+          "detected": 18,
+          "meanOnsetErrorMs": 3.1944444444444255,
+          "meanOffsetErrorMs": 5.11111111111119
+        },
+        "rebuiltVsSeparatedSpectralError": 0.1316535472869873,
+        "spectralError": 0.12971167266368866,
+        "levelErrorDb": -0.7102864126300702,
+        "engines": [
+          "pulse"
+        ],
+        "seconds": 37.53
+      }
+    ],
+    "predicted-spans-four-candidates": [
+      {
+        "id": "chords-and-drums--pad",
+        "parts": 1,
+        "notes": {
+          "f1": 0.75,
+          "matched": 9,
+          "expected": 9,
+          "detected": 15,
+          "meanOnsetErrorMs": 3.255555555555444,
+          "meanOffsetErrorMs": 209.5222222222224
+        },
+        "rebuiltVsSeparatedSpectralError": 0.3187882900238037,
+        "spectralError": 0.322400838136673,
+        "levelErrorDb": -1.4158439293206804,
+        "engines": [
+          "saw"
+        ],
+        "seconds": 36.62
+      }
+    ]
+  }
+}

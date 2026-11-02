@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { LabSoundEditor } from "./sound-editor/LabSoundEditor.tsx";
 import { audibleIds, clamp, zoomWindow } from "./timeline.mjs";
 const stamp = (s) => {
   const ticks = Math.round(s * 10);
@@ -39,17 +40,30 @@ export default function Arrangement({
   busy,
   muted,
   solo,
-  onSelect,
   onSeek,
   onPlay,
   onToggle,
   onMerge,
+  expandedId,
+  renderDetail,
+  onExpand,
+  onPlayPart,
+  activePartId,
+  mixMode,
+  onMixMode,
+  onAudition,
+  onAudioTime,
+  onStartLesson,
 }) {
   const [view, setView] = useState([0, duration]);
   const [scrub, setScrub] = useState(null);
   const [merge, setMerge] = useState(null);
   const root = useRef(null),
-    gesture = useRef(null);
+    gesture = useRef(null),
+    mergeReview = useRef(null);
+  useEffect(() => {
+    mergeReview.current?.scrollIntoView({ block: "nearest" });
+  }, [merge?.sourceId, merge?.targetId]);
   const [start, span] = view;
   const position = scrub ?? time;
   const audible = audibleIds(parts, muted, solo);
@@ -59,11 +73,14 @@ export default function Arrangement({
   useEffect(() => {
     const node = root.current;
     const wheel = (e) => {
-      const lane = e.target.closest("[data-timeline]");
+      const lane = e.target.closest("[data-timeline], .expanded-roll-viewport");
       if (!lane) return;
+      // Own every wheel gesture over a lane, including at its scroll limits.
+      // Otherwise unused vertical deltas chain into the surrounding page.
+      e.preventDefault();
+      e.stopPropagation();
       const rect = lane.getBoundingClientRect();
       if (e.ctrlKey) {
-        e.preventDefault();
         setView((v) =>
           zoomWindow(
             v[0],
@@ -75,8 +92,19 @@ export default function Arrangement({
         );
       } else {
         const delta = e.deltaX || (e.shiftKey ? e.deltaY : 0);
-        if (!delta) return;
-        e.preventDefault();
+        if (!delta) {
+          const pitches = lane.closest(".expanded-roll-viewport");
+          if (pitches) {
+            const units =
+              e.deltaMode === 1
+                ? 16
+                : e.deltaMode === 2
+                  ? pitches.clientHeight
+                  : 1;
+            pitches.scrollTop += e.deltaY * units;
+          }
+          return;
+        }
         const pixels =
           delta * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? rect.width : 1);
         setView((v) => [
@@ -102,14 +130,14 @@ export default function Arrangement({
       e.preventDefault();
       e.currentTarget.focus();
       e.currentTarget.setPointerCapture(e.pointerId);
-      gesture.current = e.pointerId;
+      gesture.current = { id: e.pointerId };
       setScrub(atPointer(e));
     },
     onPointerMove: (e) => {
-      if (gesture.current === e.pointerId) setScrub(atPointer(e));
+      if (gesture.current?.id === e.pointerId) setScrub(atPointer(e));
     },
     onPointerUp: (e) => {
-      if (gesture.current !== e.pointerId) return;
+      if (gesture.current?.id !== e.pointerId) return;
       gesture.current = null;
       onSeek(atPointer(e));
       setScrub(null);
@@ -147,6 +175,79 @@ export default function Arrangement({
     "aria-valuetext": stamp(position),
     ...seekHandlers,
   });
+  const renderTrackControls = (p, i) => (
+    <div className="mix-track-controls">
+      <button
+        className="mix-select"
+        aria-label={`Edit ${p.name}`}
+        aria-pressed={selected === p.id}
+        disabled={busy}
+        onClick={() => onExpand(p, true)}
+        aria-expanded={expandedId === p.id}
+        aria-controls={`lane-editor-${p.id}`}
+      >
+        <span className="track-number">{String(i + 1).padStart(2, "0")}</span>
+        <span>
+          <strong>
+            {p.name}
+            {p.engine === "drum" && p.discovery?.needsReview ? " · review" : ""}
+          </strong>
+          <small>
+            {p.engine === "drum" ? "Hybrid drum" : p.patch.family} ·{" "}
+            {p.notes.length} {p.engine === "drum" ? "hits" : "notes"}
+          </small>
+        </span>
+      </button>
+      <button
+        className="track-play"
+        aria-label={`${activePartId === p.id ? "Pause" : "Play"} ${p.name} stem`}
+        disabled={busy}
+        onClick={() => onPlayPart(p)}
+      >
+        {activePartId === p.id ? "Ⅱ" : "▶"}
+      </button>
+      <button
+        className="mix-solo"
+        aria-label={`Solo ${p.name}`}
+        title="Solo (multiple solos allowed)"
+        aria-pressed={solo.includes(p.id)}
+        onClick={() => onToggle("solo", p.id)}
+      >
+        S
+      </button>
+      <button
+        className="mix-mute"
+        aria-label={`Mute ${p.name}`}
+        title="Mute"
+        aria-pressed={muted.includes(p.id)}
+        onClick={() => onToggle("muted", p.id)}
+      >
+        M
+      </button>
+      <select
+        className="mix-merge"
+        aria-label={`Merge ${p.name} into`}
+        title="Move every event into another track, keeping its sound"
+        value=""
+        disabled={busy}
+        onChange={(e) => setMerge({ sourceId: p.id, targetId: e.target.value })}
+      >
+        <option value="">Merge into…</option>
+        {parts
+          .filter(
+            (other) =>
+              other.id !== p.id &&
+              other.ownerProjectId === p.ownerProjectId &&
+              (other.engine === "drum") === (p.engine === "drum"),
+          )
+          .map((other) => (
+            <option key={other.id} value={other.id}>
+              → {other.name}
+            </option>
+          ))}
+      </select>
+    </div>
+  );
   return (
     <section
       className="arrangement mix-arrangement"
@@ -171,7 +272,21 @@ export default function Arrangement({
           <output aria-label="Mix playhead">
             {stamp(position)} / {stamp(duration)}
           </output>
-          <span className="mix-caption">Rebuilt mix</span>
+          <div className="segmented" aria-label="Full mix source">
+            {[
+              ["original", "Original mix"],
+              ["reconstruction", "Rebuilt mix"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                aria-pressed={mixMode === key}
+                className={mixMode === key ? "active" : ""}
+                onClick={() => onMixMode(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="mix-zoom">
           <button
@@ -231,119 +346,104 @@ export default function Arrangement({
         {parts.map((p, i) => (
           <div
             key={p.id}
-            className={`mix-grid mix-track ${selected === p.id ? "active" : ""} ${audible.has(p.id) ? "" : "inaudible"}`}
-            style={{ "--track": colors[i % colors.length] }}
+            className="instrument-lane-group"
+            data-instrument-id={p.id}
           >
-            <div className="mix-track-controls">
-              <button
-                className="mix-select"
-                aria-label={`Edit ${p.name}`}
-                aria-pressed={selected === p.id}
-                disabled={busy}
-                onClick={() => onSelect(p)}
+            {expandedId === p.id ? (
+              <div
+                className="expanded-lane"
+                id={`lane-editor-${p.id}`}
+                style={{ "--track": colors[i % colors.length] }}
               >
-                <span className="track-number">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span>
+                {renderDetail({
+                  start,
+                  span,
+                  trackControls: renderTrackControls(p, i),
+                  seekProps: sliderProps(`Seek expanded ${p.name}`),
+                })}
+              </div>
+            ) : (
+              <div
+                className={`mix-grid mix-track ${selected === p.id ? "active" : ""} ${audible.has(p.id) ? "" : "inaudible"}`}
+                style={{ "--track": colors[i % colors.length] }}
+              >
+                {renderTrackControls(p, i)}
+                <div
+                  className="mix-lane"
+                  data-timeline
+                  {...sliderProps(`Seek ${p.name}`)}
+                >
+                  <Overview part={p} start={start} span={span} />
+                  {head}
+                </div>
+              </div>
+            )}
+            {p.referenceFile && <InstrumentAudioSection part={p} timeline={view} onView={setView} time={position}
+              onSeek={onSeek} onTime={onAudioTime} onAudition={onAudition} onStartLesson={onStartLesson}/>}
+            {merge?.sourceId === p.id && (
+              <div
+                className="mix-merge-review"
+                ref={mergeReview}
+                role="region"
+                aria-label="Merge instruments"
+              >
+                <p>
+                  Merge{" "}
                   <strong>
-                    {p.name}
-                    {p.engine === "drum" && p.discovery?.needsReview
-                      ? " · review"
-                      : ""}
+                    {parts.find((p) => p.id === merge.sourceId)?.name}
+                  </strong>{" "}
+                  into{" "}
+                  <strong>
+                    {parts.find((p) => p.id === merge.targetId)?.name}
                   </strong>
-                  <small>
-                    {p.engine === "drum" ? "Hybrid drum" : p.patch.family} ·{" "}
-                    {p.notes.length} {p.engine === "drum" ? "hits" : "notes"}
-                  </small>
-                </span>
-              </button>
-              <button
-                className="mix-solo"
-                aria-label={`Solo ${p.name}`}
-                title="Solo (multiple solos allowed)"
-                aria-pressed={solo.includes(p.id)}
-                onClick={() => onToggle("solo", p.id)}
-              >
-                S
-              </button>
-              <button
-                className="mix-mute"
-                aria-label={`Mute ${p.name}`}
-                title="Mute"
-                aria-pressed={muted.includes(p.id)}
-                onClick={() => onToggle("muted", p.id)}
-              >
-                M
-              </button>
-              <select
-                className="mix-merge"
-                aria-label={`Merge ${p.name} into`}
-                title="Move every event into another track, keeping its sound"
-                value=""
-                disabled={busy}
-                onChange={(e) =>
-                  setMerge({ sourceId: p.id, targetId: e.target.value })
-                }
-              >
-                <option value="">Merge into…</option>
-                {parts
-                  .filter(
-                    (other) =>
-                      other.id !== p.id &&
-                      other.ownerProjectId === p.ownerProjectId &&
-                      (other.engine === "drum") === (p.engine === "drum"),
-                  )
-                  .map((other) => (
-                    <option key={other.id} value={other.id}>
-                      → {other.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div
-              className="mix-lane"
-              data-timeline
-              {...sliderProps(`Seek ${p.name}`)}
-            >
-              <Overview part={p} start={start} span={span} />
-              {head}
-            </div>
+                  ? All events will use the destination sound. The source row
+                  will be removed and the merged audio saved.
+                </p>
+                {merge.error && (
+                  <p role="alert" className="merge-error">
+                    {merge.error}
+                  </p>
+                )}
+                <button
+                  disabled={busy}
+                  onClick={async () => {
+                    try {
+                      const result = await onMerge(
+                        merge.sourceId,
+                        merge.targetId,
+                      );
+                      if (result?.ok) setMerge(null);
+                      else
+                        setMerge(
+                          (current) =>
+                            current && {
+                              ...current,
+                              error:
+                                result?.error || "Merge failed. Please retry.",
+                            },
+                        );
+                    } catch (error) {
+                      setMerge(
+                        (current) =>
+                          current && { ...current, error: error.message },
+                      );
+                    }
+                  }}
+                >
+                  {busy ? "Merging…" : "Merge tracks"}
+                </button>
+                <button disabled={busy} onClick={() => setMerge(null)}>
+                  Cancel merge
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
-      {merge && (
-        <div
-          className="mix-merge-review"
-          role="region"
-          aria-label="Merge instruments"
-        >
-          <p>
-            Merge{" "}
-            <strong>{parts.find((p) => p.id === merge.sourceId)?.name}</strong>{" "}
-            into{" "}
-            <strong>{parts.find((p) => p.id === merge.targetId)?.name}</strong>?
-            All events will use the destination sound. The source row will be
-            removed and the merged audio saved.
-          </p>
-          <button
-            disabled={busy}
-            onClick={async () => {
-              await onMerge(merge.sourceId, merge.targetId);
-              setMerge(null);
-            }}
-          >
-            {busy ? "Merging…" : "Merge tracks"}
-          </button>
-          <button disabled={busy} onClick={() => setMerge(null)}>
-            Cancel merge
-          </button>
-        </div>
-      )}
       <div className="mix-footer">
         <span>
-          Click or drag tracks to seek · pinch to zoom · scroll horizontally to
-          pan
+          Click or drag a lane to seek · use the instrument button to expand ·
+          pinch to zoom · scroll horizontally to pan
         </span>
         <label>
           View position{" "}
@@ -361,4 +461,15 @@ export default function Arrangement({
       </div>
     </section>
   );
+}
+
+function InstrumentAudioSection(props) {
+  const [opened,setOpened]=useState(false);
+  const [mounted,setMounted]=useState(false);
+  return <details className="instrument-audio-section" onToggle={event=>{
+    const open=event.currentTarget.open; setOpened(open); if(open)setMounted(true);
+  }}>
+    <summary>{props.part.name} · Audio editor</summary>
+    {mounted && <LabSoundEditor {...props} visible={opened}/>}
+  </details>;
 }

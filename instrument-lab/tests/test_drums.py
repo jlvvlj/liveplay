@@ -6,6 +6,7 @@ from scipy.optimize import linear_sum_assignment
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "analysis"))
 from drums import analyze
+from percussion import percussion_audio
 from drum_fixture import drum_fixture
 
 
@@ -43,6 +44,23 @@ class DrumAnalysisTests(unittest.TestCase):
         snare = result["parts"][b[list(a).index(2)]]
         self.assertTrue(any(n["velocity"] < 35 for n in snare["notes"]))
         self.assertEqual(result["sampleRate"], 44100)
+
+    def test_full_mix_discovers_hits_and_suppresses_sustained_synth(self):
+        audio, sr, truth, _ = drum_fixture()
+        t = np.arange(len(audio)) / sr
+        pad = 0.25 * np.sin(2 * np.pi * 220 * t) + 0.1 * np.sin(2 * np.pi * 440 * t)
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "mixed.wav"
+            sf.write(source, audio + pad[:, None], sr, subtype="FLOAT")
+            result = analyze(source, Path(folder) / "out", mixed=True)
+        self.assertGreaterEqual(len(result["parts"]), 5)
+        events = np.array([at for sound in truth for at, _ in sound])
+        detected = np.array([n["start"] for p in result["parts"] for n in p["notes"]])
+        distances = abs(detected[:, None] - events[None, :])
+        self.assertGreater(np.mean(distances.min(1) < 0.025), 0.9)
+        sustained = np.column_stack((pad, pad))
+        separated = percussion_audio(sustained, sr)
+        self.assertLess(np.linalg.norm(separated) / np.linalg.norm(sustained), 0.02)
 
     def test_silent_input_has_actionable_error(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -22,8 +22,8 @@ test(
       engine: "drum",
       name: `Drum ${i}`,
       patch: drumPatch({ tune: i }),
-      sampleFile: `sample-${i}.wav`,
-      referenceFile: `reference-${i}.wav`,
+      sampleFile: `instrument-${i}-sample.wav`,
+      referenceFile: `instrument-${i}-reference.wav`,
       notes: [
         {
           pitch: 35 + i,
@@ -107,6 +107,14 @@ test(
             { pitch: 36, start: 0.7, end: 0.76, velocity: 88 },
           ],
           assignment: { action: "merge", targetId: "instrument-2" },
+          targetEdit: {
+            patch: { ...parts[1].patch, gain: 0.37 },
+            name: "Edited destination",
+            notes: [
+              ...parts[1].notes,
+              { pitch: 37, start: 0.85, end: 0.91, velocity: 80 },
+            ],
+          },
         }),
       });
     const response = await merge(1);
@@ -115,16 +123,21 @@ test(
       target = saved.result.parts.find((p) => p.id === "instrument-2");
     assert.equal(saved.result.parts.length, 2);
     assert.equal(saved.selectedPartId, target.id);
-    assert.deepEqual(target.patch, parts[1].patch);
+    assert.deepEqual(
+      target.patch,
+      drumPatch({ ...parts[1].patch, gain: 0.37 }),
+    );
+    assert.equal(target.name, "Edited destination");
     assert.equal(target.sampleFile, parts[1].sampleFile);
     assert.deepEqual(
       target.notes.map((n) => n.start),
-      [0.1, 0.2, 0.7],
+      [0.1, 0.2, 0.7, 0.85],
     );
     assert.ok(target.notes.every((n) => n.pitch === 37));
-    assert.equal(saved.result.analysis.notes, 4);
+    assert.equal(saved.result.analysis.notes, 5);
     for (const file of [
       target.referenceFile,
+      target.sampleFile,
       target.synthFile,
       saved.result.reconstructionFile,
     ])
@@ -146,6 +159,21 @@ test(
     const reload = await (await fetch(`${base}/api/projects/${id}`)).json();
     assert.equal(reload.result.parts.length, 2);
     const metadata = await fs.readFile(path.join(dir, "project.json"), "utf8");
+    const invalidDestination = await fetch(`${base}/api/projects/${id}/edit`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        revision: 2,
+        partId: "instrument-3",
+        assignment: { action: "merge", targetId: "instrument-2" },
+        targetEdit: { notes: [null] },
+      }),
+    });
+    assert.equal(invalidDestination.status, 400);
+    assert.equal(
+      await fs.readFile(path.join(dir, "project.json"), "utf8"),
+      metadata,
+    );
     await fs.unlink(path.join(dir, parts[2].referenceFile));
     const failed = await fetch(`${base}/api/projects/${id}/edit`, {
       method: "PUT",

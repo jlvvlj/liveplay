@@ -935,6 +935,7 @@ if __name__ == "__main__":
     p.add_argument("--input", required=True)
     p.add_argument("--output", required=True)
     p.add_argument("--catalog", required=True)
+    p.add_argument("--allow-empty", action="store_true")
     p.add_argument(
         "--max-parts",
         type=int,
@@ -951,6 +952,14 @@ if __name__ == "__main__":
             json.loads(Path(args.catalog).read_text()),
             args.max_parts,
         )
+    except ValueError as error:
+        if not args.allow_empty or not str(error).startswith(("No reliable pitched notes", "No stable instrument candidates", "No stable pitched instruments")):
+            report("Failed", 0, error=str(error))
+            raise
+        audio, sr = sf.read(args.input, always_2d=True)
+        result = dict(engine="melodic", duration=len(audio)/sr, sampleRate=sr, parts=[], waveform=[], analysis=dict(notes=0, spectralResidual=0, warnings=[], method="No pitched instruments detected"))
+        (folder / "result.json").write_text(json.dumps(result))
+        report("No pitched instruments detected", 1)
     except Exception as error:
         report("Failed", 0, error=str(error))
         raise

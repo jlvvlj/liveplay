@@ -9,7 +9,7 @@ export function applyAssignment(result, partId, assignment) {
   if (!assignment || !["split", "move", "merge"].includes(assignment.action))
     throw invalid("Choose split, move, or merge.");
   const { action } = assignment;
-  const isDrum = result.engine === "drum";
+  const isDrum = source.engine === "drum" || result.engine === "drum";
   if (isDrum && action !== "merge")
     throw invalid("Drum tracks support whole-track merging only.");
   let target;
@@ -17,6 +17,7 @@ export function applyAssignment(result, partId, assignment) {
     target = result.parts.find(
       (p) => p.id === assignment.targetId && p !== source,
     );
+    if (target && result.separation && (target.engine === "drum") !== isDrum) throw invalid("Merge instruments of the same type.");
     if (!target) throw invalid("Choose a different destination instrument.");
   }
   const indexes =

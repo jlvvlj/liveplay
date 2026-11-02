@@ -6,6 +6,8 @@ import { matchPracticeNote } from "../engine/scoring.mjs";
 import { PARAMS, FAMILIES, DEFAULT_PATCH } from "../engine/synth.mjs";
 import { DRUM_PARAMS, DRUM_LABELS } from "../engine/drums.mjs";
 import "./style.css";
+import AnalysisHistory from "./AnalysisHistory.jsx";
+import DemucsSeparation from "./DemucsSeparation.jsx";
 import Arrangement from "./Arrangement.jsx";
 import { audibleIds, clamp } from "./timeline.mjs";
 
@@ -56,12 +58,13 @@ export default function InstrumentLabEditor({
   initialProjectId = null,
   embedded = false,
   onExit,
+  onStartLesson,
+  renderSourceEditor,
 } = {}) {
   const [projects, setProjects] = useState([]),
     [project, setProject] = useState(null),
     [selected, setSelected] = useState(null),
     [patch, setPatch] = useState(DEFAULT_PATCH),
-    [mode, setMode] = useState("reconstruction"),
     [playing, setPlaying] = useState(false),
     [time, setTime] = useState(0),
     [error, setError] = useState(""),
@@ -82,7 +85,13 @@ export default function InstrumentLabEditor({
   const [muted, setMuted] = useState([]),
     [solo, setSolo] = useState([]);
   const [playbackScope, setPlaybackScope] = useState("detail");
-  const [uploadEngine, setUploadEngine] = useState("melodic");
+  const [playbackPartId, setPlaybackPartId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
+  const [mixMode, setMixMode] = useState("reconstruction");
+  const [stemModes, setStemModes] = useState({});
+  const mode = stemModes[selected] || "synth";
+  const setMode = (value) =>
+    setStemModes((current) => ({ ...current, [selected]: value }));
   const [preparing, setPreparing] = useState(false);
   const [instrumentName, setInstrumentName] = useState("");
   const [noteSelection, setNoteSelection] = useState([]),
@@ -104,6 +113,7 @@ export default function InstrumentLabEditor({
   }
   const playbackGeneration = useRef(0),
     loopTimer = useRef(null);
+  const rollViewport = useRef(null);
   const fileRef = useRef(),
     transport = useRef(null),
     matched = useRef(new Set()),
@@ -117,9 +127,6 @@ export default function InstrumentLabEditor({
     partIndex = parts.findIndex((p) => p.id === selected),
     color = COLORS[Math.max(0, partIndex) % COLORS.length];
   const isDrum = part?.engine === "drum" || patch.engine === "drum";
-  const hasDrums =
-    project?.analyses?.some((a) => a.engine === "drum") ||
-    parts.some((p) => p.engine === "drum");
   const pendingAnalyses =
     project?.analyses?.filter((a) =>
       ["queued", "analyzing"].includes(a.status),
@@ -160,42 +167,38 @@ export default function InstrumentLabEditor({
       play({ offset: time, audible: ids });
     }
   }
-  function seek(value) {
+  function seek(value, auditionOwner) {
+    window.dispatchEvent(new CustomEvent("lab-audition", {detail:auditionOwner}));
     const wasPlaying = playing || preparing;
-    const scope = playbackScope;
+    const tr = transport.current;
     stop();
     setTime(value);
-    // A seek outside the practice loop returns to the whole arrangement.
     if (wasPlaying && value < result.duration)
       play({
         offset: value,
-        scope: value < range[0] || value >= range[1] ? "mix" : scope,
+        scope: tr?.scope || playbackScope,
+        part: parts.find((p) => p.id === (tr?.partId || playbackPartId)),
+        end: value >= range[1] ? result.duration : tr?.end,
+        lower: value < range[0] ? 0 : tr?.lower,
       });
   }
-  async function openDrums() {
-    stop();
-    setBusy(true);
-    setError("");
-    try {
-      const songId = project?.sourceSongIds?.[0];
-      if (!songId) {
-        setUploadEngine("drum");
-        fileRef.current.click();
-        return;
-      }
-      const response = await fetch(
-        `/api/songs/${encodeURIComponent(songId)}/instrument-lab/drums`,
-        { method: "POST" },
-      );
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not open drums");
-      await refresh();
-      await open(project.id);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
+  function expandLane(p, toggle = false) {
+    if (toggle && expandedId === p.id) {
+      setExpandedId(null);
+      return;
     }
+    if (selected !== p.id) choose(p);
+    if (expandedId !== p.id) setTab("notes");
+    setExpandedId(p.id);
+  }
+  function playLane(p) {
+    if (
+      (playing || preparing) &&
+      playbackScope !== "mix" &&
+      playbackPartId === p.id
+    )
+      stop();
+    else play({ scope: "stem", part: p });
   }
   latest.current = {
     project,
@@ -210,6 +213,8 @@ export default function InstrumentLabEditor({
     octave,
     deviceId,
     instrumentName,
+    dirty,
+    parts,
     play,
   };
   const refresh = async () => {
@@ -235,6 +240,8 @@ export default function InstrumentLabEditor({
       setMuted([]);
       setSolo([]);
       setPlaybackScope("detail");
+      setExpandedId(null);
+      setStemModes({});
     }
     setProject(p);
     setEdit(null);
@@ -244,6 +251,12 @@ export default function InstrumentLabEditor({
     if (p.result) {
       const initial =
         p.result.parts.find((x) => x.id === selected) || p.result.parts[0];
+      if (!initial) {
+        setSelected(null);
+        setNotes([]);
+        setDirty(false);
+        return;
+      }
       const draft =
         drafts.current[p.id + ":" + initial.id] ||
         drafts.current[
@@ -258,13 +271,26 @@ export default function InstrumentLabEditor({
       setRange([0, p.result.duration]);
       setDirty(!!draft);
       setOctave(startingOctave(draft?.notes || initial.notes));
+    } else {
+      // A queued analysis has no editable instrument yet. Clear the prior form
+      // together with the project switch so its draft cannot acquire the new ID.
+      setSelected(null);
+      setPatch(DEFAULT_PATCH);
+      setNotes([]);
+      setInstrumentName("");
+      setDirty(false);
+      setRange([0, 0]);
     }
   }
   async function open(id) {
     stop();
     setError("");
     try {
-      accept(await request("/api/projects/" + id));
+      accept(
+        await request(`/api/projects/${id}/analyze-instruments`, {
+          method: "POST",
+        }),
+      );
     } catch (e) {
       setError(e.message);
     }
@@ -315,7 +341,7 @@ export default function InstrumentLabEditor({
     }
   }, [selected, patch]);
   useEffect(() => {
-    if (project?.id && selected && dirty) {
+    if (project?.result?.parts.some(p => p.id === selected) && dirty) {
       drafts.current[project.id + ":" + selected] = {
         patch,
         notes,
@@ -336,10 +362,7 @@ export default function InstrumentLabEditor({
     setError("");
     try {
       const p = await request(
-        (uploadEngine === "drum" && project
-          ? `/api/projects/${project.id}/drums?filename=`
-          : "/api/projects?engine=" + uploadEngine + "&filename=") +
-          encodeURIComponent(file.name),
+        "/api/projects?filename=" + encodeURIComponent(file.name),
         { method: "POST", body: file },
       );
       accept(p);
@@ -402,23 +425,30 @@ export default function InstrumentLabEditor({
   async function savePart(assignment, part, sourceDraft) {
     const { patch, notes, name: instrumentName } = sourceDraft;
     const destinationPart = parts.find((p) => p.id === assignment?.targetId);
-    if (
-      assignment?.targetId &&
-      (drafts.current[project.id + ":" + assignment.targetId] ||
-        drafts.current[
-          (destinationPart?.ownerProjectId || project.id) +
-            ":" +
-            (destinationPart?.ownerPartId || assignment.targetId)
-        ])
-    ) {
-      setError(
-        "Save the destination instrument's draft before moving or merging notes into it.",
-      );
-      return;
+    const destinationDraft =
+      destinationPart &&
+      (destinationPart.id === selected && dirty
+        ? {
+            patch: latest.current.patch,
+            notes: latest.current.notes,
+            name: latest.current.instrumentName,
+          }
+        : drafts.current[project.id + ":" + destinationPart.id] ||
+          drafts.current[
+            (destinationPart.ownerProjectId || project.id) +
+              ":" +
+              (destinationPart.ownerPartId || destinationPart.id)
+          ]);
+    if (assignment?.action !== "merge" && destinationDraft) {
+      const message =
+        "Save the destination instrument's draft before moving notes into it.";
+      setError(message);
+      return { ok: false, error: message };
     }
     if (!instrumentName.trim()) {
-      setError("Enter an instrument name before saving.");
-      return;
+      const message = "Enter an instrument name before saving.";
+      setError(message);
+      return { ok: false, error: message };
     }
     const projectId = project.id,
       partId = part.id,
@@ -439,6 +469,8 @@ export default function InstrumentLabEditor({
           patch,
           notes,
           name: instrumentName,
+          targetEdit:
+            assignment?.action === "merge" ? destinationDraft : undefined,
           assignment: assignment
             ? {
                 ...assignment,
@@ -467,6 +499,20 @@ export default function InstrumentLabEditor({
           );
         } catch {}
       }
+      if (assignment?.action === "merge" && destinationDraft) {
+        delete drafts.current[projectId + ":" + destinationPart.id];
+        delete drafts.current[
+          (destinationPart.ownerProjectId || projectId) +
+            ":" +
+            (destinationPart.ownerPartId || destinationPart.id)
+        ];
+        try {
+          localStorage.setItem(
+            "melodics-instrument-drafts",
+            JSON.stringify(drafts.current),
+          );
+        } catch {}
+      }
       const current = latest.current;
       if (current.project?.id === projectId) {
         setProject(saved);
@@ -480,6 +526,7 @@ export default function InstrumentLabEditor({
             (p) => p.id === saved.selectedPartId,
           );
           choose(destination);
+          setExpandedId(destination.id);
           setMuted((items) =>
             items.filter((id) => saved.result.parts.some((p) => p.id === id)),
           );
@@ -504,8 +551,10 @@ export default function InstrumentLabEditor({
         )
           setDirty(false);
       }
+      return { ok: true };
     } catch (e) {
       setError(e.message);
+      return { ok: false, error: e.message };
     } finally {
       setBusy(false);
     }
@@ -522,22 +571,28 @@ export default function InstrumentLabEditor({
     transport.current = null;
   }
   async function play(options = {}) {
+    window.dispatchEvent(new CustomEvent("lab-audition"));
     const scope = options.scope || "detail";
     const practice = scope === "detail" && tab === "practice";
-    const fullMix = scope === "mix" || (!practice && mode === "reconstruction");
+    const fullMix = scope === "mix";
+    const playingPart = options.part || part;
+    const sourceMode =
+      options.stemMode || stemModes[playingPart?.id] || "synth";
+    const fullMixMode = options.mixMode || mixMode;
     const end = options.end ?? (scope === "mix" ? result.duration : range[1]);
     const lower = options.lower ?? (scope === "mix" ? 0 : range[0]);
     const cursor = options.offset ?? time;
     const offset = cursor >= end ? lower : clamp(cursor, lower, end);
     const activeIds = options.audible || audible;
     stop();
-    setPlaybackScope(fullMix ? "mix" : "detail");
+    setPlaybackScope(scope);
+    setPlaybackPartId(fullMix ? null : playingPart.id);
     const generation = playbackGeneration.current;
     setPreparing(true);
     setTime(offset);
     setError("");
     try {
-      if (!fullMix) await audio.patch(playablePatch);
+      if (practice) await audio.patch(playablePatch);
       if (generation !== playbackGeneration.current) return;
       let startAt;
       if (practice) {
@@ -550,6 +605,14 @@ export default function InstrumentLabEditor({
           offset,
           end,
           speed,
+        );
+      } else if (fullMix && fullMixMode === "original") {
+        startAt = await audio.playUrl(
+          apiPath(
+            `/api/projects/${project.id}/audio/${result.sourceFile || "source.wav"}?v=${project.revision}`,
+          ),
+          offset,
+          end,
         );
       } else if (fullMix) {
         startAt = await audio.playMix(
@@ -565,16 +628,12 @@ export default function InstrumentLabEditor({
         );
       } else {
         const file =
-          mode === "original"
-            ? project.result.sourceFile || "source.wav"
-            : mode === "reconstruction"
-              ? project.result.reconstructionFile || "reconstruction.wav"
-              : mode === "reference"
-                ? part.referenceFile
-                : part.synthFile;
+          sourceMode === "reference"
+            ? playingPart.referenceFile
+            : playingPart.synthFile;
         startAt = await audio.playUrl(
           apiPath(
-            `/api/projects/${["reference", "synth"].includes(mode) ? part.ownerProjectId || project.id : project.id}/audio/${file}?v=${part.ownerRevision ?? project.revision}`,
+            `/api/projects/${playingPart.ownerProjectId || project.id}/audio/${file}?v=${playingPart.ownerRevision ?? project.revision}`,
           ),
           offset,
           end,
@@ -588,7 +647,8 @@ export default function InstrumentLabEditor({
         end,
         lower,
         practice,
-        scope: fullMix ? "mix" : "detail",
+        scope,
+        partId: playingPart?.id,
       };
       setPlaying(true);
       if (practice) setFeedback("Get ready · 2 second count-in");
@@ -617,6 +677,7 @@ export default function InstrumentLabEditor({
                 scope: tr.scope,
                 end: tr.end,
                 lower: tr.lower,
+                part: latest.current.parts.find((p) => p.id === tr.partId),
               }),
             100,
           );
@@ -742,8 +803,7 @@ export default function InstrumentLabEditor({
       setError(e.message);
     }
   }
-  const maxDuration = result?.duration || 1,
-    visiblePitches = notes
+  const visiblePitches = notes
       .map((n) => Math.max(0, Math.min(127, Math.round(n.pitch))))
       .filter(Number.isFinite),
     lowestPitch = visiblePitches.length ? Math.min(...visiblePitches) : 60,
@@ -756,6 +816,18 @@ export default function InstrumentLabEditor({
       ),
     ),
     maxPitch = Math.min(127, Math.max(highestPitch + 2, minPitch + 12));
+  useEffect(() => {
+    const viewport = rollViewport.current;
+    if (!viewport || !notes.length) return;
+    const pitches = notes.map((n) => n.pitch).sort((a, b) => a - b);
+    const middle = pitches[Math.floor(pitches.length / 2)];
+    const height = Math.max(320, (maxPitch - minPitch + 1) * 16);
+    viewport.scrollTop = Math.max(
+      0,
+      ((maxPitch - middle) / (maxPitch - minPitch + 1)) * height -
+        viewport.clientHeight / 2,
+    );
+  }, [expandedId, selected]);
   const targetNotes = notes.filter(
     (n) => n.start >= range[0] && n.start < range[1],
   ).length;
@@ -771,7 +843,7 @@ export default function InstrumentLabEditor({
           </a>
           <div className="workspace-label">YOUR WORKSPACE</div>
           <button className="nav-current">
-            <span>◈</span> Instrument lab <small>NEW</small>
+            <span>◈</span> Instrument lab
           </button>
           <div className="library-title">
             RECORDINGS <span>{projects.length}</span>
@@ -797,7 +869,6 @@ export default function InstrumentLabEditor({
           <button
             className="sidebar-upload"
             onClick={() => {
-              setUploadEngine("melodic");
               fileRef.current.click();
             }}
           >
@@ -843,7 +914,6 @@ export default function InstrumentLabEditor({
               </select>
               <button
                 onClick={() => {
-                  setUploadEngine("melodic");
                   fileRef.current.click();
                 }}
                 disabled={busy}
@@ -861,26 +931,10 @@ export default function InstrumentLabEditor({
           </button>
         </header>
         <main>
-          <div
-            className="lab-analysis-modes"
-            aria-label="Workspace instruments"
-          >
-            <span>Synth and drum sounds · one mix</span>
-            {project && !hasDrums && (
-              <button disabled={busy} onClick={openDrums}>
-                Add drum sounds
-              </button>
-            )}
-            <button
-              onClick={() => {
-                setUploadEngine("drum");
-                fileRef.current.click();
-              }}
-              disabled={busy}
-            >
-              Add drum stem
-            </button>
-          </div>
+          {project && <DemucsSeparation key={project.id} project={project} busy={busy}
+            onCreated={async p=>{stop();accept(p);await refresh();}}/>}
+          {project && <AnalysisHistory project={project} projects={projects} busy={busy} onOpen={open}/>}
+          {project && renderSourceEditor?.({project, projects, onAudition: stop})}
           {pendingAnalyses
             .filter((a) => a.id !== project.id)
             .map((a) => (
@@ -917,21 +971,18 @@ export default function InstrumentLabEditor({
           {!embedded && (
             <div className="page-heading">
               <div>
-                <div className="eyebrow">FROM RECORDING TO PERFORMANCE</div>
-                <h1>
-                  {project?.title || "Find the instruments.\nMake them yours."}
-                </h1>
+                <div className="eyebrow">INSTRUMENT LAB</div>
+                <h1>{project?.title || "Recordings"}</h1>
                 <p>
                   {result
                     ? `${parts.length} instrument${parts.length === 1 ? "" : "s"} · ${stamp(result.duration)} · ${result.analysis.notes} detected notes`
-                    : "Separate electronic instruments, shape their sound, and learn every note."}
+                    : "Select a recording or import audio."}
                 </p>
               </div>
               <button
                 className="primary"
                 disabled={busy}
                 onClick={() => {
-                  setUploadEngine("melodic");
                   fileRef.current.click();
                 }}
               >
@@ -965,33 +1016,15 @@ export default function InstrumentLabEditor({
                   upload(e.dataTransfer.files[0]);
                 }}
               >
-                <div className="sound-art">
-                  {Array.from({ length: 55 }, (_, i) => (
-                    <i
-                      key={i}
-                      style={{
-                        height:
-                          20 +
-                          Math.abs(Math.sin(i * 0.61) * Math.cos(i * 0.13)) *
-                            130,
-                      }}
-                    />
-                  ))}
-                </div>
-                <span className="pill">
-                  ONE INSTRUMENT. ONE STEM. ONE PATCH.
-                </span>
-                <h2>A new way into your music.</h2>
+                <h2>Import a recording</h2>
                 <p>
-                  Drop an electronic recording here.
-                  <br />
-                  Discover playable instruments hiding inside the mix.
+                  Choose or drop an audio file to analyze its synth and drum
+                  instruments.
                 </p>
                 <button
                   className="primary"
                   disabled={busy}
                   onClick={() => {
-                    setUploadEngine("melodic");
                     fileRef.current.click();
                   }}
                 >
@@ -1002,8 +1035,8 @@ export default function InstrumentLabEditor({
               <button className="demo-card" onClick={demo} disabled={busy}>
                 <div className="demo-icon">▶</div>
                 <div>
-                  <strong>Start with the Neon duet</strong>
-                  <p>Hear two synths become separate, playable instruments.</p>
+                  <strong>Analyze demo recording</strong>
+                  <p>Neon duet · two synth instruments</p>
                 </div>
                 <span>Analyze demo →</span>
               </button>
@@ -1019,7 +1052,7 @@ export default function InstrumentLabEditor({
               </h2>
               <p>
                 {["queued", "analyzing"].includes(project.status)
-                  ? "Discovering sounds and notes directly from the recording."
+                  ? (project.demucsRequest ? "Separating with Demucs, splitting instruments, then fitting notes and patches." : project.samRequest ? "Separating on Hugging Face, then fitting one instrument per stem." : "Discovering sounds and notes directly from the recording.")
                   : "Your original audio is preserved."}
               </p>
               <progress value={project.progress || 0} max="1" />
@@ -1048,7 +1081,7 @@ export default function InstrumentLabEditor({
                       )
                     }
                   >
-                    Retry analysis
+                    {project.samRequest && project.status !== "cancelled" && !["ERROR","CANCELED","CANCELLED","DELETED"].includes(project.remoteJob?.status) ? "Resume analysis" : "Retry analysis"}
                   </button>
                 )}
               </div>
@@ -1061,11 +1094,11 @@ export default function InstrumentLabEditor({
                 instrument assignments before practising.
                 <details>
                   <summary>Analysis details</summary>
-                  <p>
+                  {Number.isFinite(result.analysis.spectralResidual) && <p>
                     Spectral residual:{" "}
                     {Math.round(result.analysis.spectralResidual * 100)}% · this
                     is an error measure, not a sound-similarity score.
-                  </p>
+                  </p>}
                   {result.analysis.warnings.map((w) => (
                     <p key={w}>{w}</p>
                   ))}
@@ -1073,6 +1106,9 @@ export default function InstrumentLabEditor({
               </div>
               <Arrangement
                 key={project.id}
+                onAudition={stop}
+                onAudioTime={setTime}
+                onStartLesson={onStartLesson}
                 parts={parts}
                 duration={result.duration}
                 selected={selected}
@@ -1083,7 +1119,6 @@ export default function InstrumentLabEditor({
                 busy={busy}
                 muted={muted}
                 solo={solo}
-                onSelect={choose}
                 onSeek={seek}
                 onToggle={toggleMix}
                 onMerge={(sourceId, targetId) =>
@@ -1092,758 +1127,859 @@ export default function InstrumentLabEditor({
                     parts.find((p) => p.id === sourceId),
                   )
                 }
-                onPlay={() => {
-                  if ((playing || preparing) && playbackScope === "mix") stop();
-                  else {
-                    setMode("reconstruction");
-                    if (tab === "practice") setTab("notes");
-                    play({ scope: "mix" });
-                  }
+                expandedId={expandedId}
+                mixMode={mixMode}
+                onMixMode={(value) => {
+                  setMixMode(value);
+                  if ((playing || preparing) && playbackScope === "mix")
+                    play({ scope: "mix", mixMode: value });
                 }}
-              />
-              {part && (
-                <section
-                  className="instrument-detail"
-                  style={{ "--track": color }}
-                >
-                  <fieldset className="instrument-controls" disabled={busy}>
-                    <div className="detail-header">
-                      <div className="detail-title">
-                        <span className="track-dot" />
-                        <h2>{part.name}</h2>
-                        <span className="pill">
-                          {isDrum
-                            ? "DRUM SOUND"
-                            : part.patch.family.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="tabs">
-                        {[
-                          ["sound", "Shape sound"],
-                          ["notes", isDrum ? "Review hits" : "Review notes"],
-                          ["practice", "Practise"],
-                        ].map(([key, label]) => (
-                          <button
-                            className={tab === key ? "active" : ""}
-                            key={key}
-                            onClick={() => {
-                              stop();
-                              setTab(key);
-                            }}
+                onPlayPart={playLane}
+                activePartId={
+                  (playing || preparing) && playbackScope !== "mix"
+                    ? playbackPartId
+                    : null
+                }
+                onExpand={expandLane}
+                onPlay={() =>
+                  (playing || preparing) && playbackScope === "mix"
+                    ? stop()
+                    : play({ scope: "mix" })
+                }
+                renderDetail={({
+                  start: viewStart,
+                  span: viewSpan,
+                  seekProps,
+                  trackControls,
+                }) =>
+                  part && (
+                    <section
+                      className="instrument-detail inline-instrument-detail"
+                      aria-label={`${part.name} expanded editor`}
+                      style={{ "--track": color }}
+                    >
+                      <fieldset className="instrument-controls" disabled={busy}>
+                        <div className="expanded-track-row mix-grid">
+                          <div className="expanded-track-label">
+                            {trackControls}
+                          </div>
+                          <div
+                            className="expanded-roll-viewport"
+                            ref={rollViewport}
                           >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="transport">
-                      <button
-                        className="play"
-                        aria-label={
-                          playing || preparing
-                            ? "Stop playback"
-                            : "Start playback"
-                        }
-                        onClick={() => (playing || preparing ? stop() : play())}
-                      >
-                        {preparing ? "…" : playing ? "■" : "▶"}
-                      </button>
-                      <div className="time-display">
-                        {stamp(time)} <small>/ {stamp(range[1])}</small>
-                      </div>
-                      {tab !== "practice" ? (
-                        <div className="segmented">
-                          {[
-                            ["original", "Original mix"],
-                            ["reconstruction", "Rebuilt mix"],
-                            ["reference", "Original stem"],
-                            ["synth", "Rebuilt stem"],
-                          ].map(([key, label]) => (
-                            <button
-                              key={key}
-                              className={mode === key ? "active" : ""}
-                              onClick={() => {
-                                stop();
-                                setMode(key);
+                            <div
+                              className="piano-roll"
+                              style={{
+                                height: Math.max(
+                                  320,
+                                  (maxPitch - minPitch + 1) * 16,
+                                ),
                               }}
                             >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <>
-                          <span className="practice-info">
-                            Your instrument is muted in the backing
-                          </span>
-                          <select
-                            aria-label="Practice speed"
-                            value={speed}
-                            onChange={(e) => {
-                              stop();
-                              setSpeed(Number(e.target.value));
-                            }}
-                          >
-                            <option value=".5">50% speed</option>
-                            <option value=".75">75% speed</option>
-                            <option value="1">100% speed</option>
-                          </select>
-                        </>
-                      )}
-                      <button
-                        className={loop ? "loop active" : "loop"}
-                        aria-pressed={loop}
-                        onClick={() => setLoop(!loop)}
-                      >
-                        ↻ Loop
-                      </button>
-                    </div>
-                    {tab === "sound" && (
-                      <div className="patch-panel">
-                        <div className="patch-intro">
-                          <div className="eyebrow">
-                            YOUR RECONSTRUCTED SYNTH
-                          </div>
-                          <h3>
-                            Keep the character.
-                            <br />
-                            Make it your own.
-                          </h3>
-                          <p>
-                            {isDrum
-                              ? "Play the pad below while adjusting."
-                              : "Play the keys below while adjusting."}
-                            <br />
-                            Save to update the reconstructed stems.
-                          </p>
-                          <label className="family-label">
-                            Instrument name
-                            <input
-                              aria-label="Instrument name"
-                              maxLength={80}
-                              value={instrumentName}
-                              onChange={(e) => {
-                                setInstrumentName(e.target.value);
-                                setDirty(true);
-                              }}
-                            />
-                          </label>
-                          {!isDrum && (
-                            <label className="family-label">
-                              Sound engine
-                              <select
-                                value={patch.family}
-                                onChange={(e) => {
-                                  setPatch({
-                                    ...patch,
-                                    family: e.target.value,
-                                  });
-                                  setDirty(true);
+                              <div className="pitch-labels">
+                                {Array.from(
+                                  { length: maxPitch - minPitch + 1 },
+                                  (_, i) => maxPitch - i,
+                                )
+                                  .filter((n) =>
+                                    isDrum ? n === lowestPitch : n % 12 === 0,
+                                  )
+                                  .map((n) => (
+                                    <span
+                                      key={n}
+                                      style={{
+                                        top: `${((maxPitch - n) / (maxPitch - minPitch + 1)) * 100}%`,
+                                      }}
+                                    >
+                                      {isDrum ? "Hit" : noteName(n)}
+                                    </span>
+                                  ))}
+                              </div>
+                              <div
+                                className="note-grid"
+                                data-timeline
+                                {...seekProps}
+                                aria-label={`Seek expanded ${part.name}`}
+                                onPointerDown={(e) => {
+                                  if (!e.target.closest("button"))
+                                    seekProps.onPointerDown(e);
                                 }}
                               >
-                                {FAMILIES.map((f) => (
-                                  <option key={f}>{f}</option>
-                                ))}
-                              </select>
-                            </label>
-                          )}
-                        </div>
-                        {isDrum && (
-                          <div className="drum-explanation">
-                            <strong>Hybrid drum engine</strong>
-                            <p>
-                              Recovered detail keeps the recording’s texture.
-                              Set it to zero to hear only the fitted resonator
-                              and noise synthesis.
-                            </p>
-                            <label>
-                              Choke group{" "}
-                              <input
-                                aria-label="Choke group"
-                                value={patch.chokeGroup || ""}
-                                onChange={(e) => {
-                                  setPatch({
-                                    ...patch,
-                                    chokeGroup: e.target.value,
-                                  });
-                                  setDirty(true);
-                                }}
-                                placeholder="e.g. hats"
-                              />
-                            </label>
-                            <small>
-                              Sounds in the same group cut each other off. Leave
-                              blank for overlapping tails.
-                            </small>
-                            {part.discovery?.needsReview && (
-                              <p>
-                                Overlapping sounds may remain in this example.
-                                Compare the original before practising.
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        <div className="controls">
-                          {(isDrum
-                            ? Object.entries(DRUM_LABELS)
-                            : [
-                                ["brightness", "Brightness"],
-                                ["body", "Body"],
-                                ["attack", "Attack"],
-                                ["decay", "Decay"],
-                                ["sustain", "Sustain"],
-                                ["release", "Release"],
-                                ...(patch.family === "fm"
-                                  ? [
-                                      ["fm", "FM amount"],
-                                      ["ratio", "FM ratio"],
-                                    ]
-                                  : patch.family === "pulse"
-                                    ? [["odd", "Pulse width"]]
-                                    : []),
-                                ["detune", "Detune"],
-                                ["gain", "Level"],
-                              ]
-                          ).map(([key, label]) => (
-                            <label className="parameter" key={key}>
-                              <span>
-                                {label}
-                                <output>
-                                  {!isDrum &&
-                                  ["attack", "decay", "release"].includes(key)
-                                    ? `${Math.round(patch[key] * 1000)} ms`
-                                    : key === "detune"
-                                      ? `${patch[key].toFixed(0)} ct`
-                                      : patch[key].toFixed(2)}
-                                </output>
-                              </span>
-                              <input
-                                aria-label={label}
-                                type="range"
-                                min={(isDrum ? DRUM_PARAMS : PARAMS)[key][0]}
-                                max={(isDrum ? DRUM_PARAMS : PARAMS)[key][1]}
-                                step={key === "ratio" ? 1 : 0.001}
-                                value={patch[key]}
-                                onChange={(e) => {
-                                  setPatch({
-                                    ...patch,
-                                    [key]: Number(e.target.value),
-                                  });
-                                  setDirty(true);
-                                }}
-                              />
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {tab !== "sound" && (
-                      <>
-                        <div className="roll-toolbar">
-                          <span>
-                            {tab === "practice"
-                              ? isDrum
-                                ? "Follow the playhead. Play each hit as it arrives."
-                                : "Follow the playhead. Play each note as it arrives."
-                              : isDrum
-                                ? "Click a hit to edit its timing and velocity."
-                                : "Click a note to edit it. Shift-click to select more."}
-                          </span>
-                          <label>
-                            From{" "}
-                            <input
-                              aria-label="Loop start"
-                              type="number"
-                              min="0"
-                              max={range[1] - 0.1}
-                              step=".1"
-                              value={range[0]}
-                              onChange={(e) => {
-                                stop();
-                                setRange([
-                                  Math.max(
-                                    0,
-                                    Math.min(
-                                      range[1] - 0.1,
-                                      Number(e.target.value),
-                                    ),
+                                {notes.map((n, i) =>
+                                  n.end < viewStart ||
+                                  n.start > viewStart + viewSpan ? null : (
+                                    <button
+                                      key={i}
+                                      aria-label={`${isDrum ? "Hit" : noteName(n.pitch)} at ${n.start.toFixed(2)} seconds`}
+                                      className={
+                                        "note " +
+                                        (noteSelection.includes(i)
+                                          ? "selected "
+                                          : "") +
+                                        (matched.current.has(i) ? "hit" : "")
+                                      }
+                                      style={{
+                                        left: `${((n.start - viewStart) / viewSpan) * 100}%`,
+                                        width: `${Math.max(0.25, ((n.end - n.start) / viewSpan) * 100)}%`,
+                                        top: `${((maxPitch - n.pitch) / (maxPitch - minPitch + 1)) * 100}%`,
+                                        height: `${90 / (maxPitch - minPitch + 1)}%`,
+                                      }}
+                                      aria-pressed={
+                                        tab === "notes"
+                                          ? noteSelection.includes(i)
+                                          : undefined
+                                      }
+                                      onKeyDown={(e) => e.stopPropagation()}
+                                      onClick={(e) => {
+                                        setEdit(i);
+                                        setNoteSelection(
+                                          e.shiftKey
+                                            ? (chosen) =>
+                                                chosen.includes(i)
+                                                  ? chosen.filter(
+                                                      (index) => index !== i,
+                                                    )
+                                                  : [...chosen, i]
+                                            : [i],
+                                        );
+                                        noteOn(n.pitch);
+                                        setTimeout(() => noteOff(n.pitch), 250);
+                                      }}
+                                    />
                                   ),
-                                  range[1],
-                                ]);
-                              }}
-                            />
-                          </label>
-                          <label>
-                            To{" "}
-                            <input
-                              aria-label="Loop end"
-                              type="number"
-                              min={range[0] + 0.1}
-                              max={result.duration}
-                              step=".1"
-                              value={range[1]}
-                              onChange={(e) => {
-                                stop();
-                                setRange([
-                                  range[0],
-                                  Math.min(
-                                    result.duration,
-                                    Math.max(
-                                      range[0] + 0.1,
-                                      Number(e.target.value),
-                                    ),
-                                  ),
-                                ]);
-                              }}
-                            />
-                          </label>
-                        </div>
-                        <div className="piano-roll">
-                          <div className="pitch-labels">
-                            {Array.from(
-                              { length: maxPitch - minPitch + 1 },
-                              (_, i) => maxPitch - i,
-                            )
-                              .filter((n) =>
-                                isDrum ? n === maxPitch : n % 12 === 0,
-                              )
-                              .map((n) => (
-                                <span
-                                  key={n}
+                                )}
+                                <div
+                                  className="playhead"
                                   style={{
-                                    top: `${((maxPitch - n) / (maxPitch - minPitch + 1)) * 100}%`,
+                                    left: `${((time - viewStart) / viewSpan) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="detail-header">
+                          <div className="tabs">
+                            {[
+                              ["sound", "Shape sound"],
+                              [
+                                "notes",
+                                isDrum ? "Review hits" : "Review notes",
+                              ],
+                              ["practice", "Practise"],
+                            ].map(([key, label]) => (
+                              <button
+                                className={tab === key ? "active" : ""}
+                                key={key}
+                                onClick={() => {
+                                  if (playbackScope !== "mix") stop();
+                                  setTab(key);
+                                }}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="transport">
+                          <button
+                            className="play"
+                            aria-label={
+                              (playing || preparing) &&
+                              playbackScope !== "mix" &&
+                              playbackPartId === selected
+                                ? "Stop playback"
+                                : "Start playback"
+                            }
+                            onClick={() =>
+                              (playing || preparing) &&
+                              playbackScope !== "mix" &&
+                              playbackPartId === selected
+                                ? stop()
+                                : play()
+                            }
+                          >
+                            {(playing || preparing) &&
+                            playbackScope !== "mix" &&
+                            playbackPartId === selected
+                              ? preparing
+                                ? "…"
+                                : "■"
+                              : "▶"}
+                          </button>
+                          <div className="time-display">
+                            {stamp(time)} <small>/ {stamp(range[1])}</small>
+                          </div>
+                          {tab !== "practice" ? (
+                            <div className="segmented">
+                              {[
+                                ["reference", "Original stem"],
+                                ["synth", "Rebuilt stem"],
+                              ].map(([key, label]) => (
+                                <button
+                                  key={key}
+                                  className={mode === key ? "active" : ""}
+                                  aria-pressed={mode === key}
+                                  onClick={() => {
+                                    setMode(key);
+                                    if (
+                                      (playing || preparing) &&
+                                      playbackScope !== "mix" &&
+                                      playbackPartId === selected
+                                    )
+                                      play({ scope: "stem", stemMode: key });
                                   }}
                                 >
-                                  {isDrum ? "Hit" : noteName(n)}
-                                </span>
+                                  {label}
+                                </button>
                               ))}
-                          </div>
-                          <div className="note-grid">
-                            {notes.map((n, i) => (
-                              <button
-                                key={i}
-                                aria-label={`${isDrum ? "Hit" : noteName(n.pitch)} at ${n.start.toFixed(2)} seconds`}
-                                className={
-                                  "note " +
-                                  (noteSelection.includes(i)
-                                    ? "selected "
-                                    : "") +
-                                  (matched.current.has(i) ? "hit" : "")
-                                }
-                                style={{
-                                  left: `${(n.start / maxDuration) * 100}%`,
-                                  width: `${Math.max(0.25, ((n.end - n.start) / maxDuration) * 100)}%`,
-                                  top: `${((maxPitch - n.pitch) / (maxPitch - minPitch + 1)) * 100}%`,
-                                  height: `${90 / (maxPitch - minPitch + 1)}%`,
+                            </div>
+                          ) : (
+                            <>
+                              <span className="practice-info">
+                                {playbackScope === "mix" &&
+                                (playing || preparing)
+                                  ? "Full mix is playing · start this instrument to practise"
+                                  : "Your instrument is muted in the backing"}
+                              </span>
+                              <select
+                                aria-label="Practice speed"
+                                value={speed}
+                                onChange={(e) => {
+                                  stop();
+                                  setSpeed(Number(e.target.value));
                                 }}
-                                aria-pressed={
-                                  tab === "notes"
-                                    ? noteSelection.includes(i)
-                                    : undefined
-                                }
-                                onClick={(e) => {
-                                  setEdit(i);
-                                  setNoteSelection(
-                                    e.shiftKey
-                                      ? (chosen) =>
-                                          chosen.includes(i)
-                                            ? chosen.filter(
-                                                (index) => index !== i,
-                                              )
-                                            : [...chosen, i]
-                                      : [i],
-                                  );
-                                  noteOn(n.pitch);
-                                  setTimeout(() => noteOff(n.pitch), 250);
-                                }}
-                              />
-                            ))}
-                            <div
-                              className="playhead"
-                              style={{ left: `${(time / maxDuration) * 100}%` }}
-                            />
-                          </div>
+                              >
+                                <option value=".5">50% speed</option>
+                                <option value=".75">75% speed</option>
+                                <option value="1">100% speed</option>
+                              </select>
+                            </>
+                          )}
+                          <button
+                            className={loop ? "loop active" : "loop"}
+                            aria-pressed={loop}
+                            onClick={() => setLoop(!loop)}
+                          >
+                            ↻ Loop
+                          </button>
                         </div>
-                        {tab === "notes" && (
-                          <div className="add-note-row">
-                            <button
-                              onClick={() => {
-                                const start = Math.min(
-                                  Math.max(0, time),
-                                  result.duration - 0.1,
-                                );
-                                setNotes([
-                                  ...notes,
-                                  {
-                                    pitch: isDrum
-                                      ? (notes[0]?.pitch ?? 36)
-                                      : (octave + 1) * 12,
-                                    start,
-                                    end: Math.min(
-                                      result.duration,
-                                      start + 0.25,
-                                    ),
-                                    velocity: 90,
-                                    confidence: 1,
-                                    edited: true,
-                                  },
-                                ]);
-                                setEdit(notes.length);
-                                setNoteSelection([notes.length]);
-                                setDirty(true);
-                              }}
-                            >
-                              {isDrum
-                                ? "＋ Add hit at playhead"
-                                : "＋ Add note at playhead"}
-                            </button>
-                            <button
-                              onClick={() =>
-                                setNoteSelection(
-                                  notes.flatMap((n, i) =>
-                                    n.start >= range[0] && n.start < range[1]
-                                      ? [i]
-                                      : [],
-                                  ),
-                                )
-                              }
-                            >
-                              {isDrum
-                                ? "Select hits in loop"
-                                : "Select notes in loop"}
-                            </button>
-                            <button
-                              disabled={!noteSelection.length}
-                              onClick={() => setNoteSelection([])}
-                            >
-                              Clear selection
-                            </button>
-                          </div>
-                        )}
-                        {tab === "notes" && edit !== null && notes[edit] && (
-                          <div className="note-editor">
-                            {[
-                              ...(!isDrum ? [["pitch", "MIDI pitch"]] : []),
-                              ["start", "Start (s)"],
-                              ...(!isDrum ? [["end", "End (s)"]] : []),
-                              ["velocity", "Velocity"],
-                            ].map(([key, label]) => (
-                              <label key={key}>
-                                {label}
+                        {tab === "sound" && (
+                          <div className="patch-panel">
+                            <div className="patch-intro">
+                              <label className="family-label">
+                                Instrument name
                                 <input
-                                  type="number"
-                                  aria-label={label}
-                                  step={
-                                    key === "pitch" || key === "velocity"
-                                      ? 1
-                                      : 0.01
-                                  }
-                                  value={notes[edit][key]}
+                                  aria-label="Instrument name"
+                                  maxLength={80}
+                                  value={instrumentName}
                                   onChange={(e) => {
-                                    setNotes(
-                                      notes.map((n, i) =>
-                                        i === edit
-                                          ? {
-                                              ...n,
-                                              [key]: Number(e.target.value),
-                                              ...(isDrum && key === "start"
-                                                ? {
-                                                    start: Math.max(
-                                                      0,
-                                                      Math.min(
-                                                        result.duration - 0.001,
-                                                        Number(e.target.value),
-                                                      ),
-                                                    ),
-                                                    end: Math.min(
-                                                      result.duration,
-                                                      Math.max(
-                                                        0,
-                                                        Number(e.target.value),
-                                                      ) + 0.06,
-                                                    ),
-                                                  }
-                                                : {}),
-                                            }
-                                          : n,
-                                      ),
-                                    );
+                                    setInstrumentName(e.target.value);
                                     setDirty(true);
                                   }}
                                 />
                               </label>
-                            ))}
-                            <button
-                              onClick={() => {
-                                setNotes(notes.filter((_, i) => i !== edit));
-                                setEdit(null);
-                                setNoteSelection([]);
-                                setDirty(true);
-                              }}
-                            >
-                              {isDrum ? "Delete hit" : "Delete note"}
-                            </button>
+                              {!isDrum && (
+                                <label className="family-label">
+                                  Sound engine
+                                  <select
+                                    value={patch.family}
+                                    onChange={(e) => {
+                                      setPatch({
+                                        ...patch,
+                                        family: e.target.value,
+                                      });
+                                      setDirty(true);
+                                    }}
+                                  >
+                                    {FAMILIES.map((f) => (
+                                      <option key={f}>{f}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                              )}
+                            </div>
+                            {isDrum && (
+                              <div className="drum-explanation">
+                                <strong>Hybrid drum engine</strong>
+                                <p>
+                                  Recovered detail keeps the recording’s
+                                  texture. Set it to zero to hear only the
+                                  fitted resonator and noise synthesis.
+                                </p>
+                                <label>
+                                  Choke group{" "}
+                                  <input
+                                    aria-label="Choke group"
+                                    value={patch.chokeGroup || ""}
+                                    onChange={(e) => {
+                                      setPatch({
+                                        ...patch,
+                                        chokeGroup: e.target.value,
+                                      });
+                                      setDirty(true);
+                                    }}
+                                    placeholder="e.g. hats"
+                                  />
+                                </label>
+                                <small>
+                                  Sounds in the same group cut each other off.
+                                  Leave blank for overlapping tails.
+                                </small>
+                                {part.discovery?.needsReview && (
+                                  <p>
+                                    Overlapping sounds may remain in this
+                                    example. Compare the original before
+                                    practising.
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            <div className="controls">
+                              {(isDrum
+                                ? Object.entries(DRUM_LABELS)
+                                : [
+                                    ["brightness", "Brightness"],
+                                    ["body", "Body"],
+                                    ["attack", "Attack"],
+                                    ["decay", "Decay"],
+                                    ["sustain", "Sustain"],
+                                    ["release", "Release"],
+                                    ...(patch.family === "fm"
+                                      ? [
+                                          ["fm", "FM amount"],
+                                          ["ratio", "FM ratio"],
+                                        ]
+                                      : patch.family === "pulse"
+                                        ? [["odd", "Pulse width"]]
+                                        : []),
+                                    ["detune", "Detune"],
+                                    ["gain", "Level"],
+                                  ]
+                              ).map(([key, label]) => (
+                                <label className="parameter" key={key}>
+                                  <span>
+                                    {label}
+                                    <output>
+                                      {!isDrum &&
+                                      ["attack", "decay", "release"].includes(
+                                        key,
+                                      )
+                                        ? `${Math.round(patch[key] * 1000)} ms`
+                                        : key === "detune"
+                                          ? `${patch[key].toFixed(0)} ct`
+                                          : patch[key].toFixed(2)}
+                                    </output>
+                                  </span>
+                                  <input
+                                    aria-label={label}
+                                    type="range"
+                                    min={
+                                      (isDrum ? DRUM_PARAMS : PARAMS)[key][0]
+                                    }
+                                    max={
+                                      (isDrum ? DRUM_PARAMS : PARAMS)[key][1]
+                                    }
+                                    step={key === "ratio" ? 1 : 0.001}
+                                    value={patch[key]}
+                                    onChange={(e) => {
+                                      setPatch({
+                                        ...patch,
+                                        [key]: Number(e.target.value),
+                                      });
+                                      setDirty(true);
+                                    }}
+                                  />
+                                </label>
+                              ))}
+                            </div>
                           </div>
                         )}
-                        {tab === "notes" && !isDrum && (
-                          <div className="assignment-editor">
-                            <div>
-                              <strong>
-                                {noteSelection.length}{" "}
-                                {noteSelection.length === 1 ? "note" : "notes"}{" "}
-                                selected
-                              </strong>
-                              <p>
-                                Correct which instrument plays these notes. Each
-                                change rebuilds the reference stems and saves
-                                your current edits.
-                              </p>
-                            </div>
-                            <div className="assignment-actions">
+                        {tab !== "sound" && (
+                          <>
+                            <div className="roll-toolbar">
+                              <span>
+                                {tab === "practice"
+                                  ? isDrum
+                                    ? "Follow the playhead. Play each hit as it arrives."
+                                    : "Follow the playhead. Play each note as it arrives."
+                                  : isDrum
+                                    ? "Click a hit to edit its timing and velocity."
+                                    : "Click a note to edit it. Shift-click to select more."}
+                              </span>
                               <label>
-                                New instrument name
+                                From{" "}
                                 <input
-                                  aria-label="New instrument name"
-                                  value={splitName}
-                                  placeholder={instrumentName + " · split"}
-                                  onChange={(e) => setSplitName(e.target.value)}
-                                  maxLength={80}
+                                  aria-label="Loop start"
+                                  type="number"
+                                  min="0"
+                                  max={range[1] - 0.1}
+                                  step=".1"
+                                  value={range[0]}
+                                  onChange={(e) => {
+                                    stop();
+                                    setRange([
+                                      Math.max(
+                                        0,
+                                        Math.min(
+                                          range[1] - 0.1,
+                                          Number(e.target.value),
+                                        ),
+                                      ),
+                                      range[1],
+                                    ]);
+                                  }}
                                 />
                               </label>
-                              <button
-                                disabled={
-                                  !noteSelection.length ||
-                                  noteSelection.length >= notes.length
-                                }
-                                onClick={() =>
-                                  save({
-                                    action: "split",
-                                    indexes: noteSelection,
-                                    name: splitName,
-                                  })
-                                }
-                              >
-                                Split selected into new instrument
-                              </button>
+                              <label>
+                                To{" "}
+                                <input
+                                  aria-label="Loop end"
+                                  type="number"
+                                  min={range[0] + 0.1}
+                                  max={result.duration}
+                                  step=".1"
+                                  value={range[1]}
+                                  onChange={(e) => {
+                                    stop();
+                                    setRange([
+                                      range[0],
+                                      Math.min(
+                                        result.duration,
+                                        Math.max(
+                                          range[0] + 0.1,
+                                          Number(e.target.value),
+                                        ),
+                                      ),
+                                    ]);
+                                  }}
+                                />
+                              </label>
                             </div>
-                            {parts.length > 1 && (
-                              <>
+                            {tab === "notes" && (
+                              <div className="add-note-row">
+                                <button
+                                  onClick={() => {
+                                    const start = Math.min(
+                                      Math.max(0, time),
+                                      result.duration - 0.1,
+                                    );
+                                    setNotes([
+                                      ...notes,
+                                      {
+                                        pitch: isDrum
+                                          ? (notes[0]?.pitch ?? 36)
+                                          : (octave + 1) * 12,
+                                        start,
+                                        end: Math.min(
+                                          result.duration,
+                                          start + 0.25,
+                                        ),
+                                        velocity: 90,
+                                        confidence: 1,
+                                        edited: true,
+                                      },
+                                    ]);
+                                    setEdit(notes.length);
+                                    setNoteSelection([notes.length]);
+                                    setDirty(true);
+                                  }}
+                                >
+                                  {isDrum
+                                    ? "＋ Add hit at playhead"
+                                    : "＋ Add note at playhead"}
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setNoteSelection(
+                                      notes.flatMap((n, i) =>
+                                        n.start >= range[0] &&
+                                        n.start < range[1]
+                                          ? [i]
+                                          : [],
+                                      ),
+                                    )
+                                  }
+                                >
+                                  {isDrum
+                                    ? "Select hits in loop"
+                                    : "Select notes in loop"}
+                                </button>
+                                <button
+                                  disabled={!noteSelection.length}
+                                  onClick={() => setNoteSelection([])}
+                                >
+                                  Clear selection
+                                </button>
+                              </div>
+                            )}
+                            {tab === "notes" &&
+                              edit !== null &&
+                              notes[edit] && (
+                                <div className="note-editor">
+                                  {[
+                                    ...(!isDrum
+                                      ? [["pitch", "MIDI pitch"]]
+                                      : []),
+                                    ["start", "Start (s)"],
+                                    ...(!isDrum ? [["end", "End (s)"]] : []),
+                                    ["velocity", "Velocity"],
+                                  ].map(([key, label]) => (
+                                    <label key={key}>
+                                      {label}
+                                      <input
+                                        type="number"
+                                        aria-label={label}
+                                        step={
+                                          key === "pitch" || key === "velocity"
+                                            ? 1
+                                            : 0.01
+                                        }
+                                        value={notes[edit][key]}
+                                        onChange={(e) => {
+                                          setNotes(
+                                            notes.map((n, i) =>
+                                              i === edit
+                                                ? {
+                                                    ...n,
+                                                    [key]: Number(
+                                                      e.target.value,
+                                                    ),
+                                                    ...(isDrum &&
+                                                    key === "start"
+                                                      ? {
+                                                          start: Math.max(
+                                                            0,
+                                                            Math.min(
+                                                              result.duration -
+                                                                0.001,
+                                                              Number(
+                                                                e.target.value,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          end: Math.min(
+                                                            result.duration,
+                                                            Math.max(
+                                                              0,
+                                                              Number(
+                                                                e.target.value,
+                                                              ),
+                                                            ) + 0.06,
+                                                          ),
+                                                        }
+                                                      : {}),
+                                                  }
+                                                : n,
+                                            ),
+                                          );
+                                          setDirty(true);
+                                        }}
+                                      />
+                                    </label>
+                                  ))}
+                                  <button
+                                    onClick={() => {
+                                      setNotes(
+                                        notes.filter((_, i) => i !== edit),
+                                      );
+                                      setEdit(null);
+                                      setNoteSelection([]);
+                                      setDirty(true);
+                                    }}
+                                  >
+                                    {isDrum ? "Delete hit" : "Delete note"}
+                                  </button>
+                                </div>
+                              )}
+                            {tab === "notes" && !isDrum && !result.separation && (
+                              <details className="assignment-editor lane-tools">
+                                <summary>Split, move or merge notes</summary>
+                                <div>
+                                  <strong>
+                                    {noteSelection.length}{" "}
+                                    {noteSelection.length === 1
+                                      ? "note"
+                                      : "notes"}{" "}
+                                    selected
+                                  </strong>
+                                  <p>
+                                    Correct which instrument plays these notes.
+                                    Each change rebuilds the reference stems and
+                                    saves your current edits.
+                                  </p>
+                                </div>
                                 <div className="assignment-actions">
                                   <label>
-                                    Destination instrument
-                                    <select
-                                      aria-label="Destination instrument"
-                                      value={assignmentTarget}
+                                    New instrument name
+                                    <input
+                                      aria-label="New instrument name"
+                                      value={splitName}
+                                      placeholder={instrumentName + " · split"}
                                       onChange={(e) =>
-                                        setAssignmentTarget(e.target.value)
+                                        setSplitName(e.target.value)
                                       }
-                                    >
-                                      <option value="">
-                                        Choose an instrument…
-                                      </option>
-                                      {parts
-                                        .filter(
-                                          (p) =>
-                                            p.id !== selected &&
-                                            p.ownerProjectId ===
-                                              part.ownerProjectId,
-                                        )
-                                        .map((p) => (
-                                          <option key={p.id} value={p.id}>
-                                            {p.name}
-                                          </option>
-                                        ))}
-                                    </select>
+                                      maxLength={80}
+                                    />
                                   </label>
                                   <button
                                     disabled={
-                                      !assignmentTarget || !noteSelection.length
+                                      !noteSelection.length ||
+                                      noteSelection.length >= notes.length
                                     }
                                     onClick={() =>
                                       save({
-                                        action: "move",
-                                        targetId: assignmentTarget,
+                                        action: "split",
                                         indexes: noteSelection,
+                                        name: splitName,
                                       })
                                     }
                                   >
-                                    Move selected notes
-                                  </button>
-                                  <button
-                                    disabled={!assignmentTarget}
-                                    onClick={() =>
-                                      save({
-                                        action: "merge",
-                                        targetId: assignmentTarget,
-                                      })
-                                    }
-                                  >
-                                    Merge whole instrument
+                                    Split selected into new instrument
                                   </button>
                                 </div>
-                                <small>
-                                  Merge keeps the destination sound and removes
-                                  this instrument row. Use it when both rows
-                                  belong to the same instrument.
-                                </small>
-                              </>
+                                {parts.length > 1 && (
+                                  <>
+                                    <div className="assignment-actions">
+                                      <label>
+                                        Destination instrument
+                                        <select
+                                          aria-label="Destination instrument"
+                                          value={assignmentTarget}
+                                          onChange={(e) =>
+                                            setAssignmentTarget(e.target.value)
+                                          }
+                                        >
+                                          <option value="">
+                                            Choose an instrument…
+                                          </option>
+                                          {parts
+                                            .filter(
+                                              (p) =>
+                                                p.id !== selected &&
+                                                p.ownerProjectId ===
+                                                  part.ownerProjectId,
+                                            )
+                                            .map((p) => (
+                                              <option key={p.id} value={p.id}>
+                                                {p.name}
+                                              </option>
+                                            ))}
+                                        </select>
+                                      </label>
+                                      <button
+                                        disabled={
+                                          !assignmentTarget ||
+                                          !noteSelection.length
+                                        }
+                                        onClick={() =>
+                                          save({
+                                            action: "move",
+                                            targetId: assignmentTarget,
+                                            indexes: noteSelection,
+                                          })
+                                        }
+                                      >
+                                        Move selected notes
+                                      </button>
+                                      <button
+                                        disabled={!assignmentTarget}
+                                        onClick={() =>
+                                          save({
+                                            action: "merge",
+                                            targetId: assignmentTarget,
+                                          })
+                                        }
+                                      >
+                                        Merge whole instrument
+                                      </button>
+                                    </div>
+                                    <small>
+                                      Merge keeps the destination sound and
+                                      removes this instrument row. Use it when
+                                      both rows belong to the same instrument.
+                                    </small>
+                                  </>
+                                )}
+                              </details>
                             )}
-                          </div>
+                            {tab === "practice" && (
+                              <div className="scoreboard">
+                                <strong>{feedback}</strong>
+                                <span>
+                                  <b>{score.hit}</b> / {targetNotes}{" "}
+                                  {isDrum ? "hits played" : "notes hit"}
+                                </span>
+                                <span>
+                                  <b>{score.wrong}</b> extra{" "}
+                                  {isDrum ? "hits" : "notes"}
+                                </span>
+                              </div>
+                            )}
+                          </>
                         )}
-                        {tab === "practice" && (
-                          <div className="scoreboard">
-                            <strong>{feedback}</strong>
-                            <span>
-                              <b>{score.hit}</b> / {targetNotes}{" "}
-                              {isDrum ? "hits played" : "notes hit"}
-                            </span>
-                            <span>
-                              <b>{score.wrong}</b> extra{" "}
-                              {isDrum ? "hits" : "notes"}
-                            </span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {isDrum ? (
-                      <div className="drum-pad-panel">
-                        <button
-                          className={held.size ? "drum-pad held" : "drum-pad"}
-                          onPointerDown={(e) => {
-                            e.currentTarget.setPointerCapture(e.pointerId);
-                            noteOn(notes[0]?.pitch ?? 36);
-                          }}
-                          onPointerUp={() => noteOff(notes[0]?.pitch ?? 36)}
-                          onPointerCancel={() => noteOff(notes[0]?.pitch ?? 36)}
+                        <details
+                          className="lane-audition"
+                          key={`${selected}:${tab}`}
+                          open={tab !== "notes"}
                         >
-                          Play {instrumentName}
-                          <small>A key · any MIDI pad</small>
-                        </button>
-                        <p>
-                          One-shot playback follows hit velocity. Releasing a
-                          pad keeps the tail ringing.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="keyboard-panel">
-                        <div className="keyboard-caption">
-                          <span>
-                            PLAY THIS INSTRUMENT{" "}
-                            <small>
-                              {tab === "practice"
-                                ? "Timing window ±150 ms"
-                                : feedback}
-                            </small>
-                          </span>
-                          <div>
-                            <button
-                              aria-label="Lower octave"
-                              onClick={() => setOctave(Math.max(0, octave - 1))}
-                            >
-                              −
-                            </button>
-                            <span>Octave {octave}</span>
-                            <button
-                              aria-label="Higher octave"
-                              onClick={() => setOctave(Math.min(7, octave + 1))}
-                            >
-                              ＋
-                            </button>
-                            {devices.length > 0 && (
-                              <select
-                                aria-label="MIDI device"
-                                value={deviceId}
-                                onChange={(e) => setDeviceId(e.target.value)}
-                              >
-                                <option value="">All MIDI devices</option>
-                                {deviceId &&
-                                  !devices.some((d) => d.id === deviceId) && (
-                                    <option value={deviceId}>
-                                      Disconnected device
-                                    </option>
-                                  )}
-                                {devices.map((d) => (
-                                  <option key={d.id} value={d.id}>
-                                    {d.name}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </div>
-                        </div>
-                        <div className="keyboard">
-                          {Array.from({ length: 25 }, (_, i) => {
-                            const pitch = (octave + 1) * 12 + i,
-                              black = [1, 3, 6, 8, 10].includes(pitch % 12);
-                            return (
+                          <summary>
+                            Audition instrument · keyboard and MIDI
+                          </summary>
+                          {isDrum ? (
+                            <div className="drum-pad-panel">
                               <button
-                                key={pitch}
-                                aria-label={"Play " + noteName(pitch)}
                                 className={
-                                  (black ? "black" : "white") +
-                                  (held.has(pitch) ? " held" : "")
+                                  held.size ? "drum-pad held" : "drum-pad"
                                 }
                                 onPointerDown={(e) => {
                                   e.currentTarget.setPointerCapture(
                                     e.pointerId,
                                   );
-                                  noteOn(pitch);
+                                  noteOn(notes[0]?.pitch ?? 36);
                                 }}
-                                onPointerUp={() => noteOff(pitch)}
-                                onPointerCancel={() => noteOff(pitch)}
+                                onPointerUp={() =>
+                                  noteOff(notes[0]?.pitch ?? 36)
+                                }
+                                onPointerCancel={() =>
+                                  noteOff(notes[0]?.pitch ?? 36)
+                                }
                               >
-                                <span>
-                                  {i % 12 === 0 ? noteName(pitch) : ""}
-                                </span>
+                                Play {instrumentName}
+                                <small>A key · any MIDI pad</small>
                               </button>
-                            );
-                          })}
+                              <p>
+                                One-shot playback follows hit velocity.
+                                Releasing a pad keeps the tail ringing.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="keyboard-panel">
+                              <div className="keyboard-caption">
+                                <span>
+                                  PLAY THIS INSTRUMENT{" "}
+                                  <small>
+                                    {tab === "practice"
+                                      ? "Timing window ±150 ms"
+                                      : feedback}
+                                  </small>
+                                </span>
+                                <div>
+                                  <button
+                                    aria-label="Lower octave"
+                                    onClick={() =>
+                                      setOctave(Math.max(0, octave - 1))
+                                    }
+                                  >
+                                    −
+                                  </button>
+                                  <span>Octave {octave}</span>
+                                  <button
+                                    aria-label="Higher octave"
+                                    onClick={() =>
+                                      setOctave(Math.min(7, octave + 1))
+                                    }
+                                  >
+                                    ＋
+                                  </button>
+                                  {devices.length > 0 && (
+                                    <select
+                                      aria-label="MIDI device"
+                                      value={deviceId}
+                                      onChange={(e) =>
+                                        setDeviceId(e.target.value)
+                                      }
+                                    >
+                                      <option value="">All MIDI devices</option>
+                                      {deviceId &&
+                                        !devices.some(
+                                          (d) => d.id === deviceId,
+                                        ) && (
+                                          <option value={deviceId}>
+                                            Disconnected device
+                                          </option>
+                                        )}
+                                      {devices.map((d) => (
+                                        <option key={d.id} value={d.id}>
+                                          {d.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="keyboard">
+                                {Array.from({ length: 25 }, (_, i) => {
+                                  const pitch = (octave + 1) * 12 + i,
+                                    black = [1, 3, 6, 8, 10].includes(
+                                      pitch % 12,
+                                    );
+                                  return (
+                                    <button
+                                      key={pitch}
+                                      aria-label={"Play " + noteName(pitch)}
+                                      className={
+                                        (black ? "black" : "white") +
+                                        (held.has(pitch) ? " held" : "")
+                                      }
+                                      onPointerDown={(e) => {
+                                        e.currentTarget.setPointerCapture(
+                                          e.pointerId,
+                                        );
+                                        noteOn(pitch);
+                                      }}
+                                      onPointerUp={() => noteOff(pitch)}
+                                      onPointerCancel={() => noteOff(pitch)}
+                                    >
+                                      <span>
+                                        {i % 12 === 0 ? noteName(pitch) : ""}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <small className="key-hint">
+                                Use your MIDI keyboard, click the keys, or play
+                                with A W S E D F T G Y H U J.
+                              </small>
+                            </div>
+                          )}
+                        </details>
+                        <div className="detail-footer">
+                          <span>
+                            {dirty
+                              ? "Unsaved changes"
+                              : isDrum
+                                ? "Patch and hits saved"
+                                : "Patch and notes saved"}{" "}
+                            · <small>Original analysis is preserved</small>
+                          </span>
+                          <div>
+                            <button
+                              onClick={() => {
+                                setPatch(part.automaticPatch);
+                                setDirty(true);
+                              }}
+                            >
+                              Reset sound
+                            </button>
+                            <button
+                              className="primary"
+                              disabled={busy || !dirty}
+                              onClick={() => save()}
+                            >
+                              {busy ? "Saving…" : "Save instrument"}
+                            </button>
+                          </div>
                         </div>
-                        <small className="key-hint">
-                          Use your MIDI keyboard, click the keys, or play with A
-                          W S E D F T G Y H U J.
-                        </small>
-                      </div>
-                    )}
-                    <div className="detail-footer">
-                      <span>
-                        {dirty
-                          ? "Unsaved changes"
-                          : isDrum
-                            ? "Patch and hits saved"
-                            : "Patch and notes saved"}{" "}
-                        · <small>Original analysis is preserved</small>
-                      </span>
-                      <div>
-                        <button
-                          onClick={() => {
-                            setPatch(part.automaticPatch);
-                            setDirty(true);
-                          }}
-                        >
-                          Reset sound
-                        </button>
-                        <button
-                          className="primary"
-                          disabled={busy || !dirty}
-                          onClick={() => save()}
-                        >
-                          {busy ? "Saving…" : "Save instrument"}
-                        </button>
-                      </div>
-                    </div>
-                  </fieldset>
-                </section>
-              )}
+                      </fieldset>
+                    </section>
+                  )
+                }
+              />
             </>
           )}
         </main>
-        {!embedded && (
-          <footer className="page-footer">
-            MELODICS LAB <span>Listen closely. Play freely.</span>
-            <small>Electronic instrument reconstruction · early preview</small>
-          </footer>
-        )}
       </div>
     </div>
   );

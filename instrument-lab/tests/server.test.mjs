@@ -56,6 +56,11 @@ if(args.includes('--document')) {
  process.exit(0);
 }
 
+if(args[0].endsWith('/drums.py')) {
+ const result={engine:'drum',duration:1,sampleRate:44100,parts:[],analysis:{notes:0,warnings:[],spectralResidual:0}};
+ await fs.writeFile(path.join(folder,'result.json'),JSON.stringify(result));
+ process.exit(0);
+}
 const input=await fs.readFile(args[args.indexOf('--input')+1], 'utf8');
 if(input==='expected-error' || input==='unexpected-error') {
  if(input==='expected-error') process.stdout.write(JSON.stringify({stage:'Failed',progress:0,error:'No reliable pitched notes found.'}));
@@ -119,7 +124,7 @@ console.log(JSON.stringify({stage:interrupted?'Late cancelled result':'Finished'
       return { status: res.status, body: await res.json() };
     };
     for (const kind of ["expected-error", "unexpected-error"]) {
-      const failed = await request("/api/projects?filename=failure.wav", {
+      const failed = await request("/api/projects?pipeline=legacy&filename=failure.wav", {
         method: "POST",
         body: kind,
       });
@@ -143,7 +148,7 @@ console.log(JSON.stringify({stage:interrupted?'Late cancelled result':'Finished'
       /sensitive diagnostic/,
       "diagnostics remain available on the server",
     );
-    const created = await request("/api/projects?filename=test.wav", {
+    const created = await request("/api/projects?pipeline=legacy&filename=test.wav", {
       method: "POST",
       body: new Uint8Array([1, 2, 3]),
     });
@@ -155,6 +160,11 @@ console.log(JSON.stringify({stage:interrupted?'Late cancelled result':'Finished'
       (await request(endpoint + "/cancel", { method: "POST" })).status,
       200,
     );
+    const cancelledWorkspace = await get();
+    assert.ok(
+      cancelledWorkspace.analyses.every((a) => a.status === "cancelled"),
+      "cancelling the import cancels both analyses",
+    );
     const retried = await request(endpoint + "/retry", { method: "POST" });
     assert.equal(retried.status, 200);
     assert.notEqual(retried.body.attemptId, created.body.attemptId);
@@ -162,7 +172,20 @@ console.log(JSON.stringify({stage:interrupted?'Late cancelled result':'Finished'
       (await request(endpoint + "/retry", { method: "POST" })).status,
       409,
     );
-    const ready = await until(get, (p) => p.status === "ready");
+    const ready = await until(get, (p) => p.status === "ready" && p.analyses.every(a => a.status === "ready"));
+    assert.equal(
+      ready.analyses.length,
+      2,
+      "a recording includes percussion analysis automatically",
+    );
+    assert.ok(ready.analyses.some((a) => a.engine === "drum"));
+    const reopen = () =>
+      request(endpoint + "/analyze-instruments", { method: "POST" });
+    const reopenedAnalyses = await Promise.all([reopen(), reopen()]);
+    assert.ok(
+      reopenedAnalyses.every((p) => p.body.analyses.length === 2),
+      "reopening cannot duplicate percussion analyses",
+    );
     assert.equal(ready.attemptId, retried.body.attemptId);
     assert.equal(ready.result.analysis.attempt, retried.body.attemptId);
     assert.equal(ready.result.analysis.interrupted, false);
@@ -173,7 +196,7 @@ console.log(JSON.stringify({stage:interrupted?'Late cancelled result':'Finished'
 
     // A track imported through Melodics must reuse an existing matching project.
     const linkSong = () =>
-      request("/api/song-projects/existing-song?filename=linked.wav", {
+      request("/api/song-projects/existing-song?pipeline=legacy&filename=linked.wav", {
         method: "POST",
         body: new Uint8Array([1, 2, 3]),
       });
@@ -257,7 +280,7 @@ console.log(JSON.stringify({stage:interrupted?'Late cancelled result':'Finished'
       "linking must retain edits and audio revisions",
     );
     const newTrack = await request(
-      "/api/song-projects/new-song?filename=new.wav",
+      "/api/song-projects/new-song?pipeline=legacy&filename=new.wav",
       { method: "POST", body: "new song bytes" },
     );
     assert.equal(newTrack.status, 200);
@@ -296,7 +319,7 @@ console.log(JSON.stringify({stage:interrupted?'Late cancelled result':'Finished'
     assert.equal(merged.body.result.parts[0].notes.length, 2);
 
     // Cancel after the first generated synth file proves final rendering started.
-    const large = await request("/api/projects?filename=render.wav", {
+    const large = await request("/api/projects?pipeline=legacy&filename=render.wav", {
       method: "POST",
       body: "lengthy",
     });
@@ -311,7 +334,7 @@ console.log(JSON.stringify({stage:interrupted?'Late cancelled result':'Finished'
     );
     assert.equal(stopped.status, 200);
     // Starting and completing another queued job drains the cancelled attempt.
-    const following = await request("/api/projects?filename=after.wav", {
+    const following = await request("/api/projects?pipeline=legacy&filename=after.wav", {
       method: "POST",
       body: "short",
     });

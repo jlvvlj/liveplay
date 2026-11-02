@@ -1,3 +1,6 @@
+import { SourceStemPanel } from "./SourceStemPanel";
+import { LessonPlayer } from '../lesson-engine/LessonPlayer';
+import { Lesson } from '../../types/lesson';
 import { useEffect, useState } from "react";
 import { Song } from "../../types/song";
 import InstrumentLabEditor from "../../../../../../instrument-lab/client/InstrumentLabEditor.jsx";
@@ -13,6 +16,7 @@ export function InstrumentLab({
   song: Song | null;
   onExit: () => void;
 }) {
+  const [audioLesson, setAudioLesson] = useState<Lesson | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -48,12 +52,19 @@ export function InstrumentLab({
 
   if (ready)
     return (
+      <>
+      {audioLesson && <LessonPlayer lesson={audioLesson} onComplete={() => setAudioLesson(null)} />}
+      <div hidden={!!audioLesson}>
       <InstrumentLabEditor
         key={projectId || "library"}
         initialProjectId={projectId}
         embedded
         onExit={onExit}
+        onStartLesson={setAudioLesson}
+        renderSourceEditor={({project,projects,onAudition}) => <SourceStemPanel project={project} projects={projects} onAudition={onAudition} onExit={onExit} onStartLesson={setAudioLesson}/>}
       />
+      </div>
+      </>
     );
   return (
     <section className="instrument-lab-opening">

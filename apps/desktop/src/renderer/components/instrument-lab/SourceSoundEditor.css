@@ -1,0 +1,724 @@
+/* Styled after Mert Can Eyriyer's "Podcast Editor" (dribbble 19851299):
+   pure-black studio, tracks as rounded clip cards with colored borders and
+   name pills, ruler + minimap under the tracks, floating bottom transport,
+   sectioned right sidebar. Orange primary accent. */
+
+.source-sound-editor {
+  --source-se-bg: #0a0a0c;
+  --source-se-panel: #131316;
+  --source-se-panel-2: #1a1a1f;
+  --source-se-border: rgba(255, 255, 255, 0.08);
+  --source-se-text: #f4f4f5;
+  --source-se-text-dim: rgba(244, 244, 245, 0.5);
+  --source-se-accent: #fb923c;
+
+  position: relative;
+  inset: auto;
+  z-index: 0;
+  height: 720px;
+  max-height: calc(100vh - 110px);
+  min-height: 480px;
+  margin-bottom: 24px;
+  border: 1px solid var(--source-se-border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--source-se-bg);
+  color: var(--source-se-text);
+  font-size: 13px;
+}
+
+/* ---------- top bar ---------- */
+
+.instrument-lab-ui .source-sound-editor .source-se-topbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--source-se-border);
+  background: var(--source-se-bg);
+  flex-shrink: 0;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-project {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-project-name {
+  font-weight: 600;
+  font-size: 0.86rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-project-sub {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--source-se-text-dim);
+}
+
+/* center tool cluster, like the reference's toolbar */
+.instrument-lab-ui .source-sound-editor .source-se-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+  padding: 0.25rem 0.6rem;
+  background: var(--source-se-panel);
+  border: 1px solid var(--source-se-border);
+  border-radius: 999px;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-event-tools {
+  margin-left: auto;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-tools-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--source-se-text-dim);
+  padding: 0 0.25rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-tools-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--source-se-border);
+  margin: 0 0.35rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-brush-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+  margin-right: 0.15rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-tool {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  color: var(--source-se-text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-tool:hover:not(:disabled) {
+  background: rgba(251, 146, 60, 0.18);
+  color: var(--source-se-accent);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-tool:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-tool.danger:hover {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fca5a5;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-topbar-right {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 1px;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-merge-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 3px;
+  background: var(--source-se-panel);
+  border: 1px solid var(--source-se-border);
+  border-radius: 999px;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-merge-select {
+  max-width: 86px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  color: var(--source-se-text);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-merge-select option {
+  background: #151519;
+  color: var(--source-se-text);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-merge-plus {
+  color: var(--source-se-text-dim);
+  font-size: 0.72rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-merge-button {
+  height: 26px;
+  padding: 0 0.7rem;
+  background: rgba(251, 146, 60, 0.18);
+  border: none;
+  border-radius: 999px;
+  color: var(--source-se-accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-merge-button:hover:not(:disabled) {
+  background: rgba(251, 146, 60, 0.28);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-merge-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-stem-tabs {
+  display: flex;
+  gap: 2px;
+  max-width: 100%;
+  overflow-x: auto;
+  background: var(--source-se-panel);
+  border: 1px solid var(--source-se-border);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-stem-tab {
+  flex: 0 0 auto;
+  padding: 0.32rem 0.85rem;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  color: var(--source-se-text-dim);
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-stem-tab:hover {
+  color: var(--source-se-text);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-stem-tab.active {
+  background: rgba(251, 146, 60, 0.2);
+  color: var(--source-se-accent);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-chip-button {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--source-se-panel);
+  border: 1px solid var(--source-se-border);
+  border-radius: 999px;
+  color: var(--source-se-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-chip-button:hover {
+  background: var(--source-se-panel-2);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-publish {
+  padding: 0.42rem 1.1rem;
+  background: var(--source-se-accent);
+  border: none;
+  border-radius: 999px;
+  color: #1a1005;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-publish:hover:not(:disabled) {
+  background: #fdac63;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-publish:disabled {
+  background: var(--source-se-panel-2);
+  color: var(--source-se-text-dim);
+  cursor: default;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-start-lesson {
+  padding: 0.42rem 1.05rem;
+  background: #f4f4f5;
+  border: none;
+  border-radius: 999px;
+  color: #111113;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-start-lesson:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-start-lesson:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---------- body: main + sidebar ---------- */
+
+.instrument-lab-ui .source-sound-editor .source-se-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 1rem 1.1rem 0.5rem;
+}
+
+/* ---------- tracks ---------- */
+
+.instrument-lab-ui .source-sound-editor .source-se-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-track-row {
+  display: flex;
+  align-items: stretch;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-gutter {
+  width: 108px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-left: 0.2rem;
+  color: var(--source-se-text-dim);
+  font-size: 0.76rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-gutter-grip {
+  opacity: 0.5;
+  font-size: 0.8rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-gutter-name {
+  font-weight: 600;
+  color: var(--source-se-text);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-gutter-lanes {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding-left: 0;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-lane-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-left: 1.1rem;
+  background: transparent;
+  border: none;
+  color: var(--source-se-text-dim);
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-lane-label:hover {
+  color: var(--source-se-text);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-lane-label.selected {
+  font-weight: 700;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-lane-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-track-canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-brush-popover {
+  position: absolute;
+  top: 2px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.22rem 0.4rem;
+  background: rgba(19, 19, 22, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  transform: translateX(-50%);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-brush-popover::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 9px;
+  height: 9px;
+  background: rgba(19, 19, 22, 0.96);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-brush-popover .source-se-tool,
+.instrument-lab-ui .source-sound-editor .source-se-brush-popover .source-se-brush-swatch {
+  position: relative;
+  z-index: 1;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-clip-pill {
+  position: absolute;
+  top: 42px;
+  left: 10px;
+  z-index: 2;
+  padding: 0.14rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #1a1005;
+  pointer-events: none;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-wave,
+.instrument-lab-ui .source-sound-editor .source-se-lanes {
+  width: 100%;
+  display: block;
+  cursor: crosshair;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-wave {
+  margin-top: 42px;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-lanes {
+  cursor: pointer;
+}
+
+/* ---------- ruler + minimap ---------- */
+
+.instrument-lab-ui .source-sound-editor .source-se-timebase {
+  display: flex;
+  margin-top: 0.4rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-gutter-spacer {
+  width: 108px;
+  flex-shrink: 0;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-timebasource-se-canvases {
+  flex: 1;
+  min-width: 0;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-ruler {
+  width: 100%;
+  display: block;
+  border-top: 1px solid var(--source-se-border);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-minimap {
+  width: 100%;
+  display: block;
+  margin-top: 0.3rem;
+  border-radius: 8px;
+  background: var(--source-se-panel);
+  border: 1px solid var(--source-se-border);
+  cursor: grab;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-minimap:active {
+  cursor: grabbing;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-hint {
+  margin: 0.6rem 0 0.8rem 108px;
+  font-size: 0.72rem;
+  color: var(--source-se-text-dim);
+}
+
+/* ---------- sidebar ---------- */
+
+.instrument-lab-ui .source-sound-editor .source-se-sidebar {
+  width: 250px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--source-se-border);
+  padding: 1rem 0.9rem;
+  overflow-y: auto;
+  background: var(--source-se-bg);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-sidebar-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-sidebar-sub {
+  margin: 0.15rem 0 0.9rem;
+  font-size: 0.72rem;
+  color: var(--source-se-text-dim);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-side-sound {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.6rem 0.65rem;
+  margin-bottom: 0.5rem;
+  background: var(--source-se-panel);
+  border: 1px solid var(--source-se-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-side-sound:hover {
+  background: var(--source-se-panel-2);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-side-sound.selected {
+  background: var(--source-se-panel-2);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-side-pill {
+  align-self: flex-start;
+  padding: 0.14rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1a1005;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-side-meta {
+  font-size: 0.7rem;
+  color: var(--source-se-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-side-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-side-merge {
+  flex: 1;
+  background: var(--source-se-bg);
+  border: 1px solid var(--source-se-border);
+  border-radius: 999px;
+  color: var(--source-se-text-dim);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-side-merge:hover {
+  color: var(--source-se-text);
+}
+
+/* ---------- bottom transport ---------- */
+
+.instrument-lab-ui .source-sound-editor .source-se-transport {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.4rem 1.1rem 0.9rem;
+  padding: 0.55rem 0.9rem;
+  background: var(--source-se-panel);
+  border: 1px solid var(--source-se-border);
+  border-radius: 14px;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-timecode-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  background: var(--source-se-bg);
+  border: 1px solid var(--source-se-border);
+  border-radius: 999px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-time-now {
+  font-size: 0.82rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-time-total {
+  font-size: 0.7rem;
+  color: var(--source-se-text-dim);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-transport-center {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0 auto;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-skip {
+  background: transparent;
+  border: none;
+  color: var(--source-se-text-dim);
+  font-size: 0.78rem;
+  cursor: pointer;
+  letter-spacing: -0.12em;
+  transition: color 0.15s;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-skip:hover {
+  color: var(--source-se-text);
+}
+
+/* big white circular play, like the reference */
+.instrument-lab-ui .source-sound-editor .source-se-play {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: #f4f4f5;
+  color: #0a0a0c;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s, background 0.12s;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-play:hover {
+  transform: scale(1.06);
+  background: #ffffff;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-zoom-slider {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-zoom-step {
+  background: transparent;
+  border: none;
+  color: var(--source-se-text-dim);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-zoom-step:hover {
+  color: var(--source-se-text);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-zoom-slider input[type='range'] {
+  width: 120px;
+  accent-color: #f4f4f5;
+}
+
+/* ---------- states ---------- */
+
+.instrument-lab-ui .source-sound-editor .source-se-error {
+  margin: 0.8rem 1.1rem 0;
+  padding: 0.65rem 0.9rem;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 10px;
+  color: #fca5a5;
+  font-size: 0.8rem;
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: var(--source-se-text-dim);
+}
+
+.instrument-lab-ui .source-sound-editor .source-se-loading-pulse {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(251, 146, 60, 0.25);
+  border-top-color: var(--source-se-accent);
+  animation: source-se-spin 0.9s linear infinite;
+}
+
+@keyframes source-se-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Keep the original editor proportions and controls inside the Lab. */
+.instrument-lab-ui .source-sound-editor button { line-height: normal; letter-spacing: normal; }
+.instrument-lab-ui .source-sound-editor .source-se-tool,
+.instrument-lab-ui .source-sound-editor .source-se-chip-button,
+.instrument-lab-ui .source-sound-editor .source-se-play { padding: 0; }
+.instrument-lab-ui .source-editor-status { padding: 20px; margin-bottom: 24px; border: 1px solid #ffffff14; border-radius: 12px; }
+.instrument-lab-ui .instrument-audio-section > summary { padding: 10px 24px; color: #aca8bb; font-size: 12px; cursor: pointer; border-bottom: 1px solid #ffffff12; }
+.instrument-lab-ui .instrument-audio-section > summary:hover { color: #f4f4f5; }

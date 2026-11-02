@@ -143,7 +143,7 @@ def discover(audio, sr):
     )
 
 
-def analyze(source, output):
+def analyze(source, output, mixed=False):
     out = Path(output)
     out.mkdir(parents=True, exist_ok=True)
     audio, sr = sf.read(source, always_2d=True, dtype="float32")
@@ -152,6 +152,10 @@ def analyze(source, output):
     if not np.isfinite(audio).all() or not np.max(np.abs(audio)) > 1e-6:
         raise ValueError("This drum stem is silent or invalid.")
     duration = len(audio) / sr
+    if mixed:
+        from percussion import percussion_audio
+        progress("Separating percussion from the recording", 0.02)
+        audio = percussion_audio(audio, sr)
     progress("Finding recurring drum sounds", 0.06)
     d = discover(audio, sr)
     parts = []
@@ -588,9 +592,18 @@ if __name__ == "__main__":
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--catalog")
+    parser.add_argument("--mixed", action="store_true")
     args = parser.parse_args()
     try:
-        analyze(args.input, args.output)
+        try:
+            analyze(args.input, args.output, args.mixed)
+        except ValueError as error:
+            if not args.mixed or not str(error).startswith(("No distinct drum attacks", "No reliable repeating drum sounds")):
+                raise
+            audio, sr = sf.read(args.input, always_2d=True)
+            result = dict(engine="drum", duration=len(audio)/sr, sampleRate=sr, parts=[], analysis=dict(notes=0, spectralResidual=0, warnings=[], method="No repeating percussion detected"))
+            (Path(args.output) / "result.json").write_text(json.dumps(result))
+            progress("No repeating percussion detected", 1)
     except Exception as error:
         print(
             json.dumps({"stage": "Failed", "error": str(error), "progress": 0}),
