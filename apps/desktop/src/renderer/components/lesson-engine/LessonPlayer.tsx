@@ -46,6 +46,10 @@ const JAM_HOLD_LOOKAHEAD_S = 0.1;
 // stays clearly audible
 const JAM_BACKING_TOP_DB = -2 + 20 * Math.log10(1.3);
 const DEFAULT_JAM_NOTES_VOLUME = 0.75;
+// Phone screens, upright (narrow) or sideways (short), in px: match the media
+// query in LessonPlayer.css
+const JAM_PHONE_WIDTH = 700;
+const JAM_PHONE_HEIGHT = 500;
 
 // Jam tab settings remembered in this browser: chosen song, chosen sound,
 // edited synth settings per sound, and the effects
@@ -283,7 +287,10 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
   const [metronomeVolume, setMetronomeVolume] = useState<number>(0);
   // Jam tab: volume of the notes you play, and its settings sidebar
   const [jamNotesVolume, setJamNotesVolume] = useState<number>(DEFAULT_JAM_NOTES_VOLUME);
-  const [showJamSettings, setShowJamSettings] = useState<boolean>(true);
+  // On a phone the sidebar would cover most of the highway, so it starts closed there
+  const [showJamSettings, setShowJamSettings] = useState<boolean>(
+    () => !(jamOnly && (window.innerWidth <= JAM_PHONE_WIDTH || window.innerHeight <= JAM_PHONE_HEIGHT))
+  );
 
   // Default keys for note assignments (in order of preference)
   // Expanded to support lessons with many unique notes (up to 36 keys)
@@ -865,6 +872,25 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
       }
     };
   }, [isGameMode, currentMode, state, lesson.bpm, lesson.beatGrid, lesson.timeSignature, practiceMode.speedMultiplier, playMetronomeTick, backingTrackLoaded, backingTrackVolume]);
+
+  // Browsers only let audio start from a tap, click or key press; the jam opens
+  // without one (e.g. the standalone jam app), so the first one anywhere starts it
+  useEffect(() => {
+    if (!jamOnly) return;
+    // iPhone: play through the silent switch, like a music app
+    const audioSession = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    if (audioSession) audioSession.type = 'playback';
+    const unlock = () => {
+      Tone.start().then(() => {
+        if (Tone.getContext().state === 'running') {
+          events.forEach((event) => document.removeEventListener(event, unlock, true));
+        }
+      });
+    };
+    const events = ['pointerdown', 'touchend', 'keydown'];
+    events.forEach((event) => document.addEventListener(event, unlock, true));
+    return () => events.forEach((event) => document.removeEventListener(event, unlock, true));
+  }, [jamOnly]);
 
   // Jam mode clock and pulse: the backing track loops when the lesson has one,
   // otherwise a soft click marks the beats. Runs for as long as the Jam tab is open.
@@ -1936,9 +1962,11 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
         {/* Jam tab: full-page highway; collapsed sidebar leaves only back and expand */}
         {jamOnly && !showJamSettings && (
           <div className="jam-corner-buttons">
-            <button className="jam-corner-btn" onClick={onComplete} title="Back">
-              &#8592;
-            </button>
+            {onComplete && (
+              <button className="jam-corner-btn" onClick={onComplete} title="Back">
+                &#8592;
+              </button>
+            )}
             <button className="jam-corner-btn" onClick={() => setShowJamSettings(true)} title="Show settings">
               &#187;
             </button>
@@ -1980,7 +2008,7 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
             onToggleKeys={() => setShowKeySettings(!showKeySettings)}
             labelMode={labelMode}
             onLabelModeChange={setLabelMode}
-            onBack={() => onComplete?.()}
+            onBack={onComplete}
             onClose={() => setShowJamSettings(false)}
           />
         )}

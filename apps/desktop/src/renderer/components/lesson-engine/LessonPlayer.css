@@ -1875,3 +1875,15 @@
   color: #fff;
 }
 
+
+/* Phones (JAM_PHONE_WIDTH / JAM_PHONE_HEIGHT in LessonPlayer.tsx): the sidebar
+   opens over the highway instead of pushing it aside */
+@media (max-width: 700px), (max-height: 500px) {
+  .lesson-player.jam-only .highway-container.with-jam-settings {
+    padding-left: 0;
+  }
+
+  .lesson-player.jam-only .game-settings-sidebar {
+    width: min(300px, 88vw);
+  }
+}

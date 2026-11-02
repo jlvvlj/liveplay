@@ -452,6 +452,8 @@
   cursor: none;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* no long-press menu on phones */
 }
 
 /* Notes leave at the ship's height, which can be near a row's edge */
@@ -560,4 +562,31 @@
   background: linear-gradient(270deg, #ffffff 0%, currentColor 35%, transparent 100%);
   transform-origin: right center;
   filter: blur(1px);
+}
+
+/* Jam on a sideways phone: sixteen rows in little height, so a slimmer clock
+   bar, tighter padding and smaller row labels */
+@media (max-height: 500px) {
+  .note-highway.jam::before,
+  .note-highway.jam::after {
+    bottom: 28px;
+  }
+
+  .note-highway.jam .highway-progress {
+    height: 28px;
+    gap: 0;
+  }
+
+  .note-highway.jam .jam-motion {
+    bottom: 28px;
+  }
+
+  .note-highway.jam .jam-lanes {
+    gap: 0;
+    padding: 0.25rem 0 calc(0.25rem + 28px);
+  }
+
+  .note-highway.jam .lane-label {
+    font-size: 0.7rem;
+  }
 }

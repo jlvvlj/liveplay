@@ -5,12 +5,13 @@
 //
 //   node scripts/make-pentatonic-jam-audio.mjs [audio dir]
 //
-// Writes into <audio dir>/samples/pentatonic_jam/ (default: ./audio). All tracks
-// are scaled to the same loudness, so switching tracks never changes the level.
+// Writes 16-bit WAVs into <audio dir>/samples/pentatonic_jam/ (default: ./audio;
+// the jam app's build passes apps/jam/dist/audio). All tracks are scaled to the
+// same loudness, so switching tracks never changes the level.
 import fs from "node:fs";
 import path from "node:path";
 import { renderNotes } from "../instrument-lab/engine/synth.mjs";
-import { renderDrums, encodeStereoWav } from "../instrument-lab/engine/drums.mjs";
+import { renderDrums } from "../instrument-lab/engine/drums.mjs";
 
 const SAMPLE_RATE = 44100;
 const BARS = 8;
@@ -191,13 +192,35 @@ function renderTrack(track) {
   return { loop, loopSeconds, peakDb };
 }
 
+// 16-bit stereo PCM: half the size of float, so phones load tracks twice as fast
+function encodeWav16([left, right]) {
+  const buffer = Buffer.alloc(44 + left.length * 4);
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + left.length * 4, 4);
+  buffer.write("WAVEfmt ", 8);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20); // PCM
+  buffer.writeUInt16LE(2, 22);
+  buffer.writeUInt32LE(SAMPLE_RATE, 24);
+  buffer.writeUInt32LE(SAMPLE_RATE * 4, 28);
+  buffer.writeUInt16LE(4, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(left.length * 4, 40);
+  for (let i = 0; i < left.length; i++) {
+    buffer.writeInt16LE(Math.round(left[i] * 32767), 44 + i * 4);
+    buffer.writeInt16LE(Math.round(right[i] * 32767), 46 + i * 4);
+  }
+  return buffer;
+}
+
 const audioDir = path.resolve(process.argv[2] || "audio");
 const outDir = path.join(audioDir, "samples", "pentatonic_jam");
 fs.mkdirSync(outDir, { recursive: true });
 
 for (const track of TRACKS) {
   const { loop, loopSeconds, peakDb } = renderTrack(track);
-  fs.writeFileSync(path.join(outDir, track.file), Buffer.from(encodeStereoWav(loop, SAMPLE_RATE)));
+  fs.writeFileSync(path.join(outDir, track.file), encodeWav16(loop));
   console.log(`${track.file}: ${track.bpm} BPM, ${loopSeconds.toFixed(2)} s loop, peak ${peakDb.toFixed(1)} dBFS`);
 }
 console.log(`Wrote ${TRACKS.length} tracks to ${outDir}`);

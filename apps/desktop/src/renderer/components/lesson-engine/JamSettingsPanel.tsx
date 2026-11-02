@@ -40,7 +40,8 @@ interface JamSettingsPanelProps {
   onToggleKeys: () => void;
   labelMode: 'letters' | 'numbers';
   onLabelModeChange: (mode: 'letters' | 'numbers') => void;
-  onBack: () => void;
+  // Leaves the Jam; none in the standalone jam app
+  onBack?: () => void;
   onClose: () => void;
 }
 
@@ -137,9 +138,11 @@ export function JamSettingsPanel({
   return (
     <div className="game-settings-sidebar">
       <div className="game-settings-header jam-settings-header">
-        <button className="jam-corner-btn" onClick={onBack} title="Back">
-          &#8592;
-        </button>
+        {onBack && (
+          <button className="jam-corner-btn" onClick={onBack} title="Back">
+            &#8592;
+          </button>
+        )}
         <div className="jam-song">
           <span className="jam-song-title">{title}</span>
           <span className="toolbar-badge">{bpm} BPM</span>
