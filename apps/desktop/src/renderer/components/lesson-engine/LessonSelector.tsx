@@ -3,6 +3,16 @@ import { Lesson } from '../../types/lesson';
 import { Song, StemName, STEM_NAMES, STEM_LABELS } from '../../types/song';
 import { midiToLesson, loadMidiFile } from '../../utils/midiToLesson';
 import { stemLessonFromSong, StemLessonData } from '../../utils/stemLessonFromSong';
+import {
+  AbletonProject,
+  AbletonTrack,
+  abletonTrackToLesson,
+  findSampleFile,
+  isPlayable,
+  lessonStartBeat,
+  readAbletonProject,
+  renderBacking,
+} from '../../utils/abletonImport';
 import './LessonSelector.css';
 
 interface LessonSelectorProps {
@@ -212,6 +222,52 @@ export function LessonSelector({ onLessonSelect, onSongSelect, onSongEdit, onSon
   const [songsError, setSongsError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Ableton projects are read in the browser from a picked folder
+  const abletonInputRef = useRef<HTMLInputElement>(null);
+  const [abletonProject, setAbletonProject] = useState<AbletonProject | null>(null);
+  const [abletonReading, setAbletonReading] = useState(false);
+  const [abletonError, setAbletonError] = useState<string | null>(null);
+  useEffect(() => {
+    // folder picking isn't a typed React prop
+    abletonInputRef.current?.setAttribute('webkitdirectory', '');
+  });
+
+  const handleAbletonFolder = async (files: File[]) => {
+    setAbletonReading(true);
+    setAbletonError(null);
+    try {
+      setAbletonProject(await readAbletonProject(files));
+    } catch (error) {
+      setAbletonProject(null);
+      setAbletonError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAbletonReading(false);
+    }
+  };
+
+  const [abletonPreparing, setAbletonPreparing] = useState<string | null>(null);
+
+  const playAbletonTrack = async (project: AbletonProject, track: AbletonTrack) => {
+    setAbletonPreparing(track.name);
+    setAbletonError(null);
+    try {
+      const exported = project.exports.get(track.name);
+      const sample = exported ? null : findSampleFile(project, track);
+      const backing = await renderBacking(project, track, (lessonStartBeat(track) * 60) / project.tempo);
+      onLessonSelect(
+        abletonTrackToLesson(project, track, {
+          export: exported ? URL.createObjectURL(exported) : undefined,
+          sample: sample ? URL.createObjectURL(sample) : undefined,
+          backing: backing ?? undefined,
+        })
+      );
+    } catch (error) {
+      setAbletonError(`Could not prepare ${track.name}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setAbletonPreparing(null);
+    }
+  };
+
   const fetchSongs = async () => {
     try {
       const response = await fetch('/api/songs');
@@ -418,6 +474,62 @@ export function LessonSelector({ onLessonSelect, onSongSelect, onSongEdit, onSon
                 Upload a track to split it into drums, bass, vocals and other stems you can
                 practice along with.
               </p>
+            </div>
+          </div>
+
+          <input
+            ref={abletonInputRef}
+            type="file"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              if (files.length > 0) handleAbletonFolder(files);
+              e.target.value = '';
+            }}
+          />
+          <div
+            className={`lesson-card import-card ${abletonReading ? 'loading' : ''}`}
+            onClick={() => !abletonReading && abletonInputRef.current?.click()}
+            title="Choose an Ableton project folder"
+          >
+            <div className="lesson-card-header">
+              <h3>{abletonReading ? 'Reading project…' : '+ Open Ableton project'}</h3>
+            </div>
+            <div className="lesson-card-body">
+              {!abletonProject && (
+                <p className="lesson-description">
+                  Choose an Ableton project folder, then pick a track to play its notes.
+                </p>
+              )}
+              {abletonError && <p className="lesson-description song-error-text">{abletonError}</p>}
+              {abletonProject && (
+                <>
+                  <p className="lesson-description">
+                    {abletonProject.name} · {abletonProject.tempo} BPM ·{' '}
+                    {abletonProject.exports.size > 0
+                      ? `${abletonProject.exports.size} exported tracks (real sound + backing)`
+                      : 'no exported tracks: sample tracks only, no backing'}
+                  </p>
+                  <div className="song-card-actions">
+                    {abletonProject.tracks
+                      .filter((track) => isPlayable(abletonProject, track))
+                      .map((track) => (
+                        <button
+                          key={track.name}
+                          className="song-action-button song-stem-lesson-button"
+                          disabled={abletonPreparing !== null}
+                          onClick={(e) => {
+                            e.stopPropagation(); // a track button opens the lesson, not the folder picker
+                            playAbletonTrack(abletonProject, track);
+                          }}
+                          title={`${track.notes.length} notes`}
+                        >
+                          {abletonPreparing === track.name ? 'Preparing…' : track.name}
+                        </button>
+                      ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

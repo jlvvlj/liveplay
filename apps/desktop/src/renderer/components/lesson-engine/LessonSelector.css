@@ -257,6 +257,7 @@
 
 .song-card-actions {
   display: flex;
+  flex-wrap: wrap; /* never push buttons past the card edge */
   gap: 0.5rem;
   margin-top: 0.75rem;
 }

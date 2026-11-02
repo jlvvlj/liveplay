@@ -13,6 +13,10 @@ interface LessonPlayerProps {
 
 const MIN_EFFECTIVE_SPEED = 0.01;
 
+// Lesson audio is either a file under the app's /audio/ folder or already a
+// full URL (blob: for files read from a picked Ableton project folder).
+const audioUrl = (path: string): string => (/^(blob|https?):/.test(path) ? path : `/audio/${path}`);
+
 // The sounds a player switched off are remembered per lesson in this browser.
 // The lane list is part of the record, so a re-analysed lesson (whose lanes
 // may now mean different sounds) starts with every sound on again.
@@ -247,30 +251,37 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
   const [backingTrackLoaded, setBackingTrackLoaded] = useState<boolean>(false);
   // Song lessons: pooled players for triggering overlapping regions of the stem file.
   const stemPlayersRef = useRef<Tone.Player[]>([]);
+  const lastSliceRef = useRef<{ offset: number; at: number } | null>(null);
   const nextStemPlayerRef = useRef<number>(0);
   const stemPlayerLoadedRef = useRef<boolean>(false);
 
   useEffect(() => {
     stemPlayerLoadedRef.current = false;
     nextStemPlayerRef.current = 0;
+    let buffer: Tone.ToneAudioBuffer | null = null;
+    let disposed = false;
     if (lesson.stemAudio) {
-      let loadedCount = 0;
-      const players = Array.from({ length: 8 }, () => {
-        const player = new Tone.Player({
-          url: `/audio/${lesson.stemAudio}`,
-          onload: () => {
-            loadedCount += 1;
-            stemPlayerLoadedRef.current = loadedCount === players.length;
-          },
-          onerror: (err) => console.error('[LessonPlayer] Failed to load stem audio:', err),
-        }).toDestination();
-        player.fadeOut = 0.03; // avoid clicks at slice boundaries
-        return player;
-      });
-      stemPlayersRef.current = players;
+      // One decoded copy of the stem, shared by every voice. The voices are
+      // created once it has loaded: handing Tone an unloaded buffer replaces
+      // that buffer's onload callback, once per voice.
+      buffer = new Tone.ToneAudioBuffer(
+        audioUrl(lesson.stemAudio),
+        (loaded) => {
+          if (disposed) return;
+          stemPlayersRef.current = Array.from({ length: 8 }, () => {
+            const player = new Tone.Player(loaded).toDestination();
+            player.fadeOut = 0.03; // avoid clicks at slice boundaries
+            return player;
+          });
+          stemPlayerLoadedRef.current = true;
+        },
+        (err) => console.error('[LessonPlayer] Failed to load stem audio:', err)
+      );
     }
     return () => {
+      disposed = true;
       stemPlayersRef.current.forEach((player) => player.dispose());
+      buffer?.dispose();
       stemPlayersRef.current = [];
       stemPlayerLoadedRef.current = false;
     };
@@ -414,7 +425,10 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
           try {
             let audioPath: string;
 
-            if (window.electronAPI?.audio) {
+            if (/^(blob|https?):/.test(filename)) {
+              // already a full URL, e.g. a sample read from a picked Ableton project folder
+              audioPath = filename;
+            } else if (window.electronAPI?.audio) {
               console.log(`[LessonPlayer] Requesting path via Electron for note ${note}, filename: "${filename}"`);
               const [baseFilename, query] = filename.split('?');
               audioPath = await window.electronAPI.audio.getPath(baseFilename);
@@ -510,7 +524,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
           if (window.electronAPI?.audio) {
             audioPath = await window.electronAPI.audio.getPath(lesson.backingTrack!);
           } else {
-            audioPath = `/audio/${lesson.backingTrack}`;
+            audioPath = audioUrl(lesson.backingTrack!);
           }
 
           backingTrackRef.current = new Tone.Player({
@@ -681,6 +695,15 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
         });
         return;
       }
+
+      // Notes that start together (a chord, even strummed) share one slice of
+      // the track's audio, which already contains every note: play it once.
+      const now = Tone.now();
+      const last = lastSliceRef.current;
+      if (last && last.offset === slice.offset && now - last.at < 0.25) {
+        return;
+      }
+      lastSliceRef.current = { offset: slice.offset, at: now };
 
       const idlePlayer = stemPlayersRef.current.find((candidate) => candidate.state !== 'started');
       const player = idlePlayer ?? stemPlayersRef.current[nextStemPlayerRef.current % stemPlayersRef.current.length];
