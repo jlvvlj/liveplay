@@ -1684,3 +1684,194 @@
   border-color: #facc15;
   color: #facc15;
 }
+
+/* Jam tab: the highway fills the page edge to edge; the open settings sidebar
+   sits beside it, not over its rows */
+.lesson-player.jam-only .highway-container {
+  padding: 0;
+}
+
+.lesson-player.jam-only .note-highway {
+  border-radius: 0;
+  min-height: 0;
+}
+
+.lesson-player.jam-only .highway-container.with-jam-settings {
+  padding-left: 280px;
+}
+
+.jam-corner-buttons {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 210;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.jam-corner-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.jam-corner-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.jam-settings-header {
+  gap: 0.6rem;
+  padding: 0.75rem;
+}
+
+.jam-song {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.jam-song-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  color: #fff;
+}
+
+.jam-keys-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Jam tab: part of the page under the app nav, not a full-screen overlay */
+.lesson-player.jam-only {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Jam tab sound choice */
+.jam-sound-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.jam-sound-option {
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.jam-sound-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.jam-sound-option.active {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.18);
+  color: #fff;
+}
+
+.jam-hold-options {
+  flex-direction: row;
+}
+
+.jam-hold-options .jam-sound-option {
+  flex: 1;
+  text-align: center;
+}
+
+/* Jam settings: sound grid, waveform choice, compact sliders */
+.jam-sound-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.jam-sound-grid .jam-sound-option {
+  padding: 0.45rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.jam-family-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+
+.jam-family-options .jam-sound-option {
+  padding: 0.35rem 0.3rem;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.jam-slider {
+  margin-top: 0.55rem;
+}
+
+.jam-slider-head {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.55rem 0 0.25rem;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.jam-slider .jam-slider-head {
+  margin-top: 0;
+}
+
+.jam-slider-value {
+  color: #4ade80;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-subhead {
+  margin-top: 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.jam-reset {
+  margin-left: auto;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.jam-reset:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+

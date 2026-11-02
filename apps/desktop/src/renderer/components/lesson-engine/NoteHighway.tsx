@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, useMemo } from 'react';
+import { Fragment, useEffect, useRef, useState, useMemo, type PointerEvent as ReactPointerEvent } from 'react';
 import { LessonStep, HitFeedback } from '../../types/lesson';
 import './NoteHighway.css';
 
@@ -27,6 +27,7 @@ interface NoteHighwayProps {
   noteToKeyMap?: { [note: number]: string }; // Map of MIDI note to key binding
   labelMode?: 'letters' | 'numbers'; // Display key letters or note order numbers
   jamNotes?: JamNote[]; // Notes played in jam mode
+  onJamPointer?: (note: number | null) => void; // Jam mode: pitch under a held pointer, null on release
 }
 
 interface NoteHitState {
@@ -50,7 +51,8 @@ const HIT_ZONE_PERCENT = 0.33; // Position of hit zone as percentage from left (
 const PIXELS_PER_MS = 0.3; // How fast notes scroll in play mode (pixels per millisecond)
 const VISIBLE_BUFFER_MS = 3000; // Show notes this long after they pass the hit zone (play mode)
 const JAM_LINE_PERCENT = 0.8; // Jam mode plays at the right, so the trail of played notes fills the highway
-const JAM_FADE_MS = 4000; // Jam dots fade out over this long after they sound
+const JAM_FADE_MS = 2500; // Jam dots fade out over this long after they sound
+const JAM_PIXELS_PER_MS = 0.6; // Jam dots scroll twice as fast as play-mode notes
 
 export function NoteHighway({
   steps,
@@ -66,6 +68,7 @@ export function NoteHighway({
   noteToKeyMap,
   labelMode = 'letters',
   jamNotes = [],
+  onJamPointer,
 }: NoteHighwayProps) {
   const [noteHitStates, setNoteHitStates] = useState<Map<number, NoteHitState>>(new Map());
   const [timingPopups, setTimingPopups] = useState<TimingPopup[]>([]);
@@ -634,7 +637,7 @@ export function NoteHighway({
             key={jamNote.id}
             className={`jam-dot ${sounded ? 'sounded' : 'queued'}`}
             style={{
-              left: `${jamNote.timeMs * PIXELS_PER_MS}px`,
+              left: `${jamNote.timeMs * JAM_PIXELS_PER_MS}px`,
               width: `${dotSize}px`,
               height: `${dotSize}px`,
               opacity,
@@ -643,6 +646,63 @@ export function NoteHighway({
           />
         );
       });
+  };
+
+  // Jam mode pointer play: press a row to play its pitch, hold to keep playing,
+  // drag up or down to change pitch
+  const jamPointerHeldRef = useRef<boolean>(false);
+  const jamPointerNoteRef = useRef<number | null>(null);
+
+  const jamNoteAt = (clientX: number, clientY: number): number | null => {
+    const lane = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('[data-jam-note]');
+    return lane ? Number(lane.dataset.jamNote) : jamPointerNoteRef.current;
+  };
+
+  const handleJamPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const note = jamNoteAt(event.clientX, event.clientY);
+    if (note === null) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    jamPointerHeldRef.current = true;
+    jamPointerNoteRef.current = note;
+    onJamPointer?.(note);
+  };
+
+  const handleJamPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!jamPointerHeldRef.current) return;
+    const note = jamNoteAt(event.clientX, event.clientY);
+    if (note === null || note === jamPointerNoteRef.current) return;
+    jamPointerNoteRef.current = note;
+    onJamPointer?.(note);
+  };
+
+  const handleJamPointerUp = () => {
+    if (!jamPointerHeldRef.current) return;
+    jamPointerHeldRef.current = false;
+    jamPointerNoteRef.current = null;
+    onJamPointer?.(null);
+  };
+
+  // Jam mode backdrop that never stops moving: a beat grid scrolling with the
+  // music (16ths, beats, bars) and two layers of specks drifting slower behind it
+  const renderJamMotion = () => {
+    const scroll = hitZoneOffset - currentTime * JAM_PIXELS_PER_MS;
+    const sixteenthPx = (60000 / bpm / 4) * JAM_PIXELS_PER_MS;
+    const sizes = [sixteenthPx * 16, sixteenthPx * 4, sixteenthPx];
+    return (
+      <div className="jam-motion">
+        <div
+          className="jam-motion-specks"
+          style={{ backgroundPositionX: `${-currentTime * JAM_PIXELS_PER_MS * 0.2}px, ${-currentTime * JAM_PIXELS_PER_MS * 0.4}px` }}
+        />
+        <div
+          className="jam-motion-grid"
+          style={{
+            backgroundSize: sizes.map((size) => `${size}px 100%`).join(', '),
+            backgroundPositionX: sizes.map(() => `${scroll}px`).join(', '),
+          }}
+        />
+      </div>
+    );
   };
 
   const formatClock = (ms: number): string => {
@@ -676,38 +736,44 @@ export function NoteHighway({
       {mode === 'play' && (
         <div className={`timing-line ${hasActivePad ? 'active' : ''}`} />
       )}
-      {mode === 'jam' && (
-        <div
-          className={`timing-line ${hasActivePad ? 'active' : ''}`}
-          style={{ left: `${JAM_LINE_PERCENT * 100}%` }}
-        />
-      )}
+      {mode === 'jam' && renderJamMotion()}
 
       {/* Floating timing judgments (early / late / perfect) at the hit zone */}
       {renderTimingPopups()}
 
       {mode === 'jam' ? (
-        /* Jam mode: one row per pitch, played notes scroll left from the line */
-        <div className="lanes">
-          {Array.from({ length: laneCount }).map((_, laneIndex) => (
-            <div
-              key={laneIndex}
-              className={`lane ${activePads && Array.from(activePads).some(note => noteToLane(note) === laneIndex) ? 'lane-active' : ''}`}
-            >
-              <div className="lane-label" style={{ color: getLaneColor(laneIndex) }}>
-                {getNoteLabel(uniqueNotes[laneIndex]) ?? getLaneLabel(laneIndex)}
-              </div>
-
+        /* Jam mode: one row per pitch, highest on top; played notes scroll left from the line */
+        <div
+          className="lanes jam-lanes"
+          onPointerDown={handleJamPointerDown}
+          onPointerMove={handleJamPointerMove}
+          onPointerUp={handleJamPointerUp}
+          onPointerCancel={handleJamPointerUp}
+          onLostPointerCapture={handleJamPointerUp}
+        >
+          {Array.from({ length: laneCount }).map((_, rowIndex) => {
+            const laneIndex = laneCount - 1 - rowIndex;
+            return (
               <div
-                className="notes-scroll-container"
-                style={{
-                  transform: `translateX(${hitZoneOffset - playModeScrollOffset}px)`,
-                }}
+                key={laneIndex}
+                data-jam-note={uniqueNotes[laneIndex]}
+                className={`lane ${activePads && Array.from(activePads).some(note => noteToLane(note) === laneIndex) ? 'lane-active' : ''}`}
               >
-                {renderJamNotes(laneIndex)}
+                <div className="lane-label" style={{ color: getLaneColor(laneIndex) }}>
+                  {getNoteLabel(uniqueNotes[laneIndex]) ?? getLaneLabel(laneIndex)}
+                </div>
+
+                <div
+                  className="notes-scroll-container"
+                  style={{
+                    transform: `translateX(${hitZoneOffset - currentTime * JAM_PIXELS_PER_MS}px)`,
+                  }}
+                >
+                  {renderJamNotes(laneIndex)}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : isCollapsed ? (
         mode === 'play' ? (

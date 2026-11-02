@@ -57,7 +57,7 @@
   height: 100%;
   position: relative;
   gap: 2px;
-  padding: 1rem 0;
+  padding: 1rem 0 calc(1rem + 50px); /* keep the bottom lane clear of the progress bar */
 }
 
 .lane {
@@ -441,12 +441,18 @@
   }
 }
 
-/* Jam mode: the line sits at 80%, so keep the right-edge fade off it */
+/* Jam mode: notes sound at 80%, so keep the right-edge fade off them */
 .note-highway.jam::after {
   width: 80px;
 }
 
 /* Jam mode dots - colored by row via `color`, glowing, with a fading tail */
+.jam-lanes {
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
 .jam-dot {
   position: absolute;
   top: 50%;
@@ -478,7 +484,7 @@
 }
 
 .jam-dot.sounded {
-  animation: jamDotPop 0.35s ease-out;
+  animation: jamDotPop 0.2s ease-out;
 }
 
 @keyframes jamDotPop {
@@ -490,4 +496,37 @@
     transform: translate(-50%, -50%) scale(1);
     filter: none;
   }
+}
+
+/* Jam mode moving backdrop, under the rows */
+.jam-motion {
+  position: absolute;
+  inset: 0 0 50px 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.jam-motion-grid,
+.jam-motion-specks {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+}
+
+/* Bar, beat and 16th lines */
+.jam-motion-grid {
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 2px, transparent 2px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px);
+}
+
+/* Far and near specks, drifting at different speeds */
+.jam-motion-specks {
+  background-image:
+    radial-gradient(circle, rgba(148, 197, 255, 0.35) 0 1px, transparent 1.5px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.22) 0 1.5px, transparent 2px);
+  background-size: 173px 131px, 251px 197px;
+  background-position-y: 17px, 83px;
 }

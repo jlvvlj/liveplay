@@ -75,6 +75,19 @@ body {
   overflow-y: auto;
 }
 
+/* Jam tab: one screen tall, the jam highway fills everything under the nav */
+.app.app-jam {
+  height: 100vh;
+  min-height: 0;
+}
+
+.app.app-jam .app-main {
+  display: flex;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 .setup-actions {
   text-align: center;
   margin-top: 2rem;
