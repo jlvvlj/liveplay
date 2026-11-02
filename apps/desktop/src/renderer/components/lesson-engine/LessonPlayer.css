@@ -1699,3 +1699,32 @@
   min-height: 0;
 }
 
+/* Jam tab sound choice */
+.jam-sound-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.jam-sound-option {
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.jam-sound-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.jam-sound-option.active {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.18);
+  color: #fff;
+}
+

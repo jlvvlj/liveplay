@@ -3,7 +3,7 @@ import { InstrumentLab } from './components/instrument-lab/InstrumentLab';
 import { MidiDeviceSelector } from './components/midi/MidiDeviceSelector';
 import { LessonSelector } from './components/lesson-engine/LessonSelector';
 import { LessonPlayer } from './components/lesson-engine/LessonPlayer';
-import { JAM_SONGS } from './components/lesson-engine/jamSongs';
+import { JAM_SONGS, JAM_SOUND_SETS } from './components/lesson-engine/jamSongs';
 import { SongPracticePlayer } from './components/song-practice/SongPracticePlayer';
 import { StemSoundEditor } from './components/stem-editor/StemSoundEditor';
 import { Lesson } from './types/lesson';
@@ -79,7 +79,7 @@ function App() {
           />
         )}
         {view === 'jam' && (
-          <LessonPlayer key={JAM_SONGS[0].id} lesson={JAM_SONGS[0]} jamOnly />
+          <LessonPlayer key={JAM_SONGS[0].id} lesson={JAM_SONGS[0]} jamOnly jamSoundSets={JAM_SOUND_SETS} />
         )}
         {view === 'instrument-lab' && (
           <InstrumentLab song={selectedSong} onExit={handleBackToLessons} />

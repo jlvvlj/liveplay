@@ -4,6 +4,7 @@ import { LessonEngine, LessonEngineState } from './LessonEngine';
 import { Lesson, LessonStep, HitFeedback, LessonScore, PracticeModeSettings } from '../../types/lesson';
 import { MidiEvent, DeviceMapping } from '../../types/electron';
 import { NoteHighway, HighwayMode, JamNote } from './NoteHighway';
+import type { JamSoundSet } from './jamSongs';
 import './LessonPlayer.css';
 
 interface LessonPlayerProps {
@@ -11,6 +12,8 @@ interface LessonPlayerProps {
   onComplete?: () => void;
   // Jam tab: the highway is always in jam mode and always running
   jamOnly?: boolean;
+  // Jam tab: sounds to choose from in the sidebar; the first is the default
+  jamSoundSets?: JamSoundSet[];
 }
 
 const MIN_EFFECTIVE_SPEED = 0.01;
@@ -25,9 +28,10 @@ const JAM_NOTE_LIFETIME_MS = 4000;
 const JAM_HOLD_REPEAT_SIXTEENTHS = 2;
 const JAM_HOLD_LOOKAHEAD_S = 0.1;
 
-// Jam tab volumes: the backing track tops out 4 dB louder than in lessons
-// and the played notes start below it, so the groove stays audible
-const JAM_BACKING_TOP_DB = -2;
+// Jam tab volumes: the backing track tops out about 6 dB louder than in
+// lessons (x1.3 on -2 dB) and the played notes start below it, so the groove
+// stays clearly audible
+const JAM_BACKING_TOP_DB = -2 + 20 * Math.log10(1.3);
 const DEFAULT_JAM_NOTES_VOLUME = 0.75;
 
 // Lesson audio is either a file under the app's /audio/ folder or already a
@@ -67,7 +71,14 @@ function saveDisabledNotes(lesson: Lesson, notes: number[], disabled: Set<number
   }
 }
 
-export function LessonPlayer({ lesson: fullLesson, onComplete, jamOnly = false }: LessonPlayerProps) {
+export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, jamSoundSets }: LessonPlayerProps) {
+  // Jam tab: the chosen sound set supplies the note samples
+  const [jamSoundSetId, setJamSoundSetId] = useState<string | undefined>(jamSoundSets?.[0]?.id);
+  const fullLesson = useMemo<Lesson>(() => {
+    const soundSet = jamSoundSets?.find((set) => set.id === jamSoundSetId);
+    return soundSet ? { ...lessonProp, samples: soundSet.samples } : lessonProp;
+  }, [lessonProp, jamSoundSets, jamSoundSetId]);
+
   // Sounds (lanes) the player switched off are removed from the practice
   // entirely: off the highway, not scored, never auto-played, and their pad
   // is silent. Everything below plays and scores `lesson`, the practice
@@ -1787,6 +1798,26 @@ export function LessonPlayer({ lesson: fullLesson, onComplete, jamOnly = false }
             </div>
 
             <div className="game-settings-content">
+              {jamSoundSets && jamSoundSets.length > 1 && (
+                <div className="setting-group">
+                  <label className="setting-label">
+                    <span className="setting-icon">&#127927;</span>
+                    Sound
+                  </label>
+                  <div className="jam-sound-options">
+                    {jamSoundSets.map((set) => (
+                      <button
+                        key={set.id}
+                        className={`jam-sound-option ${set.id === jamSoundSetId ? 'active' : ''}`}
+                        onClick={() => setJamSoundSetId(set.id)}
+                      >
+                        {set.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="setting-group">
                 <label className="setting-label">
                   <span className="setting-icon">&#127929;</span>

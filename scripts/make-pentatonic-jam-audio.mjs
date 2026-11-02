@@ -1,6 +1,7 @@
 // Renders the audio for the "Pentatonic Groove Jam" lesson with the Instrument
-// Lab's offline synth and drum engines: sixteen 8-bit style stab notes (A minor
-// pentatonic, A2-A5) and an 8-bar groove that loops seamlessly at 90 BPM.
+// Lab's offline synth and drum engines: three sets of sixteen notes (A minor
+// pentatonic, A2-A5: 8-bit stab, synth bell, woody mallet) and an 8-bar groove
+// that loops seamlessly at 90 BPM. BPM must match the song's bpm in jamSongs.ts.
 //
 //   node scripts/make-pentatonic-jam-audio.mjs [audio dir]
 //
@@ -17,20 +18,63 @@ const SIXTEENTH = 60 / BPM / 4;
 const LOOP_SECONDS = BARS * 16 * SIXTEENTH;
 const TAIL_SECONDS = 2;
 
-export const STAB_NOTES = [45, 48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81];
+export const JAM_NOTES = [45, 48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81];
 
-// Short, bright 25% pulse-wave stab with a quick decay, like an 8-bit console note
-const STAB = {
-  family: "pulse",
-  brightness: 0.75,
-  odd: 0.4, // duty cycle 0.12 + 0.32 * odd = 25%
-  body: 0.1,
-  attack: 0.002,
-  decay: 0.16,
-  sustain: 0.12,
-  release: 0.12,
-  detune: 4,
-  gain: 0.9,
+// One entry per sound set: synth patch, how long the key is held and how long
+// each note file runs (seconds)
+const SOUND_SETS = {
+  // Short, bright 25% pulse-wave stab with a quick decay, like an 8-bit console note
+  stab: {
+    patch: {
+      family: "pulse",
+      brightness: 0.75,
+      odd: 0.4, // duty cycle 0.12 + 0.32 * odd = 25%
+      body: 0.1,
+      attack: 0.002,
+      decay: 0.16,
+      sustain: 0.12,
+      release: 0.12,
+      detune: 4,
+      gain: 0.9,
+    },
+    hold: 0.09,
+    length: 0.6,
+  },
+  // Glassy FM bell: bright strike that rings out
+  bell: {
+    patch: {
+      family: "fm",
+      fm: 1.8,
+      ratio: 4,
+      brightness: 0.65,
+      body: 0.35,
+      attack: 0.002,
+      decay: 0.7,
+      sustain: 0.02,
+      release: 0.9,
+      detune: 3,
+      gain: 0.9,
+    },
+    hold: 0.12,
+    length: 1.6,
+  },
+  // Soft, hollow mallet on wood: round fundamental with a short knock
+  wood: {
+    patch: {
+      family: "fm",
+      fm: 0.7,
+      ratio: 4,
+      brightness: 0.3,
+      body: 0.6,
+      attack: 0.001,
+      decay: 0.2,
+      sustain: 0.02,
+      release: 0.18,
+      gain: 1,
+    },
+    hold: 0.06,
+    length: 0.7,
+  },
 };
 const BASS = {
   family: "triangle",
@@ -123,9 +167,9 @@ function renderGroove() {
   return out;
 }
 
-function renderStabs() {
-  const notes = STAB_NOTES.map((pitch) =>
-    renderNotes(STAB, [{ pitch, start: 0, end: 0.09, velocity: 110 }], 0.6, SAMPLE_RATE),
+function renderSoundSet({ patch, hold, length }) {
+  const notes = JAM_NOTES.map((pitch) =>
+    renderNotes(patch, [{ pitch, start: 0, end: hold, velocity: 110 }], length, SAMPLE_RATE),
   );
   // One gain for all notes so their relative loudness stays natural
   const peak = Math.max(...notes.map((a) => a.reduce((m, x) => Math.max(m, Math.abs(x)), 0)));
@@ -137,8 +181,11 @@ const audioDir = path.resolve(process.argv[2] || "audio");
 const outDir = path.join(audioDir, "samples", "pentatonic_jam");
 fs.mkdirSync(outDir, { recursive: true });
 
-renderStabs().forEach((audio, i) =>
-  fs.writeFileSync(path.join(outDir, `stab-${STAB_NOTES[i]}.wav`), Buffer.from(encodeWav(audio, SAMPLE_RATE))),
-);
+for (const [id, set] of Object.entries(SOUND_SETS))
+  renderSoundSet(set).forEach((audio, i) =>
+    fs.writeFileSync(path.join(outDir, `${id}-${JAM_NOTES[i]}.wav`), Buffer.from(encodeWav(audio, SAMPLE_RATE))),
+  );
 fs.writeFileSync(path.join(outDir, "groove.wav"), Buffer.from(encodeStereoWav(renderGroove(), SAMPLE_RATE)));
-console.log(`Wrote ${STAB_NOTES.length} stabs and groove.wav (${LOOP_SECONDS.toFixed(2)} s loop) to ${outDir}`);
+console.log(
+  `Wrote ${Object.keys(SOUND_SETS).length} sound sets of ${JAM_NOTES.length} notes and groove.wav (${LOOP_SECONDS.toFixed(2)} s loop) to ${outDir}`,
+);

@@ -2,6 +2,25 @@ import { Lesson } from '../../types/lesson';
 
 // Songs for the Jam tab. Their audio is rendered by
 // scripts/make-pentatonic-jam-audio.mjs into audio/samples/pentatonic_jam/.
+
+const JAM_NOTES = [45, 48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81];
+
+const jamSamples = (setId: string): { [note: number]: string } =>
+  Object.fromEntries(JAM_NOTES.map((note) => [note, `samples/pentatonic_jam/${setId}-${note}.wav`]));
+
+// Sounds the notes can be played with, chosen in the Jam tab's sidebar
+export interface JamSoundSet {
+  id: string;
+  label: string;
+  samples: { [note: number]: string };
+}
+
+export const JAM_SOUND_SETS: JamSoundSet[] = [
+  { id: 'stab', label: '8-bit stab', samples: jamSamples('stab') },
+  { id: 'bell', label: 'Synth bell', samples: jamSamples('bell') },
+  { id: 'wood', label: 'Woody', samples: jamSamples('wood') },
+];
+
 export const PENTATONIC_GROOVE_JAM: Lesson = {
   id: 'pentatonic-groove-jam',
   title: 'Pentatonic Groove Jam',
@@ -64,30 +83,13 @@ export const PENTATONIC_GROOVE_JAM: Lesson = {
     startTick: 0,
     endTick: 15360, // 8 bars, the length of the groove loop
   },
-  samples: {
-    45: 'samples/pentatonic_jam/stab-45.wav',
-    48: 'samples/pentatonic_jam/stab-48.wav',
-    50: 'samples/pentatonic_jam/stab-50.wav',
-    52: 'samples/pentatonic_jam/stab-52.wav',
-    55: 'samples/pentatonic_jam/stab-55.wav',
-    57: 'samples/pentatonic_jam/stab-57.wav',
-    60: 'samples/pentatonic_jam/stab-60.wav',
-    62: 'samples/pentatonic_jam/stab-62.wav',
-    64: 'samples/pentatonic_jam/stab-64.wav',
-    67: 'samples/pentatonic_jam/stab-67.wav',
-    69: 'samples/pentatonic_jam/stab-69.wav',
-    72: 'samples/pentatonic_jam/stab-72.wav',
-    74: 'samples/pentatonic_jam/stab-74.wav',
-    76: 'samples/pentatonic_jam/stab-76.wav',
-    79: 'samples/pentatonic_jam/stab-79.wav',
-    81: 'samples/pentatonic_jam/stab-81.wav',
-  },
+  samples: jamSamples('stab'),
   backingTrack: 'samples/pentatonic_jam/groove.wav',
   metadata: {
     difficulty: 1,
     genre: 'Jam',
     tags: ['jam', 'pentatonic', 'backing-track'],
-    description: 'Sixteen 8-bit stab notes in A minor pentatonic, A2 to A5, over a looping groove: every note fits',
+    description: 'Sixteen notes in A minor pentatonic, A2 to A5, over a looping groove: every note fits',
   },
 };
 
