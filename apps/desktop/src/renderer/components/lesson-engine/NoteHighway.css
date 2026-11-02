@@ -57,7 +57,7 @@
   height: 100%;
   position: relative;
   gap: 2px;
-  padding: 1rem 0;
+  padding: 1rem 0 calc(1rem + 50px); /* keep the bottom lane clear of the progress bar */
 }
 
 .lane {
@@ -447,6 +447,12 @@
 }
 
 /* Jam mode dots - colored by row via `color`, glowing, with a fading tail */
+.jam-lanes {
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
 .jam-dot {
   position: absolute;
   top: 50%;
@@ -478,7 +484,7 @@
 }
 
 .jam-dot.sounded {
-  animation: jamDotPop 0.35s ease-out;
+  animation: jamDotPop 0.2s ease-out;
 }
 
 @keyframes jamDotPop {

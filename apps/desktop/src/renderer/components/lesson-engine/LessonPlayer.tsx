@@ -17,7 +17,11 @@ const MIN_EFFECTIVE_SPEED = 0.01;
 // still sounds on it (immediately); later hits wait for the next 16th.
 const JAM_LATE_GRACE_S = 0.03;
 // Jam dots older than this have scrolled off the highway
-const JAM_NOTE_LIFETIME_MS = 8000;
+const JAM_NOTE_LIFETIME_MS = 4000;
+// A held pointer in jam mode replays its pitch every 8th note (two 16ths),
+// scheduled this far ahead on the audio clock
+const JAM_HOLD_REPEAT_SIXTEENTHS = 2;
+const JAM_HOLD_LOOKAHEAD_S = 0.1;
 
 // Lesson audio is either a file under the app's /audio/ folder or already a
 // full URL (blob: for files read from a picked Ableton project folder).
@@ -119,6 +123,8 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
   const jamStartRef = useRef<number | null>(null); // Tone time the jam clock started at
   const jamNoteIdRef = useRef<number>(0);
   const jamNotesRef = useRef<JamNote[]>([]); // Mirrors jamNotes so input never reads a stale list
+  const jamHoldRef = useRef<{ note: number; nextSlot: number } | null>(null); // Pitch under a held pointer
+  const jamHoldTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Track current step index for wait mode
   const [waitModeStepIndex, setWaitModeStepIndex] = useState<number>(0);
   // Track played notes for free/wait modes
@@ -742,6 +748,9 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
           // Ignore if not started
         }
       }
+      if (jamHoldTimerRef.current) clearInterval(jamHoldTimerRef.current);
+      jamHoldTimerRef.current = null;
+      jamHoldRef.current = null;
       jamStartRef.current = null;
       jamNotesRef.current = [];
       setJamNotes([]);
@@ -888,9 +897,11 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     [lesson.steps]
   );
 
-  const playJamNote = useCallback((note: number) => {
+  // Plays the row nearest `note` on the given 16th (default: the next one) and
+  // returns that 16th, or null when the jam clock isn't running
+  const playJamNote = useCallback((note: number, atSlot?: number): number | null => {
     const start = jamStartRef.current;
-    if (start === null || jamRows.length === 0) return;
+    if (start === null || jamRows.length === 0) return null;
 
     const row = jamRows.reduce((nearest, candidate) =>
       Math.abs(candidate - note) < Math.abs(nearest - note) ? candidate : nearest
@@ -898,12 +909,12 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     const step = lesson.steps.find((s) => s.note === row);
     const sixteenth = 60 / lesson.bpm / 4;
     const elapsed = Tone.now() - start;
-    const slot = Math.max(0, Math.ceil((elapsed - JAM_LATE_GRACE_S) / sixteenth));
+    const slot = atSlot ?? Math.max(0, Math.ceil((elapsed - JAM_LATE_GRACE_S) / sixteenth));
     const timeMs = slot * sixteenth * 1000;
 
     // The same pitch twice on one 16th sounds once
     const prev = jamNotesRef.current;
-    if (prev.some((n) => n.note === row && n.timeMs === timeMs)) return;
+    if (prev.some((n) => n.note === row && n.timeMs === timeMs)) return slot;
     playSound(row, step?.note, undefined, step?.slice, Math.max(start + slot * sixteenth, Tone.now()), step?.semitones);
     const next = [
       ...prev.filter((n) => n.timeMs > elapsed * 1000 - JAM_NOTE_LIFETIME_MS),
@@ -911,7 +922,36 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
     ];
     jamNotesRef.current = next;
     setJamNotes(next);
+    return slot;
   }, [jamRows, lesson.steps, lesson.bpm]);
+
+  // Pointer play on the jam highway: pressing plays the row at once (on the
+  // next 16th), holding repeats it every 8th, dragging changes the row
+  const handleJamPointer = useCallback((note: number | null) => {
+    if (note === null) {
+      if (jamHoldTimerRef.current) clearInterval(jamHoldTimerRef.current);
+      jamHoldTimerRef.current = null;
+      jamHoldRef.current = null;
+      return;
+    }
+    if (jamHoldRef.current) {
+      jamHoldRef.current.note = note;
+      return;
+    }
+    const slot = playJamNote(note);
+    if (slot === null) return;
+    jamHoldRef.current = { note, nextSlot: slot + JAM_HOLD_REPEAT_SIXTEENTHS };
+    jamHoldTimerRef.current = setInterval(() => {
+      const hold = jamHoldRef.current;
+      const start = jamStartRef.current;
+      if (!hold || start === null) return;
+      const sixteenth = 60 / lesson.bpm / 4;
+      while (start + hold.nextSlot * sixteenth < Tone.now() + JAM_HOLD_LOOKAHEAD_S) {
+        playJamNote(hold.note, hold.nextSlot);
+        hold.nextSlot += JAM_HOLD_REPEAT_SIXTEENTHS;
+      }
+    }, 25);
+  }, [playJamNote, lesson.bpm]);
 
   // Shared function to handle note input from both MIDI and keyboard
   const handleNoteInput = useCallback((hardwareNote: number, timestamp: number) => {
@@ -1697,6 +1737,7 @@ export function LessonPlayer({ lesson: fullLesson, onComplete }: LessonPlayerPro
           noteToKeyMap={noteToKeyMap}
           labelMode={labelMode}
           jamNotes={jamNotes}
+          onJamPointer={currentMode === 'jam' ? handleJamPointer : undefined}
           onNoteReached={isGameMode ? handleNoteReached : undefined}
         />
 
