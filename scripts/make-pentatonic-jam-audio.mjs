@@ -1,6 +1,6 @@
 // Renders the audio for the "Pentatonic Groove Jam" lesson with the Instrument
-// Lab's offline synth and drum engines: ten pluck notes (A minor pentatonic,
-// A3-G5) and an 8-bar groove that loops seamlessly at 100 BPM.
+// Lab's offline synth and drum engines: sixteen 8-bit style stab notes (A minor
+// pentatonic, A2-A5) and an 8-bar groove that loops seamlessly at 90 BPM.
 //
 //   node scripts/make-pentatonic-jam-audio.mjs [audio dir]
 //
@@ -11,25 +11,26 @@ import { renderNotes, encodeWav } from "../instrument-lab/engine/synth.mjs";
 import { renderDrums, encodeStereoWav } from "../instrument-lab/engine/drums.mjs";
 
 const SAMPLE_RATE = 44100;
-const BPM = 100;
+const BPM = 90;
 const BARS = 8;
 const SIXTEENTH = 60 / BPM / 4;
 const LOOP_SECONDS = BARS * 16 * SIXTEENTH;
 const TAIL_SECONDS = 2;
 
-export const PLUCK_NOTES = [57, 60, 62, 64, 67, 69, 72, 74, 76, 79];
+export const STAB_NOTES = [45, 48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81];
 
-const PLUCK = {
-  family: "fm",
-  fm: 1.1,
-  ratio: 3,
-  brightness: 0.5,
-  attack: 0.003,
-  decay: 0.32,
-  sustain: 0.03,
-  release: 0.4,
-  detune: 7,
-  gain: 1,
+// Short, bright 25% pulse-wave stab with a quick decay, like an 8-bit console note
+const STAB = {
+  family: "pulse",
+  brightness: 0.75,
+  odd: 0.4, // duty cycle 0.12 + 0.32 * odd = 25%
+  body: 0.1,
+  attack: 0.002,
+  decay: 0.16,
+  sustain: 0.12,
+  release: 0.12,
+  detune: 4,
+  gain: 0.9,
 };
 const BASS = {
   family: "triangle",
@@ -122,9 +123,9 @@ function renderGroove() {
   return out;
 }
 
-function renderPlucks() {
-  const notes = PLUCK_NOTES.map((pitch) =>
-    renderNotes(PLUCK, [{ pitch, start: 0, end: 0.12, velocity: 110 }], 1.4, SAMPLE_RATE),
+function renderStabs() {
+  const notes = STAB_NOTES.map((pitch) =>
+    renderNotes(STAB, [{ pitch, start: 0, end: 0.09, velocity: 110 }], 0.6, SAMPLE_RATE),
   );
   // One gain for all notes so their relative loudness stays natural
   const peak = Math.max(...notes.map((a) => a.reduce((m, x) => Math.max(m, Math.abs(x)), 0)));
@@ -136,8 +137,8 @@ const audioDir = path.resolve(process.argv[2] || "audio");
 const outDir = path.join(audioDir, "samples", "pentatonic_jam");
 fs.mkdirSync(outDir, { recursive: true });
 
-renderPlucks().forEach((audio, i) =>
-  fs.writeFileSync(path.join(outDir, `pluck-${PLUCK_NOTES[i]}.wav`), Buffer.from(encodeWav(audio, SAMPLE_RATE))),
+renderStabs().forEach((audio, i) =>
+  fs.writeFileSync(path.join(outDir, `stab-${STAB_NOTES[i]}.wav`), Buffer.from(encodeWav(audio, SAMPLE_RATE))),
 );
 fs.writeFileSync(path.join(outDir, "groove.wav"), Buffer.from(encodeStereoWav(renderGroove(), SAMPLE_RATE)));
-console.log(`Wrote ${PLUCK_NOTES.length} plucks and groove.wav (${LOOP_SECONDS.toFixed(2)} s loop) to ${outDir}`);
+console.log(`Wrote ${STAB_NOTES.length} stabs and groove.wav (${LOOP_SECONDS.toFixed(2)} s loop) to ${outDir}`);
