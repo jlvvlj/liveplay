@@ -9,8 +9,12 @@ import {
   type JamEffects,
   type JamEchoTime,
 } from './jamSynth';
+import type { Lesson } from '../../types/lesson';
 
 interface JamSettingsPanelProps {
+  songs: Lesson[];
+  songId: string;
+  onSongChange: (id: string) => void;
   sounds: JamSoundPreset[];
   referenceSounds: JamSampleSound[];
   soundId: string;
@@ -97,6 +101,9 @@ function Slider({
 }
 
 export function JamSettingsPanel({
+  songs,
+  songId,
+  onSongChange,
   sounds,
   referenceSounds,
   soundId,
@@ -143,6 +150,26 @@ export function JamSettingsPanel({
       </div>
 
       <div className="game-settings-content">
+        {songs.length > 1 && (
+          <div className="setting-group">
+            <label className="setting-label">
+              <span className="setting-icon">&#127926;</span>
+              Track
+            </label>
+            <div className="jam-sound-grid">
+              {songs.map((song) => (
+                <button
+                  key={song.id}
+                  className={`jam-sound-option ${song.id === songId ? 'active' : ''}`}
+                  onClick={() => onSongChange(song.id)}
+                >
+                  {song.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="setting-group">
           <label className="setting-label">
             <span className="setting-icon">&#127929;</span>

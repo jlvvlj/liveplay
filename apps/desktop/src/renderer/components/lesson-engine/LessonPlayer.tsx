@@ -24,6 +24,8 @@ interface LessonPlayerProps {
   jamOnly?: boolean;
   // Jam tab: synth sounds to choose from in the sidebar; the first is the default
   jamSounds?: JamSoundPreset[];
+  // Jam tab: songs (backing tracks) to choose from in the sidebar; `lesson` is the default
+  jamSongs?: Lesson[];
 }
 
 const MIN_EFFECTIVE_SPEED = 0.01;
@@ -45,17 +47,19 @@ const JAM_HOLD_LOOKAHEAD_S = 0.1;
 const JAM_BACKING_TOP_DB = -2 + 20 * Math.log10(1.3);
 const DEFAULT_JAM_NOTES_VOLUME = 0.75;
 
-// Jam tab settings remembered in this browser: chosen sound, edited synth
-// settings per sound, and the effects
+// Jam tab settings remembered in this browser: chosen song, chosen sound,
+// edited synth settings per sound, and the effects
 interface JamSettings {
+  songId: string;
   soundId: string;
   patches: Record<string, JamSynthPatch>;
   effects: JamEffects;
 }
 const JAM_SETTINGS_KEY = 'melodics.jamSettings.v1';
 
-function loadJamSettings(sounds: JamSoundPreset[]): JamSettings {
+function loadJamSettings(sounds: JamSoundPreset[], songIds: string[]): JamSettings {
   const defaults: JamSettings = {
+    songId: songIds[0],
     soundId: sounds[0].id,
     patches: Object.fromEntries(sounds.map((sound) => [sound.id, sound.patch])),
     effects: DEFAULT_JAM_EFFECTS,
@@ -64,6 +68,7 @@ function loadJamSettings(sounds: JamSoundPreset[]): JamSettings {
     const saved = JSON.parse(localStorage.getItem(JAM_SETTINGS_KEY) ?? 'null') as Partial<JamSettings> | null;
     if (!saved) return defaults;
     return {
+      songId: typeof saved.songId === 'string' && songIds.includes(saved.songId) ? saved.songId : defaults.songId,
       // A reference sound id is kept too; it is checked once the reference list loads
       soundId: typeof saved.soundId === 'string' ? saved.soundId : defaults.soundId,
       patches: Object.fromEntries(
@@ -121,12 +126,14 @@ function saveDisabledNotes(lesson: Lesson, notes: number[], disabled: Set<number
   }
 }
 
-export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, jamSounds }: LessonPlayerProps) {
-  // Jam tab: the chosen synth sound, its (editable) settings and the effects,
-  // remembered between visits
+export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, jamSounds, jamSongs }: LessonPlayerProps) {
+  // Jam tab: the chosen song, synth sound, its (editable) settings and the
+  // effects, remembered between visits
   const [jamSettings, setJamSettings] = useState<JamSettings | null>(() =>
-    jamSounds?.length ? loadJamSettings(jamSounds) : null
+    jamSounds?.length ? loadJamSettings(jamSounds, [lessonArg.id, ...(jamSongs ?? []).map((song) => song.id)]) : null
   );
+  // Switching songs swaps the lesson in place, so volumes and the sidebar stay as they are
+  const lessonProp = jamSongs?.find((song) => song.id === jamSettings?.songId) ?? lessonArg;
   useEffect(() => {
     if (jamSettings) saveJamSettings(jamSettings);
   }, [jamSettings]);
@@ -869,6 +876,8 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
     let pulseInterval: ReturnType<typeof setInterval> | null = null;
     // Its level is the volume slider's job, so moving the slider never restarts the jam
     const backing = backingTrackRef.current?.loaded && backingTrackLoaded ? backingTrackRef.current : null;
+    // A song with a backing track starts once it has loaded (this runs again then)
+    if (lesson.backingTrack && !backing) return;
 
     const begin = async () => {
       await Tone.start();
@@ -912,11 +921,11 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
       if (clockInterval) clearInterval(clockInterval);
       if (pulseInterval) clearInterval(pulseInterval);
       if (backing) {
-        backing.loop = false;
         try {
+          backing.loop = false;
           backing.stop();
         } catch (e) {
-          // Ignore if not started
+          // Ignore if not started, or already disposed by a song change
         }
       }
       if (jamHoldTimerRef.current) clearInterval(jamHoldTimerRef.current);
@@ -927,7 +936,7 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
       setJamNotes([]);
       setCurrentTime(0);
     };
-  }, [currentMode, lesson.bpm, lesson.timeSignature, backingTrackLoaded]);
+  }, [currentMode, lesson.bpm, lesson.timeSignature, lesson.backingTrack, backingTrackLoaded]);
 
   const playSound = (
     note: number,
@@ -1937,6 +1946,9 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
         )}
         {jamOnly && showJamSettings && jamSettings && jamSounds && (
           <JamSettingsPanel
+            songs={jamSongs ?? [lessonArg]}
+            songId={lessonProp.id}
+            onSongChange={(songId) => setJamSettings({ ...jamSettings, songId })}
             sounds={jamSounds}
             referenceSounds={jamReferenceSounds ?? []}
             soundId={jamSettings.soundId}

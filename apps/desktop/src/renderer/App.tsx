@@ -87,6 +87,7 @@ function App() {
             lesson={JAM_SONGS[0]}
             jamOnly
             jamSounds={JAM_SOUND_PRESETS}
+            jamSongs={JAM_SONGS}
             onComplete={() => setView('lessons')}
           />
         )}
