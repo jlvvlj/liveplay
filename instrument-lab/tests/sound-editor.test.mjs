@@ -1,0 +1,55 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {once} from 'node:events';
+import express from 'express';
+import {registerSoundEditor,validateEdits,detectedSounds} from '../server/sound-editor.mjs';
+import {encodeWav} from '../engine/synth.mjs';
+
+test('audio edit validation rejects invalid regions, duplicate IDs and orphan events',()=>{
+ const base={sounds:[{id:0,start:.1,end:.3}],events:[{sound:0,time:.5,velocity:100}]};
+ assert.equal(validateEdits(base,1).events[0].duration,.2);
+ for(const value of [{...base,sounds:[...base.sounds,...base.sounds]},{...base,sounds:[{id:0,start:0,end:2}]},{...base,events:[{sound:2,time:.5,velocity:100}]},{...base,events:[{sound:0,time:1,velocity:100}]}]) assert.throws(()=>validateEdits(value,1));
+});
+test('detected sound lanes keep original event timing, pitch and velocity',()=>{
+ const result=detectedSounds({engine:'melodic',notes:[{pitch:60,start:.1,end:.3,velocity:.5},{pitch:62,start:.5,end:.7,velocity:90},{pitch:60,start:.8,end:.9,velocity:1}]},1);
+ assert.equal(result.sounds.length,2);assert.deepEqual(result.events.map(e=>e.sound),[0,1,0]);
+ assert.deepEqual(result.events.map(e=>e.time),[.1,.5,.8]);assert.deepEqual(result.events.map(e=>e.velocity),[64,90,127]);
+});
+test('Lab audio edits persist, slice playable clips, build lessons and reset without changing synth/source documents',{timeout:30000},async t=>{
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'lab-sound-editor-'));
+ const wav=Buffer.from(encodeWav(Float32Array.from({length:22050},(_,i)=>Math.sin(i*.04)*.2),22050));
+ const part={id:'instrument-1',name:'Synth',engine:'melodic',referenceFile:'instrument-1-reference.wav',notes:[{pitch:60,start:.1,end:.3,velocity:.8},{pitch:62,start:.5,end:.8,velocity:.5}]};
+ const original=JSON.stringify({duration:1,parts:[part,{...part,id:'instrument-2',referenceFile:'instrument-2-reference.wav'}]});
+ const project=JSON.stringify({status:'ready',title:'Test',documentFile:'original.json'});
+ await fs.writeFile(path.join(folder,'original.json'),original);await fs.writeFile(path.join(folder,'project.json'),project);
+ for(const file of ['instrument-1-reference.wav','instrument-2-reference.wav']) await fs.writeFile(path.join(folder,file),wav);
+ const read=async(id,file='project.json')=>JSON.parse(await fs.readFile(path.join(folder,file),'utf8'));
+ const write=(id,file,data)=>fs.writeFile(path.join(folder,file),JSON.stringify(data));
+ let lock=Promise.resolve();const exclusive=(id,fn)=>{const next=lock.catch(()=>{}).then(fn);lock=next;return next;};
+ const app=express();registerSoundEditor(app,{dir:()=>folder,read,write,exclusive,root:'',python:''});
+ app.use((e,req,res,next)=>res.status(e.status||500).json({error:e.message}));
+ const server=app.listen(0,'127.0.0.1');await once(server,'listening');
+ t.after(async()=>{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(folder,{recursive:true,force:true});});
+ const origin=`http://127.0.0.1:${server.address().port}`,endpoint=origin+'/api/projects/test/sound-editor/instrument-1';
+ const request=async(method,body,suffix='')=>fetch(endpoint+suffix,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+ const initial=await (await request('POST')).json();assert.equal(initial.sounds.length,2);
+ const edited={...initial,sounds:[{...initial.sounds[0],start:.15,end:.35}],events:[{sound:0,time:.4,velocity:75}]};
+ const savedResponse=await request('PUT',edited);assert.equal(savedResponse.status,200);
+ const saved=await savedResponse.json();assert.equal(saved.rev,2);assert.equal(saved.events.length,1);assert.equal(saved.events[0].time,.4);
+ assert.equal((await request('PUT',edited)).status,409);
+ assert.equal((await request('PUT',{...saved,sounds:[{id:0,start:0,end:2}]})).status,400);
+ const reloaded=await (await request('POST')).json();assert.deepEqual(reloaded,saved);
+ const clipURL=saved.sounds[0].clip.replace('../api/instruments','/api');
+ const clip=Buffer.from(await (await fetch(origin+clipURL)).arrayBuffer());assert.equal(clip.toString('ascii',0,4),'RIFF');
+ const lesson=await (await request('POST',null,'/lesson')).json();assert.equal(lesson.steps.length,1);assert.equal(lesson.samples[36],saved.sounds[0].clip);assert.ok(lesson.backingTrack);
+ const backing=Buffer.from(await (await fetch(origin+lesson.backingTrack.replace('../api/instruments','/api'))).arrayBuffer());assert.equal(backing.toString('ascii',0,4),'RIFF');
+ const reset=await (await request('DELETE',saved)).json();assert.equal(reset.rev,3);assert.equal(reset.events.length,2);
+ assert.equal((await request('PUT',saved)).status,409);
+ assert.equal(await fs.readFile(path.join(folder,'original.json'),'utf8'),original);
+ assert.equal(await fs.readFile(path.join(folder,'project.json'),'utf8'),project);
+ assert.deepEqual(await fs.readFile(path.join(folder,part.referenceFile)),wav);
+ assert.equal((await fetch(origin+clipURL)).status,200,'published clips survive reset');
+});

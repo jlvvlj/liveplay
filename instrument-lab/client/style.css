@@ -1,0 +1,1770 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+.instrument-lab-ui {
+  font-family: "DM Sans", sans-serif;
+  color: #ececf1;
+  background: #111217;
+  font-synthesis: none;
+  font-weight: 400;
+}
+.instrument-lab-ui * {
+  box-sizing: border-box;
+}
+.instrument-lab-ui {
+  margin: 0;
+}
+.instrument-lab-ui button,
+.instrument-lab-ui input,
+.instrument-lab-ui select {
+  font: inherit;
+}
+.instrument-lab-ui button {
+  cursor: pointer;
+}
+.instrument-lab-ui button,
+.instrument-lab-ui a,
+.instrument-lab-ui input,
+.instrument-lab-ui select {
+  outline-offset: 4px;
+}
+.instrument-lab-ui button {
+  color: inherit;
+  background: none;
+  border: 0;
+}
+.instrument-lab-ui button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.instrument-lab-ui a {
+  color: inherit;
+  text-decoration: none;
+}
+.instrument-lab-ui button:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.instrument-lab-ui.studio {
+  display: flex;
+  min-height: 100vh;
+}
+.instrument-lab-ui .sidebar {
+  width: 236px;
+  position: fixed;
+  inset: 0 auto 0 0;
+  background: #16171d;
+  border-right: 1px solid #ffffff0c;
+  padding: 35px 20px 22px;
+  display: flex;
+  flex-direction: column;
+}
+.instrument-lab-ui .brand {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 29px;
+  font-weight: 700;
+  letter-spacing: -1.5px;
+  margin: 0 13px 48px;
+}
+.instrument-lab-ui .brand i {
+  color: #b9ee84;
+  font-size: 10px;
+  vertical-align: top;
+  margin-left: 4px;
+  line-height: 28px;
+}
+.instrument-lab-ui .workspace-label,
+.instrument-lab-ui .library-title,
+.instrument-lab-ui .eyebrow {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 1.7px;
+  color: #777a89;
+}
+.instrument-lab-ui .workspace-label {
+  margin: 0 13px 12px;
+}
+.instrument-lab-ui .nav-current {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: #b3a3ff13;
+  border: 1px solid #b3a3ff25;
+  color: #c2b6ff;
+  border-radius: 8px;
+  padding: 13px 11px;
+  font-size: 12px;
+}
+.instrument-lab-ui .nav-current > span {
+  font-size: 20px;
+}
+.instrument-lab-ui .nav-current small {
+  font-size: 8px;
+  margin-left: auto;
+  color: #c0afff;
+  letter-spacing: 1px;
+}
+.instrument-lab-ui .library-title {
+  display: flex;
+  justify-content: space-between;
+  margin: 38px 13px 17px;
+}
+.instrument-lab-ui .library-title span {
+  color: #acaeb9;
+}
+.instrument-lab-ui .project-list {
+  overflow: auto;
+  flex: 1;
+}
+.instrument-lab-ui .project-list button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  text-align: left;
+  border-radius: 8px;
+  padding: 12px 10px;
+  font-size: 12px;
+  color: #b2b3bf;
+}
+.instrument-lab-ui .project-list .selected {
+  background: #ffffff07;
+  color: #f0eef8;
+}
+.instrument-lab-ui .project-icon {
+  font-size: 25px;
+  color: #8e85b7;
+}
+.instrument-lab-ui .project-list small {
+  display: block;
+  margin-top: 5px;
+  font-size: 10px;
+  color: #717482;
+}
+.instrument-lab-ui .sidebar-upload {
+  border: 1px solid #ffffff18;
+  border-radius: 7px;
+  padding: 12px;
+  font-size: 12px;
+  margin-top: 25px;
+}
+.instrument-lab-ui .sidebar-footer {
+  font-size: 11px;
+  color: #9699a6;
+  padding: 25px 8px 0;
+  line-height: 1.8;
+}
+.instrument-lab-ui .sidebar-footer small {
+  font-size: 10px;
+  color: #656875;
+}
+.instrument-lab-ui .status-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #b9ee84;
+  margin-right: 7px;
+}
+.instrument-lab-ui .main {
+  margin-left: 236px;
+  flex: 1;
+  min-width: 0;
+}
+.instrument-lab-ui .topbar {
+  height: 77px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #ffffff0b;
+  padding: 0 44px;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  color: #a7a9b5;
+}
+.instrument-lab-ui .topbar div span {
+  margin: 0 15px;
+  color: #484b56;
+}
+.instrument-lab-ui .topbar button {
+  font-size: 11px;
+  letter-spacing: 0;
+  background: #1b1d25;
+  border: 1px solid #ffffff12;
+  border-radius: 6px;
+  padding: 9px 14px;
+}
+.instrument-lab-ui .main main {
+  max-width: 1480px;
+  margin: auto;
+  padding: 39px 44px 45px;
+}
+.instrument-lab-ui .page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 27px;
+}
+.instrument-lab-ui .eyebrow {
+  color: #a397d0;
+  margin-bottom: 12px;
+  font-size: 9px;
+}
+.instrument-lab-ui .page-heading h1 {
+  font:
+    500 30px/1.2 "Space Grotesk",
+    sans-serif;
+  letter-spacing: -1px;
+  white-space: pre-line;
+  margin: 0 0 12px;
+  max-width: 750px;
+}
+.instrument-lab-ui .page-heading p {
+  font-size: 12px;
+  color: #808392;
+  margin: 0;
+}
+.instrument-lab-ui .primary {
+  background: #c7b7ff;
+  color: #242033;
+  border-radius: 6px;
+  padding: 12px 18px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.instrument-lab-ui .error {
+  padding: 14px;
+  border: 1px solid #d36c6570;
+  border-radius: 8px;
+  background: #d36c6515;
+  color: #ffb0a9;
+  font-size: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+.instrument-lab-ui .error button {
+  text-decoration: underline;
+}
+.instrument-lab-ui .welcome {
+  border: 1px solid #ffffff12;
+  border-radius: 14px;
+  padding: 42px;
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 12%, #8e68cd15, transparent 65%), #18191f;
+}
+.instrument-lab-ui .sound-art {
+  height: 175px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 0 auto 25px;
+  max-width: 600px;
+}
+.instrument-lab-ui .sound-art i {
+  display: block;
+  width: 4px;
+  background: linear-gradient(#c9b8ff, #8670bc55);
+  border-radius: 5px;
+}
+.instrument-lab-ui .pill {
+  font-size: 8px;
+  letter-spacing: 1.1px;
+  padding: 6px 8px;
+  border: 1px solid #ffffff18;
+  border-radius: 4px;
+  color: #b2a8cc;
+}
+.instrument-lab-ui .welcome h2 {
+  font: 500 30px "Space Grotesk";
+  letter-spacing: -0.7px;
+  margin: 20px 0 12px;
+}
+.instrument-lab-ui .welcome p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #8e90a0;
+  margin: 0 0 23px;
+}
+.instrument-lab-ui .welcome > small {
+  display: block;
+  color: #606371;
+  font-size: 10px;
+  margin-top: 17px;
+}
+.instrument-lab-ui .demo-card {
+  width: 100%;
+  display: flex;
+  text-align: left;
+  align-items: center;
+  gap: 20px;
+  border: 1px solid #ffffff13;
+  border-radius: 10px;
+  margin-top: 17px;
+  padding: 22px;
+  background: #17181e;
+}
+.instrument-lab-ui .demo-icon {
+  background: #b9ee8410;
+  color: #b9ee84;
+  border: 1px solid #b9ee8422;
+  width: 45px;
+  height: 45px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+}
+.instrument-lab-ui .demo-card strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.instrument-lab-ui .demo-card p {
+  font-size: 11px;
+  color: #797d8c;
+  margin: 6px 0 0;
+}
+.instrument-lab-ui .demo-card > span {
+  margin-left: auto;
+  color: #b9ee84;
+  font-size: 11px;
+}
+.instrument-lab-ui .review-notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  color: #8e91a2;
+  padding: 12px 0 22px;
+}
+.instrument-lab-ui .review-notice > span {
+  color: #b5a5ff;
+}
+.instrument-lab-ui .review-notice details {
+  margin-left: auto;
+  max-width: 350px;
+  position: relative;
+}
+.instrument-lab-ui .review-notice summary {
+  cursor: pointer;
+  color: #a5a0b8;
+  white-space: nowrap;
+}
+.instrument-lab-ui .review-notice details[open] {
+  padding: 10px;
+  background: #26232f;
+  border-radius: 7px;
+}
+.instrument-lab-ui .arrangement {
+  border: 1px solid #ffffff12;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #17181e;
+  margin-bottom: 24px;
+}
+.instrument-lab-ui .section-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 23px;
+}
+.instrument-lab-ui .section-top h2,
+.instrument-lab-ui .detail-title h2 {
+  font-size: 14px;
+  font-weight: 550;
+  margin: 0;
+}
+.instrument-lab-ui .section-top h2 span {
+  font-size: 10px;
+  margin-left: 9px;
+  background: #ffffff08;
+  color: #a3a4b5;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.instrument-lab-ui .section-top > span {
+  font-size: 8px;
+  letter-spacing: 1.3px;
+  color: #606474;
+}
+.instrument-lab-ui .timeline-ruler {
+  display: flex;
+  padding: 8px 25px 12px;
+  font-size: 8px;
+  letter-spacing: 0.8px;
+  color: #666b7a;
+  border-bottom: 1px solid #ffffff09;
+}
+.instrument-lab-ui .timeline-ruler > span {
+  width: 225px;
+  flex-shrink: 0;
+}
+.instrument-lab-ui .timeline-ruler > div {
+  display: flex;
+  justify-content: space-between;
+  flex: 1;
+  padding-right: 32px;
+}
+.instrument-lab-ui .instrument-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 78px;
+  border-bottom: 1px solid #ffffff07;
+  text-align: left;
+  gap: 16px;
+  padding: 0 24px;
+  position: relative;
+}
+.instrument-lab-ui .instrument-row.active {
+  background: color-mix(in srgb, var(--track) 5%, transparent);
+}
+.instrument-lab-ui .instrument-row.active:before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: var(--track);
+  border-radius: 2px;
+}
+.instrument-lab-ui .track-number {
+  color: var(--track);
+  font: 10px "Space Grotesk";
+  opacity: 0.7;
+}
+.instrument-lab-ui .track-label {
+  width: 190px;
+  flex-shrink: 0;
+}
+.instrument-lab-ui .track-label strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.instrument-lab-ui .track-label small {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  color: #7e8291;
+}
+.instrument-lab-ui .instrument-row svg {
+  flex: 1;
+  height: 50px;
+  min-width: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(25% - 1px),
+    #ffffff06 calc(25% - 1px),
+    #ffffff06 25%
+  );
+}
+.instrument-lab-ui .instrument-row rect {
+  fill: var(--track);
+  opacity: 0.75;
+}
+.instrument-lab-ui .track-arrow {
+  font-size: 15px;
+  color: var(--track);
+  margin-left: 15px;
+}
+.instrument-lab-ui .instrument-detail {
+  border: 1px solid #ffffff12;
+  border-radius: 11px;
+  background: #17181e;
+  overflow: hidden;
+}
+.instrument-lab-ui .detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 23px;
+  height: 67px;
+  border-bottom: 1px solid #ffffff0c;
+}
+.instrument-lab-ui .detail-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.instrument-lab-ui .track-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--track);
+  border-radius: 50%;
+}
+.instrument-lab-ui .detail-title .pill {
+  font-size: 8px;
+  color: #9490a4;
+  padding: 4px 7px;
+  letter-spacing: 0.4px;
+}
+.instrument-lab-ui .tabs {
+  display: flex;
+  gap: 24px;
+  height: 100%;
+}
+.instrument-lab-ui .tabs button {
+  font-size: 11px;
+  color: #737889;
+  position: relative;
+  padding: 0 0 2px;
+}
+.instrument-lab-ui .tabs button.active {
+  color: #d9d2ed;
+}
+.instrument-lab-ui .tabs button.active:after {
+  content: "";
+  height: 2px;
+  background: #c0a9ff;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+.instrument-lab-ui .transport {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 17px 23px;
+  border-bottom: 1px solid #ffffff09;
+  background: #14151a;
+}
+.instrument-lab-ui .play {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ece8f6;
+  color: #28232f;
+  font-size: 11px;
+  padding-left: 8px;
+}
+.instrument-lab-ui .time-display {
+  font: 12px "Space Grotesk";
+  font-variant-numeric: tabular-nums;
+  min-width: 94px;
+}
+.instrument-lab-ui .time-display small {
+  color: #676c7d;
+  font-size: 10px;
+  margin-left: 3px;
+}
+.instrument-lab-ui .segmented {
+  display: flex;
+  border: 1px solid #ffffff10;
+  border-radius: 5px;
+  padding: 3px;
+  gap: 2px;
+}
+.instrument-lab-ui .segmented button {
+  font-size: 9px;
+  padding: 7px 11px;
+  color: #767b8c;
+  white-space: nowrap;
+}
+.instrument-lab-ui .segmented .active {
+  background: #2c2938;
+  color: #cec0ee;
+  border-radius: 3px;
+}
+.instrument-lab-ui .loop {
+  margin-left: auto;
+  font-size: 10px;
+  color: #747a8c;
+  white-space: nowrap;
+}
+.instrument-lab-ui .loop.active {
+  color: #b3a3ff;
+}
+.instrument-lab-ui .patch-panel {
+  display: grid;
+  grid-template-columns: 235px 1fr;
+  gap: 38px;
+  padding: 28px 25px 30px;
+}
+.instrument-lab-ui .patch-intro .eyebrow {
+  font-size: 8px;
+  letter-spacing: 1.2px;
+}
+.instrument-lab-ui .patch-intro h3 {
+  font: 500 19px/1.45 "Space Grotesk";
+  letter-spacing: -0.4px;
+  margin: 10px 0;
+}
+.instrument-lab-ui .patch-intro p {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #727789;
+  margin: 0 0 20px;
+}
+.instrument-lab-ui .family-label {
+  font-size: 10px;
+  color: #9499aa;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.instrument-lab-ui .family-label input,
+.instrument-lab-ui .family-label select,
+.instrument-lab-ui select {
+  background: #20222b;
+  border: 1px solid #ffffff15;
+  color: #c1c4d1;
+  font-size: 10px;
+  border-radius: 5px;
+  padding: 7px 9px;
+  text-transform: capitalize;
+}
+.instrument-lab-ui .controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 23px 34px;
+}
+.instrument-lab-ui .parameter {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+.instrument-lab-ui .parameter span {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #acaebe;
+}
+.instrument-lab-ui .parameter output {
+  font-size: 9px;
+  color: #6f7486;
+  font-variant-numeric: tabular-nums;
+}
+.instrument-lab-ui .parameter input {
+  width: 100%;
+  height: 3px;
+  accent-color: var(--track);
+  cursor: pointer;
+}
+.instrument-lab-ui .keyboard-panel {
+  padding: 18px 25px 21px;
+  border-top: 1px solid #ffffff0a;
+}
+.instrument-lab-ui .keyboard-caption {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  font-size: 8px;
+  letter-spacing: 1.3px;
+  color: #8a8e9f;
+}
+.instrument-lab-ui .keyboard-caption > span small {
+  margin-left: 14px;
+  color: #656b7f;
+  letter-spacing: 0;
+  font-size: 9px;
+}
+.instrument-lab-ui .keyboard-caption > div {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  letter-spacing: 0;
+  font-size: 9px;
+}
+.instrument-lab-ui .keyboard-caption button {
+  font-size: 13px;
+  color: #babacb;
+}
+.instrument-lab-ui .keyboard {
+  height: 88px;
+  display: flex;
+  position: relative;
+  user-select: none;
+  touch-action: none;
+  padding-right: 1px;
+}
+.instrument-lab-ui .keyboard button {
+  position: relative;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  padding-bottom: 7px;
+  border-radius: 0 0 4px 4px;
+  font-size: 8px;
+}
+.instrument-lab-ui .keyboard .white {
+  flex: 1;
+  background: #d4d4dd;
+  color: #858797;
+  border: 1px solid #17181e;
+  z-index: 1;
+  height: 100%;
+}
+.instrument-lab-ui .keyboard .black {
+  width: 3.8%;
+  margin-left: -1.9%;
+  margin-right: -1.9%;
+  z-index: 2;
+  height: 62%;
+  background: #272934;
+  border: 1px solid #111217;
+  box-shadow: 0 3px 2px #0005;
+}
+.instrument-lab-ui .keyboard .held {
+  background: var(--track);
+}
+.instrument-lab-ui .key-hint {
+  display: block;
+  margin-top: 11px;
+  font-size: 9px;
+  color: #565d71;
+  text-align: center;
+}
+.instrument-lab-ui .detail-footer {
+  border-top: 1px solid #ffffff0a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 25px;
+  font-size: 10px;
+  color: #818799;
+}
+.instrument-lab-ui .detail-footer small {
+  color: #535c73;
+}
+.instrument-lab-ui .detail-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.instrument-lab-ui .detail-footer button {
+  font-size: 10px;
+}
+.instrument-lab-ui .detail-footer .primary {
+  padding: 9px 14px;
+}
+.instrument-lab-ui .page-footer {
+  display: flex;
+  gap: 22px;
+  padding: 0 44px 24px;
+  max-width: 1480px;
+  margin: auto;
+  font-size: 8px;
+  letter-spacing: 1.4px;
+  color: #565b6c;
+}
+.instrument-lab-ui .page-footer span {
+  letter-spacing: 0;
+  color: #707588;
+}
+.instrument-lab-ui .page-footer small {
+  margin-left: auto;
+  letter-spacing: 0;
+  font-size: 9px;
+  color: #494f62;
+}
+.instrument-lab-ui .progress-card {
+  padding: 70px 40px;
+  background: #18191f;
+  border: 1px solid #ffffff12;
+  border-radius: 12px;
+  text-align: center;
+}
+.instrument-lab-ui .spinner {
+  font-size: 48px;
+  color: #b8a3fc;
+  animation: instrument-lab-pulse 2s infinite;
+}
+.instrument-lab-ui .progress-card h2 {
+  font: 500 22px "Space Grotesk";
+  margin: 24px 0 10px;
+}
+.instrument-lab-ui .progress-card p {
+  font-size: 12px;
+  color: #7f8497;
+}
+.instrument-lab-ui .progress-card progress {
+  appearance: none;
+  width: 70%;
+  height: 5px;
+  margin-top: 25px;
+}
+.instrument-lab-ui .progress-card progress::-webkit-progress-bar {
+  background: #292632;
+  border-radius: 10px;
+}
+.instrument-lab-ui .progress-card progress::-webkit-progress-value {
+  background: #bca7ff;
+  border-radius: 10px;
+  transition: width 0.3s;
+}
+.instrument-lab-ui .progress-meta {
+  width: 70%;
+  margin: 10px auto;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #8c879d;
+}
+.instrument-lab-ui .progress-meta button {
+  font-size: 10px;
+  text-decoration: underline;
+}
+.instrument-lab-ui .roll-toolbar {
+  padding: 17px 25px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 10px;
+  color: #808698;
+}
+.instrument-lab-ui .roll-toolbar > span {
+  margin-right: auto;
+}
+.instrument-lab-ui .roll-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.instrument-lab-ui .roll-toolbar input,
+.instrument-lab-ui .note-editor input {
+  background: #22242d;
+  color: #c7cbd8;
+  border: 1px solid #ffffff12;
+  border-radius: 4px;
+  padding: 6px;
+  font-size: 10px;
+  width: 65px;
+}
+.instrument-lab-ui .piano-roll {
+  height: 290px;
+  display: flex;
+  margin: 0 25px 20px;
+}
+.instrument-lab-ui .pitch-labels {
+  width: 28px;
+  position: relative;
+}
+.instrument-lab-ui .pitch-labels span {
+  position: absolute;
+  font-size: 8px;
+  color: #797f91;
+  transform: translateY(-50%);
+}
+.instrument-lab-ui .note-grid {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(12.5% - 1px),
+      #ffffff08 calc(12.5% - 1px),
+      #ffffff08 12.5%
+    ),
+    repeating-linear-gradient(
+      0deg,
+      #ffffff02 0,
+      #ffffff02 11px,
+      transparent 11px,
+      transparent 22px
+    );
+  border: 1px solid #ffffff10;
+}
+.instrument-lab-ui .note {
+  position: absolute;
+  background: var(--track);
+  opacity: 0.7;
+  border-radius: 2px;
+  min-height: 3px;
+  min-width: 3px;
+  padding: 0;
+}
+.instrument-lab-ui .note.selected {
+  outline: 2px solid white;
+  opacity: 1;
+}
+.instrument-lab-ui .note.hit {
+  background: #b9ee84;
+  opacity: 1;
+}
+.instrument-lab-ui .playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #fff8;
+  pointer-events: none;
+}
+.instrument-lab-ui .playhead:before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -3px;
+  border: 4px solid transparent;
+  border-top-color: white;
+}
+.instrument-lab-ui .note-editor {
+  display: flex;
+  align-items: end;
+  gap: 15px;
+  padding: 0 25px 20px;
+}
+.instrument-lab-ui .note-editor label {
+  font-size: 9px;
+  color: #8c92a4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.instrument-lab-ui .note-editor input {
+  width: 90px;
+}
+.instrument-lab-ui .note-editor button {
+  font-size: 10px;
+  color: #ecaaaa;
+  padding: 8px;
+}
+.instrument-lab-ui .scoreboard {
+  display: flex;
+  gap: 26px;
+  align-items: center;
+  padding: 0 25px 20px;
+  font-size: 11px;
+  color: #8990a3;
+}
+.instrument-lab-ui .scoreboard strong {
+  font-weight: 500;
+  margin-right: auto;
+  color: #b9ee84;
+}
+.instrument-lab-ui .scoreboard b {
+  font-weight: 550;
+  color: #dddde8;
+}
+.instrument-lab-ui .practice-info {
+  font-size: 10px;
+  color: #8a91a5;
+  flex: 1;
+}
+@keyframes instrument-lab-pulse {
+  50% {
+    opacity: 0.3;
+    transform: scale(0.93);
+  }
+}
+@media (min-width: 1500px) {
+  .instrument-lab-ui .patch-panel {
+    grid-template-columns: 260px 1fr;
+    gap: 60px;
+  }
+  .instrument-lab-ui .controls {
+    gap: 26px 65px;
+  }
+  .instrument-lab-ui .keyboard {
+    height: 105px;
+  }
+}
+@media (max-width: 1100px) {
+  .instrument-lab-ui .sidebar {
+    width: 195px;
+    padding: 30px 13px;
+  }
+  .instrument-lab-ui .main {
+    margin-left: 195px;
+  }
+  .instrument-lab-ui .main main {
+    padding: 30px 25px;
+  }
+  .instrument-lab-ui .topbar {
+    padding: 0 25px;
+  }
+  .instrument-lab-ui .patch-panel {
+    grid-template-columns: 190px 1fr;
+    gap: 20px;
+  }
+  .instrument-lab-ui .transport {
+    gap: 10px;
+  }
+  .instrument-lab-ui .segmented button {
+    padding: 7px;
+  }
+  .instrument-lab-ui .track-label {
+    width: 145px;
+  }
+  .instrument-lab-ui .timeline-ruler > span {
+    width: 180px;
+  }
+  .instrument-lab-ui .detail-title .pill {
+    display: none;
+  }
+  .instrument-lab-ui .tabs {
+    gap: 16px;
+  }
+}
+@media (max-width: 800px) {
+  .instrument-lab-ui .sidebar {
+    display: none;
+  }
+  .instrument-lab-ui .main {
+    margin-left: 0;
+  }
+  .instrument-lab-ui .topbar {
+    height: 60px;
+  }
+  .instrument-lab-ui .main main {
+    padding: 25px 16px;
+  }
+  .instrument-lab-ui .page-heading h1 {
+    font-size: 24px;
+  }
+  .instrument-lab-ui .patch-panel {
+    grid-template-columns: 1fr;
+  }
+  .instrument-lab-ui .patch-intro {
+    display: none;
+  }
+  .instrument-lab-ui .transport {
+    flex-wrap: wrap;
+  }
+  .instrument-lab-ui .segmented {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+  .instrument-lab-ui .track-label {
+    width: 110px;
+  }
+  .instrument-lab-ui .timeline-ruler > span {
+    width: 145px;
+  }
+  .instrument-lab-ui .detail-header {
+    padding: 0 15px;
+  }
+  .instrument-lab-ui .detail-title h2 {
+    font-size: 12px;
+  }
+  .instrument-lab-ui .tabs {
+    gap: 13px;
+  }
+  .instrument-lab-ui .tabs button {
+    font-size: 10px;
+  }
+  .instrument-lab-ui .review-notice {
+    flex-wrap: wrap;
+    line-height: 1.6;
+  }
+  .instrument-lab-ui .review-notice details {
+    margin-left: 0;
+  }
+  .instrument-lab-ui .roll-toolbar {
+    flex-wrap: wrap;
+  }
+  .instrument-lab-ui .roll-toolbar > span {
+    width: 100%;
+  }
+  .instrument-lab-ui .detail-footer {
+    gap: 10px;
+    padding: 15px;
+  }
+  .instrument-lab-ui .detail-footer small {
+    display: none;
+  }
+  .instrument-lab-ui .page-footer {
+    padding: 0 16px 20px;
+  }
+  .instrument-lab-ui .page-footer small {
+    display: none;
+  }
+  .instrument-lab-ui .keyboard-caption > span small {
+    display: none;
+  }
+  .instrument-lab-ui .welcome {
+    padding: 25px 15px;
+  }
+  .instrument-lab-ui .demo-card {
+    gap: 12px;
+    padding: 15px;
+  }
+  .instrument-lab-ui .demo-card > span {
+    font-size: 9px;
+  }
+  .instrument-lab-ui .note-editor {
+    flex-wrap: wrap;
+  }
+  .instrument-lab-ui .scoreboard {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+}
+
+.instrument-lab-ui .add-note-row {
+  padding: 0 25px 18px;
+}
+.instrument-lab-ui .add-note-row button {
+  font-size: 10px;
+  color: #baace6;
+  border: 1px solid #baace633;
+  border-radius: 5px;
+  padding: 8px 12px;
+}
+
+.instrument-lab-ui .instrument-controls {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.instrument-lab-ui .instrument-controls:disabled {
+  opacity: 0.7;
+}
+.instrument-lab-ui .add-note-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.instrument-lab-ui .assignment-editor {
+  margin: 20px 25px;
+  padding: 18px;
+  border: 1px solid #ffffff18;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.instrument-lab-ui .assignment-editor p,
+.instrument-lab-ui .assignment-editor small {
+  color: #9b9baa;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.instrument-lab-ui .assignment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin: 14px 0;
+}
+.instrument-lab-ui .assignment-actions label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+  color: #9b9baa;
+}
+.instrument-lab-ui .assignment-actions input,
+.instrument-lab-ui .assignment-actions select {
+  min-width: 200px;
+  max-width: 100%;
+  border: 1px solid #ffffff18;
+  border-radius: 7px;
+  background: #171721;
+  color: #f5f3ff;
+  padding: 9px 10px;
+}
+.instrument-lab-ui .assignment-actions button {
+  font-size: 12px;
+  border: 1px solid #ffffff18;
+  border-radius: 7px;
+  padding: 10px 12px;
+}
+
+/* Native editor surface follows the existing sound editor's full-screen view. */
+.instrument-lab-ui.native-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  min-height: 0;
+  overflow: auto;
+  background: #111217;
+}
+.instrument-lab-ui.native-editor .main {
+  margin-left: 0;
+  width: 100%;
+}
+.instrument-lab-ui.native-editor .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  min-height: 62px;
+  height: auto;
+  padding: 10px 18px;
+  gap: 14px;
+  justify-content: flex-start;
+  background: #111217;
+  flex-wrap: wrap;
+}
+.instrument-lab-ui.native-editor .native-editor-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 160px;
+  letter-spacing: 0;
+}
+.instrument-lab-ui.native-editor .native-editor-title strong {
+  color: #ececf1;
+  font-size: 14px;
+}
+.instrument-lab-ui.native-editor .native-editor-title small {
+  font-size: 11px;
+  color: #a7a9b5;
+}
+.instrument-lab-ui.native-editor .topbar select {
+  background: #1b1d25;
+  border: 1px solid #ffffff14;
+  color: #ececf1;
+  border-radius: 6px;
+  padding: 8px;
+  max-width: 260px;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.instrument-lab-ui.native-editor .main main {
+  max-width: none;
+  padding: 22px 26px 35px;
+}
+@media (max-width: 800px) {
+  .instrument-lab-ui.native-editor .main main {
+    padding: 16px;
+  }
+  .instrument-lab-ui.native-editor .topbar select {
+    max-width: 180px;
+  }
+}
+.instrument-lab-ui .lab-analysis-modes {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 20px;
+}
+.instrument-lab-ui .lab-analysis-modes .active {
+  background: #b3a3ff;
+  color: #181421;
+  opacity: 1;
+}
+.instrument-lab-ui .drum-explanation {
+  padding: 16px 0;
+  color: #b8b6c7;
+  line-height: 1.5;
+}
+.instrument-lab-ui .drum-explanation p {
+  margin: 8px 0 14px;
+  max-width: 720px;
+}
+.instrument-lab-ui .drum-explanation label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.instrument-lab-ui .drum-explanation small {
+  display: block;
+  margin-top: 8px;
+}
+.instrument-lab-ui .drum-pad-panel {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 0;
+}
+.instrument-lab-ui .drum-pad {
+  min-width: 180px;
+  min-height: 110px;
+  border: 1px solid #b3a3ff;
+  background: #302642;
+  font-size: 16px;
+}
+.instrument-lab-ui .drum-pad small {
+  display: block;
+  margin-top: 12px;
+  color: #c6bfd5;
+  font-size: 12px;
+}
+.instrument-lab-ui .drum-pad.held {
+  background: #736294;
+}
+.instrument-lab-ui.drum-editor .patch-panel {
+  grid-template-areas: "intro controls" "explanation controls";
+  grid-template-columns: minmax(220px, 0.85fr) minmax(320px, 1.5fr);
+  gap: 20px 44px;
+}
+.instrument-lab-ui.drum-editor .patch-intro {
+  grid-area: intro;
+}
+.instrument-lab-ui.drum-editor .controls {
+  grid-area: controls;
+}
+.instrument-lab-ui.drum-editor .drum-explanation {
+  grid-area: explanation;
+  font-size: 12px;
+  padding: 0;
+}
+.instrument-lab-ui.drum-editor .drum-explanation input {
+  background: #20222b;
+  border: 1px solid #ffffff20;
+  color: #d6d3e2;
+  border-radius: 5px;
+  padding: 7px 9px;
+  max-width: 130px;
+}
+.instrument-lab-ui.drum-editor .drum-pad-panel {
+  padding: 20px 25px;
+  font-size: 12px;
+}
+.instrument-lab-ui.drum-editor .arrangement {
+  max-height: 350px;
+  overflow: auto;
+}
+@media (max-width: 760px) {
+  .instrument-lab-ui.drum-editor .patch-panel {
+    grid-template-areas: "intro" "explanation" "controls";
+    grid-template-columns: 1fr;
+  }
+  .instrument-lab-ui .lab-analysis-modes {
+    flex-wrap: wrap;
+  }
+}
+.instrument-lab-ui.combined-editor .arrangement {
+  max-height: 350px;
+  overflow: auto;
+}
+.instrument-lab-ui .lab-analysis-modes > span {
+  color: #aaa8bb;
+  font-size: 12px;
+  margin-right: auto;
+}
+
+/* Shared arrangement: fixed controls, one zoom window for every instrument. */
+.instrument-lab-ui .arrangement.mix-arrangement {
+  max-height: none;
+  overflow: hidden;
+}
+.instrument-lab-ui .mix-arrangement .section-top {
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.instrument-lab-ui .mix-transport,
+.instrument-lab-ui .mix-zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.instrument-lab-ui .mix-transport output {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: #dddbea;
+}
+.instrument-lab-ui .mix-caption {
+  font-size: 10px;
+  color: #9f9bad;
+}
+.instrument-lab-ui .mix-play {
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  background: #e9e4fa;
+  color: #24202d;
+}
+.instrument-lab-ui .mix-zoom {
+  margin-left: auto;
+  font-size: 11px;
+}
+.instrument-lab-ui .mix-zoom input {
+  width: 110px;
+  accent-color: #b3a3ff;
+}
+.instrument-lab-ui .mix-zoom button {
+  padding: 6px 10px;
+  border: 1px solid #ffffff1a;
+  border-radius: 5px;
+}
+.instrument-lab-ui .mix-grid {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: 16px;
+  padding: 0 24px;
+}
+.instrument-lab-ui .mix-ruler {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: #aca8bb;
+  align-items: center;
+  border-block: 1px solid #ffffff12;
+}
+.instrument-lab-ui .mix-ticks {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 35px;
+}
+.instrument-lab-ui .mix-track-list {
+  max-height: 350px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.instrument-lab-ui .mix-ruler {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.instrument-lab-ui .mix-track {
+  border-bottom: 1px solid #ffffff09;
+  min-height: 72px;
+}
+.instrument-lab-ui .mix-track.active {
+  background: color-mix(in srgb, var(--track) 7%, transparent);
+  box-shadow: inset 2px 0 var(--track);
+}
+.instrument-lab-ui .mix-track-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.instrument-lab-ui .mix-select {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  min-width: 0;
+  flex: 1;
+  padding-block: 15px;
+}
+.instrument-lab-ui .mix-select > span:last-child {
+  min-width: 0;
+}
+.instrument-lab-ui .mix-select strong {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+}
+.instrument-lab-ui .mix-select small {
+  display: block;
+  margin-top: 5px;
+  font-size: 10px;
+  color: #9691a4;
+}
+.instrument-lab-ui .mix-solo,
+.instrument-lab-ui .mix-mute {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #ffffff20;
+  border-radius: 5px;
+  color: #b9b5c7;
+  font-size: 11px;
+}
+.instrument-lab-ui .mix-solo[aria-pressed="true"] {
+  background: #e3c66e;
+  color: #30260a;
+}
+.instrument-lab-ui .mix-mute[aria-pressed="true"] {
+  background: #e39191;
+  color: #330f0f;
+}
+.instrument-lab-ui .mix-lane {
+  position: relative;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+}
+.instrument-lab-ui .mix-lane svg {
+  width: 100%;
+  height: 100%;
+  min-height: 54px;
+  display: block;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(25% - 1px),
+    #ffffff09 calc(25% - 1px),
+    #ffffff09 25%
+  );
+}
+.instrument-lab-ui .mix-lane rect {
+  fill: var(--track);
+}
+.instrument-lab-ui .mix-track.inaudible svg {
+  opacity: 0.23;
+}
+.instrument-lab-ui .arrangement-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #f6eefc;
+  pointer-events: none;
+  transform: translateX(-1px);
+}
+.instrument-lab-ui .mix-ticks .arrangement-playhead:before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -4px;
+  border: 5px solid transparent;
+  border-top-color: #f6eefc;
+}
+.instrument-lab-ui .mix-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  color: #9b97a9;
+  font-size: 10px;
+}
+.instrument-lab-ui .mix-footer label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.instrument-lab-ui .mix-footer input {
+  width: 160px;
+  accent-color: #b3a3ff;
+}
+.instrument-lab-ui .mix-arrangement :focus-visible {
+  outline: 2px solid #b3a3ff;
+  outline-offset: -2px;
+}
+@media (max-width: 700px) {
+  .instrument-lab-ui .mix-grid {
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 8px;
+    padding-inline: 10px;
+  }
+  .instrument-lab-ui .mix-caption,
+  .instrument-lab-ui .mix-select .track-number {
+    display: none;
+  }
+  .instrument-lab-ui .mix-arrangement .section-top {
+    padding: 14px 10px;
+  }
+  .instrument-lab-ui .mix-zoom {
+    margin-left: 0;
+  }
+}
+
+.instrument-lab-ui .mix-grid {
+  grid-template-columns: 390px minmax(0, 1fr);
+}
+.instrument-lab-ui .mix-merge {
+  width: 100px;
+  min-width: 100px;
+  padding: 5px;
+  border: 1px solid #ffffff20;
+  border-radius: 5px;
+  background: #202129;
+  color: #c8c3d8;
+  font-size: 10px;
+}
+.instrument-lab-ui .mix-merge-review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  background: #b3a3ff0d;
+  border-top: 1px solid #b3a3ff30;
+  font-size: 12px;
+}
+.instrument-lab-ui .mix-merge-review p {
+  flex: 1 1 300px;
+  margin: 0;
+  line-height: 1.6;
+  color: #c8c3d8;
+}
+.instrument-lab-ui .mix-merge-review button {
+  border: 1px solid #b3a3ff50;
+  border-radius: 5px;
+  padding: 8px 12px;
+}
+@media (max-width: 700px) {
+  .instrument-lab-ui .mix-grid {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+  .instrument-lab-ui .mix-track-controls {
+    flex-wrap: wrap;
+    padding-bottom: 8px;
+  }
+  .instrument-lab-ui .mix-merge {
+    margin-left: auto;
+    width: 100%;
+  }
+}
+
+/* Expanded instruments remain in their original arrangement order. */
+.instrument-lab-ui .mix-arrangement {
+  --lane-label-width: 390px;
+  --lane-gap: 16px;
+  --lane-pad: 24px;
+}
+.instrument-lab-ui .mix-grid {
+  grid-template-columns: var(--lane-label-width) minmax(0, 1fr);
+}
+.instrument-lab-ui .mix-track-list {
+  max-height: none;
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+.instrument-lab-ui .mix-ruler {
+  scrollbar-gutter: auto;
+}
+.instrument-lab-ui .expanded-lane {
+  border-bottom: 1px solid #ffffff20;
+  box-shadow: inset 2px 0 var(--track);
+}
+.instrument-lab-ui .inline-instrument-detail {
+  border: 0;
+  border-radius: 0;
+  background: #17181e;
+}
+/* The note grid occupies the same timeline column and top edge as a compact lane. */
+.instrument-lab-ui .expanded-track-row {
+  align-items: stretch;
+}
+.instrument-lab-ui .expanded-track-label {
+  align-self: start;
+  min-width: 0;
+  padding-top: 10px;
+}
+.instrument-lab-ui .inline-instrument-detail .detail-header {
+  min-height: 44px;
+  height: auto;
+  padding-inline: var(--lane-pad);
+  justify-content: flex-end;
+}
+.instrument-lab-ui .inline-instrument-detail .piano-roll {
+  position: relative;
+  min-width: 0;
+  margin: 0;
+  height: 230px;
+}
+.instrument-lab-ui .inline-instrument-detail .pitch-labels {
+  position: absolute;
+  inset: 0 100% 0 auto;
+  width: var(--lane-gap);
+  pointer-events: none;
+}
+.instrument-lab-ui .inline-instrument-detail .pitch-labels span {
+  right: 4px;
+}
+.instrument-lab-ui .inline-instrument-detail .note-grid {
+  touch-action: none;
+  min-width: 0;
+}
+.instrument-lab-ui .inline-instrument-detail .note-grid .playhead {
+  pointer-events: none;
+}
+.instrument-lab-ui .track-play {
+  flex: 0 0 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #e9e4fa;
+  color: #24202d;
+  font-size: 10px;
+}
+.instrument-lab-ui .mix-select[aria-expanded="true"] strong:before {
+  content: "▾ ";
+}
+.instrument-lab-ui .mix-select[aria-expanded="false"] strong:before {
+  content: "▸ ";
+}
+.instrument-lab-ui .mix-transport .segmented {
+  display: flex;
+}
+@media (max-width: 700px) {
+  .instrument-lab-ui .mix-arrangement {
+    --lane-label-width: 200px;
+    --lane-gap: 8px;
+    --lane-pad: 10px;
+  }
+  .instrument-lab-ui .mix-transport {
+    flex-wrap: wrap;
+  }
+}
+.instrument-lab-ui .inline-instrument-detail .piano-roll {
+  height: 230px;
+}
+.instrument-lab-ui .lane-tools {
+  margin-block: 10px;
+  padding: 12px 16px;
+}
+.instrument-lab-ui .lane-tools > summary,
+.instrument-lab-ui .lane-audition > summary {
+  cursor: pointer;
+  color: #bdb6d0;
+  font-size: 11px;
+}
+.instrument-lab-ui .lane-tools[open] > summary {
+  margin-bottom: 14px;
+}
+.instrument-lab-ui .lane-audition {
+  margin: 12px 25px;
+}
+.instrument-lab-ui .lane-audition[open] > summary {
+  margin-bottom: 12px;
+}
+.instrument-lab-ui .lane-audition .keyboard-panel {
+  padding-inline: 0;
+}
+
+.instrument-lab-ui .expanded-roll-viewport {
+  height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+.instrument-lab-ui .inline-instrument-detail .note {
+  min-height: 12px;
+}
+.instrument-lab-ui .merge-error {
+  flex-basis: 100%;
+  color: #ffacac;
+}
+.instrument-lab-ui .patch-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.instrument-lab-ui .expanded-roll-viewport .pitch-labels {
+  inset: 0 auto 0 0;
+  width: 22px;
+  z-index: 2;
+}
+.instrument-lab-ui .expanded-roll-viewport .pitch-labels span {
+  right: 4px;
+  background: #17181eee;
+  padding: 2px;
+}
+
+/* SAM separation is an analysis action within the existing Instrument Lab. */
+.sam-separation { margin: 0 0 18px; border: 1px solid var(--line, #292b36); border-radius: 10px; background: #17181f; padding: 14px 18px; }
+.sam-toolbar, .sam-options, .sam-run { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.sam-toolbar label, .sam-options label { display: flex; align-items: center; gap: 8px; }
+.sam-toolbar small, .sam-run small { color: #a8a9b8; }
+.sam-toolbar a { color: #b3a3ff; margin-left: auto; }
+.sam-form { margin-top: 16px; }
+.sam-form p { color: #b6b7c5; font-size: 13px; }
+.sam-targets { display: grid; gap: 8px; margin: 14px 0; max-height: 330px; overflow: auto; }
+.sam-target { display: grid; grid-template-columns: minmax(100px,1fr) minmax(200px,3fr) 100px 32px; gap: 8px; }
+.sam-target input { min-width: 0; width: 100%; }
+.sam-options { margin: 18px 0; }
+.sam-options input[type=number] { width: 90px; }
+.sam-options input[type=checkbox] { width: auto; }
+.stem-waveform-row { border-top: 1px solid #282a34; }
+.stem-waveform-name { padding: 22px 24px; font-size: 11px; color: #9395a7; }
+.stem-waveform { position: relative; min-width: 0; height: 66px; overflow: hidden; color: var(--track); cursor: crosshair; touch-action: none; }
+.stem-waveform svg { width: 100%; height: 100%; display: block; }
+.stem-waveform-label { position: absolute; top: 3px; left: 6px; color: #9293a5; font-size: 9px; pointer-events: none; }
+@media(max-width:700px) { .sam-target { grid-template-columns: 1fr 1fr 80px 28px; } }
+
+.sam-targets { padding-right: 18px; scrollbar-gutter: stable; }
+.sam-target { grid-template-columns: minmax(100px,1fr) minmax(160px,3fr) 100px 36px; align-items: center; }
+.sam-form input[type=text], .sam-form input[type=number] { box-sizing: border-box; border: 1px solid #343641; background: #22242e; color: #eeeeF6; border-radius: 5px; padding: 8px 10px; font: inherit; font-size: 12px; }
+.sam-target button { width: 32px; height: 32px; border: 1px solid #343641; background: #22242e; color: #ddd; border-radius: 5px; padding: 0; }
+.sam-toolbar > button { border: 1px solid #494356; border-radius: 6px; padding: 8px 12px; font-size: 12px; }

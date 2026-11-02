@@ -29,6 +29,10 @@ export interface ElectronAPI {
     getAll: () => Promise<DeviceMapping[]>;
     delete: (deviceId: string) => Promise<void>;
   };
+  audio: {
+    getPath: (filename: string) => Promise<string>;
+    listFiles: () => Promise<string[]>;
+  };
 }
 
 declare global {

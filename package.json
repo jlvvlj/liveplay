@@ -4,7 +4,9 @@
   "description": "Cross-platform desktop MVP for interactive MIDI lessons",
   "main": "dist/main/main.js",
   "scripts": {
-    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:server\" \"npm run dev:instruments\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:desktop": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:renderer": "cd apps/desktop && vite",
     "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
     "build": "npm run build:renderer && npm run build:electron && npm run build:app",
@@ -16,7 +18,13 @@
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "dev:instruments": "node instrument-lab/server/index.mjs",
+    "setup:instruments": "node instrument-lab/server/setup.mjs",
+    "test:instruments": "node instrument-lab/tests/run.mjs",
+    "build:instruments": "node instrument-lab/server/build.mjs",
+    "start:instruments": "cross-env NODE_ENV=production node instrument-lab/server/index.mjs",
+    "test:integration": "tsx --test server/instrument-lab.test.ts"
   },
   "keywords": [
     "melodics",
@@ -32,6 +40,7 @@
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.1",
     "@types/better-sqlite3": "^7.6.8",
+    "@types/express": "^5.0.6",
     "@types/jest": "^29.5.11",
     "@types/node": "^20.10.6",
     "@types/react": "^18.2.46",
@@ -50,6 +59,7 @@
     "jest-environment-jsdom": "^29.7.0",
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.0",
     "typescript": "^5.3.3",
     "vite": "^5.0.10",
     "vite-plugin-electron": "^0.28.1",
@@ -57,8 +67,10 @@
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
+    "@tonejs/midi": "^2.0.28",
     "better-sqlite3": "^9.2.2",
     "electron-store": "^8.1.0",
+    "express": "^5.2.1",
     "midi": "^2.0.0",
     "prisma": "^5.7.1",
     "react": "^18.2.0",

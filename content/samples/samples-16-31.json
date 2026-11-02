@@ -1,0 +1,56 @@
+{
+  "id": "samples-16-31",
+  "title": "16 Sample Sequence",
+  "instrument": "pads",
+  "bpm": 80,
+  "timeSignature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "steps": [
+    { "tick": 0, "note": 36, "dur": 120, "velocity": 100, "lane": 0 },
+    { "tick": 480, "note": 37, "dur": 120, "velocity": 100, "lane": 1 },
+    { "tick": 960, "note": 38, "dur": 120, "velocity": 100, "lane": 2 },
+    { "tick": 1440, "note": 39, "dur": 120, "velocity": 100, "lane": 3 },
+    { "tick": 1920, "note": 40, "dur": 120, "velocity": 100, "lane": 4 },
+    { "tick": 2400, "note": 41, "dur": 120, "velocity": 100, "lane": 5 },
+    { "tick": 2880, "note": 42, "dur": 120, "velocity": 100, "lane": 6 },
+    { "tick": 3360, "note": 43, "dur": 120, "velocity": 100, "lane": 7 },
+    { "tick": 3840, "note": 44, "dur": 120, "velocity": 100, "lane": 8 },
+    { "tick": 4320, "note": 45, "dur": 120, "velocity": 100, "lane": 9 },
+    { "tick": 4800, "note": 46, "dur": 120, "velocity": 100, "lane": 10 },
+    { "tick": 5280, "note": 47, "dur": 120, "velocity": 100, "lane": 11 },
+    { "tick": 5760, "note": 48, "dur": 120, "velocity": 100, "lane": 12 },
+    { "tick": 6240, "note": 49, "dur": 120, "velocity": 100, "lane": 13 },
+    { "tick": 6720, "note": 50, "dur": 120, "velocity": 100, "lane": 14 },
+    { "tick": 7200, "note": 51, "dur": 120, "velocity": 100, "lane": 15 }
+  ],
+  "loop": {
+    "startTick": 0,
+    "endTick": 7680
+  },
+  "samples": {
+    "36": "sample-16.wav",
+    "37": "sample-17.wav",
+    "38": "sample-18.wav",
+    "39": "sample-19.wav",
+    "40": "sample-20.wav",
+    "41": "sample-21.wav",
+    "42": "sample-22.wav",
+    "43": "sample-23.wav",
+    "44": "sample-24.wav",
+    "45": "sample-25.wav",
+    "46": "sample-26.wav",
+    "47": "sample-27.wav",
+    "48": "sample-28.wav",
+    "49": "sample-29.wav",
+    "50": "sample-30.wav",
+    "51": "sample-31.wav"
+  },
+  "metadata": {
+    "difficulty": 2,
+    "genre": "Practice",
+    "tags": ["samples", "pads", "16-notes"],
+    "description": "Practice all 16 samples in sequence"
+  }
+}

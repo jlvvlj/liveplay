@@ -52,6 +52,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (deviceId: string): Promise<void> =>
       ipcRenderer.invoke('mapping:delete', deviceId),
   },
+  // Audio APIs
+  audio: {
+    getPath: (filename: string): Promise<string> =>
+      ipcRenderer.invoke('audio:getPath', filename),
+    listFiles: (): Promise<string[]> => ipcRenderer.invoke('audio:listFiles'),
+  },
 });
 
 console.log('[Preload] electronAPI exposed successfully');

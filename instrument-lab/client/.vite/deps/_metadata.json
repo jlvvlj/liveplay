@@ -1,0 +1,25 @@
+{
+  "hash": "d94b6773",
+  "configHash": "d2d1cf41",
+  "lockfileHash": "e3b0c442",
+  "browserHash": "33ceb8ea",
+  "optimized": {
+    "react": {
+      "src": "../../../../../../../../../Code/PROJECTS/melodics/node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "b1712f27",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../../../../../../../../Code/PROJECTS/melodics/node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "05ce23b2",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "chunk-M745V6VP": {
+      "file": "chunk-M745V6VP.js"
+    }
+  }
+}

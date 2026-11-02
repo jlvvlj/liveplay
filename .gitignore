@@ -46,6 +46,8 @@ coverage/
 prisma/dev.db
 prisma/migrations/**/migration.sql
 
+audio/
+
 # OS
 Thumbs.db
 
