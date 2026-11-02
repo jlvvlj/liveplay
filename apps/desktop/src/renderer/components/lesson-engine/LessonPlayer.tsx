@@ -1616,8 +1616,8 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
         </div>
       )}
 
-      {/* Compact Toolbar - hide only in actual game mode */}
-      {!isGameMode && (
+      {/* Compact Toolbar - hidden in actual game mode and in the Jam tab (its controls live in the jam sidebar) */}
+      {!isGameMode && !jamOnly && (
         <div className="lesson-toolbar">
           {/* Left: Exit and Title */}
           <div className="toolbar-left">
@@ -1889,15 +1889,16 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
           </button>
         )}
 
-        {/* Jam tab settings: volumes, in a collapsible sidebar on the left */}
+        {/* Jam tab: full-page highway; collapsed sidebar leaves only back and expand */}
         {jamOnly && !showJamSettings && (
-          <button
-            className="game-settings-toggle"
-            onClick={() => setShowJamSettings(true)}
-            title="Jam Settings"
-          >
-            <span className="settings-icon">&#9881;</span>
-          </button>
+          <div className="jam-corner-buttons">
+            <button className="jam-corner-btn" onClick={onComplete} title="Back">
+              &#8592;
+            </button>
+            <button className="jam-corner-btn" onClick={() => setShowJamSettings(true)} title="Show settings">
+              &#187;
+            </button>
+          </div>
         )}
         {jamOnly && showJamSettings && jamSettings && jamSounds && (
           <JamSettingsPanel
@@ -1923,6 +1924,15 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
             onBackingVolumeChange={setBackingTrackVolume}
             effects={jamSettings.effects}
             onEffectsChange={(effects) => setJamSettings({ ...jamSettings, effects })}
+            title={lesson.title}
+            bpm={lesson.bpm}
+            midiActive={midiActivity}
+            lastMidiNote={lastMidiNote}
+            showKeys={showKeySettings}
+            onToggleKeys={() => setShowKeySettings(!showKeySettings)}
+            labelMode={labelMode}
+            onLabelModeChange={setLabelMode}
+            onBack={() => onComplete?.()}
             onClose={() => setShowJamSettings(false)}
           />
         )}

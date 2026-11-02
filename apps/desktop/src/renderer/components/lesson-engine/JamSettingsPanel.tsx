@@ -25,6 +25,15 @@ interface JamSettingsPanelProps {
   onBackingVolumeChange: (volume: number) => void;
   effects: JamEffects;
   onEffectsChange: (effects: JamEffects) => void;
+  title: string;
+  bpm: number;
+  midiActive: boolean;
+  lastMidiNote: number | null;
+  showKeys: boolean;
+  onToggleKeys: () => void;
+  labelMode: 'letters' | 'numbers';
+  onLabelModeChange: (mode: 'letters' | 'numbers') => void;
+  onBack: () => void;
   onClose: () => void;
 }
 
@@ -100,6 +109,15 @@ export function JamSettingsPanel({
   onBackingVolumeChange,
   effects,
   onEffectsChange,
+  title,
+  bpm,
+  midiActive,
+  lastMidiNote,
+  showKeys,
+  onToggleKeys,
+  labelMode,
+  onLabelModeChange,
+  onBack,
   onClose,
 }: JamSettingsPanelProps) {
   const setEffect = <K extends keyof JamEffects>(key: K, value: JamEffects[K]) =>
@@ -107,14 +125,50 @@ export function JamSettingsPanel({
 
   return (
     <div className="game-settings-sidebar">
-      <div className="game-settings-header">
-        <h3>Settings</h3>
-        <button className="close-sidebar" onClick={onClose}>
-          &times;
+      <div className="game-settings-header jam-settings-header">
+        <button className="jam-corner-btn" onClick={onBack} title="Back">
+          &#8592;
+        </button>
+        <div className="jam-song">
+          <span className="jam-song-title">{title}</span>
+          <span className="toolbar-badge">{bpm} BPM</span>
+        </div>
+        <button className="jam-corner-btn" onClick={onClose} title="Hide settings">
+          &#171;
         </button>
       </div>
 
       <div className="game-settings-content">
+        <div className="setting-group">
+          <label className="setting-label">
+            <span className="setting-icon">&#127929;</span>
+            Keys
+          </label>
+          <div className="jam-keys-row">
+            <div className={`toolbar-midi ${midiActive ? 'active' : ''}`} title="MIDI Status">
+              <span className="midi-dot"></span>
+              {lastMidiNote !== null ? lastMidiNote : 'MIDI'}
+            </div>
+            <button className={`toolbar-btn ${showKeys ? 'active' : ''}`} onClick={onToggleKeys} title="Key Bindings">
+              Keys
+            </button>
+            <div className="toolbar-label-tabs">
+              <button
+                className={`toolbar-label-tab ${labelMode === 'letters' ? 'active' : ''}`}
+                onClick={() => onLabelModeChange('letters')}
+              >
+                ABC
+              </button>
+              <button
+                className={`toolbar-label-tab ${labelMode === 'numbers' ? 'active' : ''}`}
+                onClick={() => onLabelModeChange('numbers')}
+              >
+                123
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="setting-group">
           <label className="setting-label">
             <span className="setting-icon">&#127927;</span>

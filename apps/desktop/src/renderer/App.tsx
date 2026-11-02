@@ -46,6 +46,7 @@ function App() {
 
   return (
     <div className={`app ${view === 'jam' ? 'app-jam' : ''}`}>
+      {view !== 'jam' && (
       <header className="app-header">
         <h1>Melodics-like MVP — DEV</h1>
         <p>Interactive MIDI Lessons Platform</p>
@@ -53,7 +54,7 @@ function App() {
           <button onClick={() => setView('lessons')} className={view === 'lessons' ? 'active' : ''}>
             Lessons
           </button>
-          <button onClick={() => setView('jam')} className={view === 'jam' ? 'active' : ''}>
+          <button onClick={() => setView('jam')}>
             Jam
           </button>
           <button onClick={() => { setSelectedSong(null); setView('instrument-lab'); }} className={view === 'instrument-lab' ? 'active' : ''}>
@@ -64,6 +65,7 @@ function App() {
           </button>
         </nav>
       </header>
+      )}
       <main className="app-main">
         {view === 'settings' && (
           <div className="settings-page">
@@ -80,7 +82,13 @@ function App() {
           />
         )}
         {view === 'jam' && (
-          <LessonPlayer key={JAM_SONGS[0].id} lesson={JAM_SONGS[0]} jamOnly jamSounds={JAM_SOUND_PRESETS} />
+          <LessonPlayer
+            key={JAM_SONGS[0].id}
+            lesson={JAM_SONGS[0]}
+            jamOnly
+            jamSounds={JAM_SOUND_PRESETS}
+            onComplete={() => setView('lessons')}
+          />
         )}
         {view === 'instrument-lab' && (
           <InstrumentLab song={selectedSong} onExit={handleBackToLessons} />

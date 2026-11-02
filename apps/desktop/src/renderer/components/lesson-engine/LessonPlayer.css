@@ -1685,9 +1685,76 @@
   color: #facc15;
 }
 
-/* Jam tab: the open settings sidebar sits beside the highway, not over its rows */
-.highway-container.with-jam-settings {
-  padding-left: calc(280px + 1rem);
+/* Jam tab: the highway fills the page edge to edge; the open settings sidebar
+   sits beside it, not over its rows */
+.lesson-player.jam-only .highway-container {
+  padding: 0;
+}
+
+.lesson-player.jam-only .note-highway {
+  border-radius: 0;
+  min-height: 0;
+}
+
+.lesson-player.jam-only .highway-container.with-jam-settings {
+  padding-left: 280px;
+}
+
+.jam-corner-buttons {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 210;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.jam-corner-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.jam-corner-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.jam-settings-header {
+  gap: 0.6rem;
+  padding: 0.75rem;
+}
+
+.jam-song {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.jam-song-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  color: #fff;
+}
+
+.jam-keys-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 /* Jam tab: part of the page under the app nav, not a full-screen overlay */
