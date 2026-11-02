@@ -454,6 +454,11 @@
   user-select: none;
 }
 
+/* Notes leave at the ship's height, which can be near a row's edge */
+.jam-lanes .lane {
+  overflow: visible;
+}
+
 .jam-dot {
   position: absolute;
   top: 50%;

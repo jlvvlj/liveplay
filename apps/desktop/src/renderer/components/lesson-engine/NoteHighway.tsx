@@ -629,10 +629,27 @@ export function NoteHighway({
       });
   };
 
+  const jamLanesRef = useRef<HTMLDivElement>(null);
+  // Jam cursor height (px from the highway top) and the row it is on; it only
+  // follows the mouse up and down, between the top and bottom row centers
+  const [jamCursorY, setJamCursorY] = useState<{ y: number; note: number | null } | null>(null);
+
+  // How far the ship sits above (-) or below (+) the middle of a note's row, so
+  // its notes leave at the ship's height; 0 when the ship is on another row
+  // (notes from keys or MIDI)
+  const jamShipOffset = (note: number): number => {
+    const lane = jamLanesRef.current?.querySelector<HTMLElement>(`[data-jam-note="${note}"]`);
+    const container = containerRef.current;
+    if (!jamCursorY || !lane || !container) return 0;
+    const rect = lane.getBoundingClientRect();
+    const offset = jamCursorY.y - (rect.top - container.getBoundingClientRect().top + rect.height / 2);
+    return Math.abs(offset) <= rect.height / 2 ? offset : 0;
+  };
+
   // Jam cursor motion, advanced once per clock tick: x is how far right of home
-  // it is, v the leftover push of recent notes. Each note is born at the cursor
-  // x it sounded at (`born`), so the trail shows where the cursor was.
-  const jamCursorRef = useRef<{ time: number | null; x: number; v: number; born: Map<number, number> }>({
+  // it is, v the leftover push of recent notes. Each note is born where the ship
+  // was when it sounded (`born`), so the trail shows where the ship has been.
+  const jamCursorRef = useRef<{ time: number | null; x: number; v: number; born: Map<number, { x: number; dy: number }> }>({
     time: null,
     x: 0,
     v: 0,
@@ -650,7 +667,7 @@ export function NoteHighway({
     for (const jamNote of jamNotes) {
       ids.add(jamNote.id);
       if (jamNote.timeMs > currentTime || jamCursor.born.has(jamNote.id)) continue;
-      jamCursor.born.set(jamNote.id, Math.min(range, Math.max(0, jamCursor.x)));
+      jamCursor.born.set(jamNote.id, { x: Math.min(range, Math.max(0, jamCursor.x)), dy: jamShipOffset(jamNote.note) });
       // Notes that sounded long before this tick (e.g. a remount) leave no push
       if (currentTime - jamNote.timeMs < 250) {
         jamCursor.v += containerWidth * JAM_CURSOR_PUSH * JAM_CURSOR_BURST_DECAY;
@@ -665,7 +682,8 @@ export function NoteHighway({
   }
 
   // Render jam mode dots as the ship's exhaust: each waits at the nozzle, just
-  // behind the ship, until its 16th sounds, then drifts left from there as it fades.
+  // behind the ship and at its height, until its 16th sounds, then drifts left
+  // from there as it fades.
   const renderJamNotes = (laneIndex: number) => {
     const dotSize = noteSize * 0.55;
     const nozzle = JAM_CURSOR_TAIL_PX + dotSize / 2;
@@ -676,15 +694,18 @@ export function NoteHighway({
         const sounded = age >= 0;
         const opacity = sounded ? Math.max(0, 1 - age / JAM_FADE_MS) : 0.5;
         if (opacity === 0) return null;
-        const left = sounded
-          ? jamNote.timeMs * JAM_PIXELS_PER_MS + (jamCursor.born.get(jamNote.id) ?? jamCursor.x)
+        const born = sounded ? jamCursor.born.get(jamNote.id) : undefined;
+        const left = born
+          ? jamNote.timeMs * JAM_PIXELS_PER_MS + born.x
           : currentTime * JAM_PIXELS_PER_MS + jamCursor.x;
+        const dy = born ? born.dy : jamShipOffset(jamNote.note);
         return (
           <div
             key={jamNote.id}
             className={`jam-dot ${sounded ? 'sounded' : 'queued'}`}
             style={{
               left: `${left - nozzle}px`,
+              top: `calc(50% + ${dy}px)`,
               width: `${dotSize}px`,
               height: `${dotSize}px`,
               opacity,
@@ -699,11 +720,6 @@ export function NoteHighway({
   // drag up or down to change pitch
   const jamPointerHeldRef = useRef<boolean>(false);
   const jamPointerNoteRef = useRef<number | null>(null);
-  const jamLanesRef = useRef<HTMLDivElement>(null);
-  // Jam cursor height (px from the highway top) and the row it is on; it only
-  // follows the mouse up and down, between the top and bottom row centers
-  const [jamCursorY, setJamCursorY] = useState<{ y: number; note: number | null } | null>(null);
-
   const jamNoteAt = (clientX: number, clientY: number): number | null => {
     const lane = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('[data-jam-note]');
     return lane ? Number(lane.dataset.jamNote) : jamPointerNoteRef.current;
