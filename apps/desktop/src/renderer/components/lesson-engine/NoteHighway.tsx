@@ -60,6 +60,7 @@ const JAM_CURSOR_PUSH = 0.025; // Distance one note moves it
 const JAM_CURSOR_DRIFT = 0.035; // Speed back home, per second
 const JAM_CURSOR_BURST_DECAY = 8; // 1/s: how fast one push eases out
 const JAM_CURSOR_FULL_THRUST = 6; // Notes per second that show the full engine flame
+const JAM_CURSOR_TAIL_PX = 16; // From the cursor point back to just behind the ship's tail (see .jam-cursor-ship)
 
 export function NoteHighway({
   steps,
@@ -663,10 +664,11 @@ export function NoteHighway({
     }
   }
 
-  // Render jam mode dots: each sits on its pitch row at the 16th it sounds on,
-  // waits just right of the cursor until then, and drifts left as it fades.
+  // Render jam mode dots as the ship's exhaust: each waits at the nozzle, just
+  // behind the ship, until its 16th sounds, then drifts left from there as it fades.
   const renderJamNotes = (laneIndex: number) => {
     const dotSize = noteSize * 0.55;
+    const nozzle = JAM_CURSOR_TAIL_PX + dotSize / 2;
     return jamNotes
       .filter((jamNote) => noteToLane(jamNote.note) === laneIndex)
       .map((jamNote) => {
@@ -674,13 +676,15 @@ export function NoteHighway({
         const sounded = age >= 0;
         const opacity = sounded ? Math.max(0, 1 - age / JAM_FADE_MS) : 0.5;
         if (opacity === 0) return null;
-        const bornX = jamCursor.born.get(jamNote.id) ?? jamCursor.x;
+        const left = sounded
+          ? jamNote.timeMs * JAM_PIXELS_PER_MS + (jamCursor.born.get(jamNote.id) ?? jamCursor.x)
+          : currentTime * JAM_PIXELS_PER_MS + jamCursor.x;
         return (
           <div
             key={jamNote.id}
             className={`jam-dot ${sounded ? 'sounded' : 'queued'}`}
             style={{
-              left: `${jamNote.timeMs * JAM_PIXELS_PER_MS + bornX}px`,
+              left: `${left - nozzle}px`,
               width: `${dotSize}px`,
               height: `${dotSize}px`,
               opacity,
