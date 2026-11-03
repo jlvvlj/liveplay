@@ -270,8 +270,6 @@ export function LessonPlayer({
   const [jamRoomEnded, setJamRoomEnded] = useState<'full' | 'lost' | null>(null);
   const jamRoomRef = useRef<JamRoom | null>(null);
   jamRoomRef.current = jamRoom;
-  const jamRoomPlayersRef = useRef<JamRoomPlayer[]>([]);
-  jamRoomPlayersRef.current = jamRoomPlayers;
   const jamRoomStateRef = useRef<JamRoomState | null>(null);
   jamRoomStateRef.current = jamRoomState;
   const jamRoomStartAt = jamRoomState ? jamRoomState.startAt : null;
@@ -1479,7 +1477,7 @@ export function LessonPlayer({
     const timeMs = slot * sixteenth * 1000;
 
     // The same pitch twice on one 16th sounds once
-    if (jamNotesRef.current.some((n) => !n.color && n.note === row && n.timeMs === timeMs)) return slot;
+    if (jamNotesRef.current.some((n) => !n.peer && n.note === row && n.timeMs === timeMs)) return slot;
     const at = Math.max(start + slot * sixteenth, context.currentTime + JAM_SCHEDULE_MARGIN_S);
     playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, at, step?.semitones);
     room?.sendNote({ song: lesson.id, slot, note: row });
@@ -1499,8 +1497,7 @@ export function LessonPlayer({
     if (!remoteVoicesRef.current?.play(from, note.note, start + slot * sixteenth, jamNotesVolume)) {
       console.warn('[LessonPlayer] A jam room player\'s sound is still being prepared; their note was not played.', { from });
     }
-    const color = jamRoomPlayersRef.current.find((player) => player.id === from)?.color ?? '#ffffff';
-    addJamNote({ note: note.note, timeMs: slot * sixteenth * 1000, color, peer: from }, (audioTimeAt(context) - start) * 1000);
+    addJamNote({ note: note.note, timeMs: slot * sixteenth * 1000, peer: from }, (audioTimeAt(context) - start) * 1000);
   }, [lesson.id, lesson.bpm, jamNotesVolume, addJamNote]);
   const playRemoteJamNoteRef = useRef(playRemoteJamNote);
   playRemoteJamNoteRef.current = playRemoteJamNote;

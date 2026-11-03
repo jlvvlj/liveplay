@@ -6,13 +6,12 @@ import './NoteHighway.css';
 export type HighwayMode = 'free' | 'wait' | 'play' | 'jam';
 
 // A note played in jam mode, already snapped to its 16th (ms on the jam clock).
-// Another player's note in a jam room has their color and id (`peer`); it
-// leaves from their ship.
+// Another player's note in a jam room has their id (`peer`); it leaves from
+// their ship.
 export interface JamNote {
   id: number;
   note: number;
   timeMs: number;
-  color?: string;
   peer?: string;
 }
 
@@ -825,7 +824,7 @@ export function NoteHighway({
               width: `${dotSize}px`,
               height: `${dotSize}px`,
               opacity,
-              color: jamNote.color ?? getLaneColor(laneIndex),
+              color: getLaneColor(laneIndex),
             }}
           />
         );
@@ -914,8 +913,9 @@ export function NoteHighway({
   );
 
   // Jam cursor: a small ship whose engine flame grows with the push of recent
-  // notes. The other players' ships in a jam room are in their colors, named.
-  const renderJamShip = (ship: string, y: number, color: string | undefined, name?: string) => {
+  // notes, in the color of the row it is on. The other players' ships in a jam
+  // room carry their name, on a tag in their color.
+  const renderJamShip = (ship: string, y: number, color: string | undefined, name?: string, tag?: string) => {
     const motion = shipMotion(ship);
     const fullThrust = containerWidth * JAM_CURSOR_PUSH * JAM_CURSOR_FULL_THRUST;
     const thrust = Math.min(1, motion.v / fullThrust);
@@ -928,7 +928,7 @@ export function NoteHighway({
         <div className="jam-cursor-flame" style={{ transform: `translateY(-50%) scaleX(${0.25 + thrust})`, opacity: 0.35 + thrust * 0.65 }} />
         <div className="jam-cursor-ship" />
         {name !== undefined && (
-          <div className="jam-cursor-name" style={{ background: color }}>
+          <div className="jam-cursor-name" style={{ background: tag }}>
             {name}
           </div>
         )}
@@ -936,9 +936,13 @@ export function NoteHighway({
     );
   };
   const renderJamCursor = () => {
+    const rows = jamLanesRef.current?.children;
     const others = jamShips.flatMap((ship) => {
       const y = jamShipYs.get(ship.id);
-      return y === undefined ? [] : [renderJamShip(ship.id, y, ship.color, ship.name)];
+      if (y === undefined || !rows?.length) return [];
+      const row = rows[Math.min(rows.length - 1, Math.max(0, Math.round(ship.row)))] as HTMLElement;
+      const lane = noteToLane(Number(row.dataset.jamNote));
+      return [renderJamShip(ship.id, y, lane >= 0 ? getLaneColor(lane) : undefined, ship.name, ship.color)];
     });
     if (!jamCursorY) return others;
     const lane = jamCursorY.note === null ? -1 : noteToLane(jamCursorY.note);
