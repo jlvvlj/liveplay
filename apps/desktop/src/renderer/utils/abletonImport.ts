@@ -15,10 +15,11 @@ import { Lesson, LessonStep } from '../types/lesson';
 const TICKS_PER_BEAT = 480; // an Ableton beat is a quarter note
 
 export interface AbletonNote {
-  beat: number; // arrangement position, beats
+  beat: number; // arrangement position, beats (where it sits on the highway)
   key: number; // MIDI key
   duration: number; // beats
   velocity: number;
+  audioBeat?: number; // where it sounds in the export, if not exactly on `beat`
 }
 
 export interface AbletonTrack {
@@ -26,6 +27,13 @@ export interface AbletonTrack {
   notes: AbletonNote[];
   sampleName: string | null; // the sample a Simpler on this track plays
   sampleRootKey: number;
+  soundNames?: { [key: number]: string }; // lane names for keys that aren't pitches
+}
+
+/** A file of the project folder, with its path inside that folder. */
+export interface ProjectFile {
+  path: string; // e.g. "Project/Samples/Imported/Kick.wav"
+  file: File;
 }
 
 /** A file of the project folder, with its path inside that folder. */
@@ -40,6 +48,7 @@ export interface AbletonProject {
   tracks: AbletonTrack[]; // MIDI tracks that have notes in the arrangement
   files: ProjectFile[]; // every file in the project folder
   exports: Map<string, File>; // track name -> its exported WAV (MIDI and audio tracks)
+  audioTracks: string[]; // audio tracks: no notes, hits can be detected in their export
 }
 
 const value = (el: Element | null | undefined, selector: string): string | null =>
@@ -133,6 +142,9 @@ export async function readAbletonProject(files: ProjectFile[]): Promise<AbletonP
     tracks,
     files,
     exports: matchExports(files, trackNames),
+    audioTracks: Array.from(liveSet.querySelectorAll(':scope > Tracks > AudioTrack'))
+      .map((track) => value(track, ':scope > Name > EffectiveName'))
+      .filter((name): name is string => !!name),
   };
 }
 
@@ -180,6 +192,72 @@ const TAIL_SECONDS = 2;
 // the group's whole slice, once. Repeats on one key (a roll) never group.
 const GROUP_SECONDS = 0.08;
 
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const noteName = (key: number) => `${NOTE_NAMES[key % 12]}${Math.floor(key / 12) - 2}`; // Ableton: C3 = 60
+
+const CHORD_SHAPES: [string, number[]][] = [
+  ['', [0, 4, 7]],
+  ['m', [0, 3, 7]],
+  ['7', [0, 4, 7, 10]],
+  ['maj7', [0, 4, 7, 11]],
+  ['m7', [0, 3, 7, 10]],
+  ['sus2', [0, 2, 7]],
+  ['sus4', [0, 5, 7]],
+  ['dim', [0, 3, 6]],
+  ['add9', [0, 2, 4, 7]],
+  ['m(add9)', [0, 2, 3, 7]],
+  ['5', [0, 7]],
+];
+
+/** "Fm", "C#maj7", or the note names when the notes aren't a common chord. */
+function chordName(keys: number[]): string {
+  const classes = [...new Set(keys.map((k) => k % 12))];
+  // try the bass note as root first, so inversions read as slash chords
+  const roots = [keys[0] % 12, ...classes.filter((c) => c !== keys[0] % 12)];
+  for (const root of roots) {
+    const shape = classes.map((c) => (c - root + 12) % 12).sort((a, b) => a - b);
+    const match = CHORD_SHAPES.find(([, s]) => s.length === shape.length && s.every((v, i) => v === shape[i]));
+    if (match) {
+      const name = NOTE_NAMES[root] + match[0];
+      return root === keys[0] % 12 ? name : `${name}/${NOTE_NAMES[keys[0] % 12]}`;
+    }
+  }
+  return keys.map(noteName).join(' ');
+}
+
+interface NoteGroup {
+  beat: number; // highway position (first note)
+  audioBeat: number; // where it sounds in the export (first note)
+  keys: number[]; // sorted, distinct
+  duration: number; // beats
+  velocity: number;
+}
+
+/**
+ * Notes on different keys each starting within GROUP_SECONDS of the previous
+ * one form a group: a chord, even strummed. Repeats on one key (a roll)
+ * never group. A single note is a group of one.
+ */
+function groupNotes(notes: AbletonNote[], secondsPerBeat: number): NoteGroup[] {
+  const groups: NoteGroup[] = [];
+  let current: NoteGroup | null = null;
+  let previous = -Infinity;
+  for (const n of notes) {
+    if (!current || (n.beat - previous) * secondsPerBeat > GROUP_SECONDS || current.keys.includes(n.key)) {
+      current = { beat: n.beat, audioBeat: n.audioBeat ?? n.beat, keys: [], duration: 0, velocity: 0 };
+      groups.push(current);
+    }
+    current.keys.push(n.key);
+    current.duration = Math.max(current.duration, n.beat - current.beat + n.duration);
+    current.velocity = Math.max(current.velocity, n.velocity);
+    previous = n.beat;
+  }
+  for (const group of groups) group.keys.sort((a, b) => a - b);
+  return groups;
+}
+
+const LANE_BASE_NOTE = 36; // lanes of export lessons are plain ids: 36, 37, ...
+
 export function abletonTrackToLesson(
   project: AbletonProject,
   track: AbletonTrack,
@@ -187,60 +265,111 @@ export function abletonTrackToLesson(
 ): Lesson {
   const firstBar = lessonStartBeat(track);
   const secondsPerBeat = 60 / project.tempo;
-  const keys = Array.from(new Set(track.notes.map((n) => n.key))).sort((a, b) => a - b);
-  // With an export, each note plays the render from the start of its group
-  // up to the next group: consecutive slices then rebuild the export exactly.
-  const groupStarts: number[] = [];
-  const noteGroup: number[] = []; // track.notes index -> its group's start beat
-  let previous = -Infinity;
-  let groupKeys = new Set<number>();
-  for (const n of track.notes) {
-    if ((n.beat - previous) * secondsPerBeat > GROUP_SECONDS || groupKeys.has(n.key)) {
-      groupStarts.push(n.beat);
-      groupKeys = new Set();
-    }
-    groupKeys.add(n.key);
-    previous = n.beat;
-    noteGroup.push(groupStarts[groupStarts.length - 1]);
+  const tick = (beat: number) => Math.round((beat - firstBar) * TICKS_PER_BEAT);
+  const shared = {
+    id: `ableton-${project.name}-${track.name}`,
+    title: `${track.name} — ${project.name}`,
+    instrument: 'pads' as const,
+    bpm: project.tempo,
+    timeSignature: { numerator: 4, denominator: 4 },
+    ...(urls.backing ? { backingTrack: urls.backing } : {}),
+  };
+  const nameOf = (keys: number[]) => {
+    const sounds = track.soundNames;
+    if (sounds) return keys.map((key) => sounds[key] ?? `Sound ${key - LANE_BASE_NOTE + 1}`).join(' + ');
+    return keys.length > 1 ? chordName(keys) : noteName(keys[0]);
+  };
+
+  if (urls.export) {
+    // Each group is one note on the highway, on one key: the same set of
+    // notes is always the same key, a different chord a different key. It
+    // plays the export from its start to the next group's start, so the
+    // slices rebuild the recording exactly.
+    const groups = groupNotes(track.notes, secondsPerBeat);
+    const shapes = [...new Set(groups.map((g) => g.keys.join(',')))]
+      .map((id) => id.split(',').map(Number))
+      .sort((a, b) => a[0] - b[0] || a.length - b.length || a.join(',').localeCompare(b.join(',')));
+    const laneOf = new Map(shapes.map((keys, lane) => [keys.join(','), lane]));
+    const steps: LessonStep[] = groups.map((g, i) => {
+      const next = groups[i + 1];
+      const seconds =
+        next !== undefined ? (next.audioBeat - g.audioBeat) * secondsPerBeat : g.duration * secondsPerBeat + TAIL_SECONDS;
+      const lane = laneOf.get(g.keys.join(','))!;
+      return {
+        tick: tick(g.beat),
+        note: LANE_BASE_NOTE + lane,
+        dur: Math.max(1, Math.round(g.duration * TICKS_PER_BEAT)),
+        velocity: g.velocity,
+        lane,
+        slice: { offset: g.audioBeat * secondsPerBeat, duration: Math.min(seconds, MAX_SLICE_SECONDS) },
+      };
+    });
+    const chords = shapes.filter((keys) => keys.length > 1).length;
+    return {
+      ...shared,
+      steps,
+      stemAudio: urls.export,
+      laneLabels: Object.fromEntries(
+        shapes.map((keys, lane) => [LANE_BASE_NOTE + lane, shapes.length === 1 && keys.length === 1 ? track.name : nameOf(keys)])
+      ),
+      metadata: {
+        genre: 'Ableton project',
+        tags: ['ableton'],
+        description:
+          `${steps.length} notes from the ${track.name} track of ${project.name}` +
+          (chords > 0 ? `, ${chords} different chords` : ''),
+      },
+    };
   }
 
-  const steps: LessonStep[] = track.notes.map((n, index) => {
-    const step: LessonStep = {
-      tick: Math.round((n.beat - firstBar) * TICKS_PER_BEAT),
+  // Without an export a Simpler plays its sample, transposed per note: every
+  // note keeps its own key.
+  const keys = Array.from(new Set(track.notes.map((n) => n.key))).sort((a, b) => a - b);
+  const steps: LessonStep[] = track.notes.map((n) => {
+    const semitones = n.key - track.sampleRootKey; // Simpler transposes from its root key
+    return {
+      tick: tick(n.beat),
       note: n.key,
       dur: Math.max(1, Math.round(n.duration * TICKS_PER_BEAT)),
       velocity: n.velocity,
       lane: keys.indexOf(n.key),
+      ...(semitones !== 0 ? { semitones } : {}),
     };
-    if (urls.export) {
-      const start = noteGroup[index];
-      const next = groupStarts.find((beat) => beat > start);
-      const seconds =
-        next !== undefined ? (next - start) * secondsPerBeat : n.duration * secondsPerBeat + TAIL_SECONDS;
-      step.slice = { offset: start * secondsPerBeat, duration: Math.min(seconds, MAX_SLICE_SECONDS) };
-    } else {
-      const semitones = n.key - track.sampleRootKey; // Simpler transposes from its root key
-      if (semitones !== 0) step.semitones = semitones;
-    }
-    return step;
   });
-
   return {
-    id: `ableton-${project.name}-${track.name}`,
-    title: `${track.name} — ${project.name}`,
-    instrument: 'pads',
-    bpm: project.tempo,
-    timeSignature: { numerator: 4, denominator: 4 },
+    ...shared,
     steps,
-    ...(urls.export ? { stemAudio: urls.export } : {}),
     ...(urls.sample ? { samples: Object.fromEntries(keys.map((key) => [key, urls.sample!])) } : {}),
-    ...(urls.backing ? { backingTrack: urls.backing } : {}),
-    laneLabels: Object.fromEntries(keys.map((key) => [key, keys.length === 1 ? track.name : `${track.name} ${key}`])),
+    laneLabels: Object.fromEntries(keys.map((key) => [key, keys.length === 1 ? track.name : nameOf([key])])),
     metadata: {
       genre: 'Ableton project',
       tags: ['ableton'],
       description: `${track.notes.length} notes from the ${track.name} track of ${project.name}`,
     },
+  };
+}
+
+/** Hits detected in an audio track's export, as a track: each sound a lane. */
+export function audioTrackFromAnalysis(
+  project: AbletonProject,
+  name: string,
+  analysis: { sounds: { id: number }[]; events: { time: number; audioTime: number; sound: number; velocity: number }[] }
+): AbletonTrack {
+  const secondsPerBeat = 60 / project.tempo;
+  const events = [...analysis.events].sort((a, b) => a.audioTime - b.audioTime);
+  return {
+    name,
+    notes: events.map((e, i) => ({
+      beat: e.time / secondsPerBeat,
+      audioBeat: e.audioTime / secondsPerBeat,
+      key: LANE_BASE_NOTE + e.sound,
+      // at most until the next hit; the sound's real length is measured later
+      duration: Math.min((events[i + 1]?.audioTime ?? e.audioTime + MAX_SLICE_SECONDS) - e.audioTime, MAX_SLICE_SECONDS) / secondsPerBeat,
+      velocity: e.velocity,
+    })),
+    sampleName: null,
+    sampleRootKey: LANE_BASE_NOTE,
+    soundNames: Object.fromEntries(analysis.sounds.map((sound, i) => [LANE_BASE_NOTE + sound.id, `Sound ${i + 1}`])),
   };
 }
 
@@ -310,4 +439,53 @@ function encodeWav(left: Float32Array, right: Float32Array, sampleRate: number, 
     view.setInt16(o + 2, Math.max(-1, Math.min(1, right[i] * gain)) * 0x7fff, true);
   }
   return new Blob([view], { type: 'audio/wav' });
+}
+
+const LENGTH_FRAME_SECONDS = 0.01;
+const LENGTH_THRESHOLD_DB = -24; // a sound lasts until it falls this far below its peak
+
+/**
+ * Sets each note's length to how long its sound actually lasts in the export
+ * (never longer than written), and turns on hold notes for the lesson. Notes
+ * whose sound is long are then drawn at their length and must be held.
+ */
+export async function withSoundLengths(lesson: Lesson, exportFile: File): Promise<Lesson> {
+  const decoder = new OfflineAudioContext(1, 1, 44100);
+  const audio = await decoder.decodeAudioData(await exportFile.arrayBuffer());
+  const rate = audio.sampleRate;
+  const channels = Array.from({ length: audio.numberOfChannels }, (_, c) => audio.getChannelData(c));
+  const frame = Math.round(LENGTH_FRAME_SECONDS * rate);
+  const ratio = 10 ** (LENGTH_THRESHOLD_DB / 20);
+  const secondsPerTick = 60 / (lesson.bpm * TICKS_PER_BEAT);
+
+  const soundSeconds = (offset: number, duration: number): number => {
+    const start = Math.round(offset * rate);
+    const end = Math.min(Math.round((offset + duration) * rate), audio.length);
+    const levels: number[] = [];
+    for (let i = start; i < end; i += frame) {
+      let sum = 0;
+      const stop = Math.min(i + frame, end);
+      for (let j = i; j < stop; j++) {
+        let v = 0;
+        for (const data of channels) v += data[j];
+        v /= channels.length;
+        sum += v * v;
+      }
+      levels.push(Math.sqrt(sum / Math.max(stop - i, 1)));
+    }
+    const peak = Math.max(0, ...levels);
+    if (peak === 0) return 0;
+    let last = 0;
+    levels.forEach((level, k) => {
+      if (level >= peak * ratio) last = k;
+    });
+    return (last + 1) * LENGTH_FRAME_SECONDS;
+  };
+
+  const steps = lesson.steps.map((step) => {
+    if (!step.slice) return step;
+    const seconds = Math.min(step.dur * secondsPerTick, soundSeconds(step.slice.offset, step.slice.duration));
+    return { ...step, dur: Math.max(1, Math.round(seconds / secondsPerTick)) };
+  });
+  return { ...lesson, steps, holdNotes: true };
 }

@@ -8,6 +8,7 @@ import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
 import { JAM_TRACKS, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
 import { renderJamBackingPart, renderJamSound } from './jamRenderer';
+import { jamSoundUrl } from './jamSoundFiles';
 import {
   JamBackingMixer,
   defaultJamTrackMix,
@@ -29,6 +30,7 @@ import { audioTimeAt, hitSlot, remoteNoteSlot } from './jamClock';
 import { JamRoom, newJamRoomCode, type JamRoomPlayer } from './jamRoom';
 import { JAM_ROOM_CODE, type JamRoomNote, type JamRoomSound, type JamRoomState } from './jamRoomProtocol';
 import { JamRemoteVoices } from './jamRemoteVoices';
+import { holdToleranceMs, isHoldStep, stepDurationMs } from './holdNotes';
 import './LessonPlayer.css';
 
 interface LessonPlayerProps {
@@ -107,7 +109,7 @@ function validTrackEdits(saved: unknown): Record<string, JamTrackEdit> {
   return Object.fromEntries(
     Object.entries(saved as Record<string, JamTrackEdit>).filter(([file, edit]) => {
       const track = JAM_TRACKS.find((candidate) => candidate.file === file);
-      const partCount = track ? track.drums.length + track.layers.length : -1;
+      const partCount = track ? jamTrackParts(track).length : -1;
       return Array.isArray(edit?.parts) && edit.parts.length === partCount && Array.isArray(edit.divisions);
     })
   );
@@ -118,7 +120,7 @@ function validTrackMixes(saved: unknown): Record<string, JamTrackMix> {
   return Object.fromEntries(
     Object.entries(saved as Record<string, JamTrackMix>).filter(([file, mix]) => {
       const track = JAM_TRACKS.find((candidate) => candidate.file === file);
-      const partCount = track ? track.drums.length + track.layers.length : -1;
+      const partCount = track ? jamTrackParts(track).length : -1;
       return [mix?.levels, mix?.mutes, mix?.solos].every((list) => Array.isArray(list) && list.length === partCount);
     })
   );
@@ -267,6 +269,7 @@ export function LessonPlayer({
   const jamPatch = jamSettings ? jamSettings.patches[jamSettings.soundId] : undefined;
   const jamKitPreset = jamSounds?.find((sound) => sound.id === jamSettings?.soundId);
   const jamKit = jamKitPreset && 'kit' in jamKitPreset ? jamKitPreset.kit : undefined;
+  const jamRecorded = jamKitPreset && 'sounds' in jamKitPreset ? jamKitPreset.sounds : undefined;
 
   // Jam tab: recorded reference sounds on this machine, if any
   const [jamReferenceSounds, setJamReferenceSounds] = useState<JamSampleSound[] | null>(null);
@@ -289,10 +292,10 @@ export function LessonPlayer({
   // A remembered reference sound that is no longer on this machine: back to the first preset
   useEffect(() => {
     if (!jamSettings || !jamSounds?.length || jamReferenceSounds === null) return;
-    if (!jamSettings.patches[jamSettings.soundId] && !jamKit && !jamReference) {
+    if (!jamSettings.patches[jamSettings.soundId] && !jamKit && !jamRecorded && !jamReference) {
       setJamSettings({ ...jamSettings, soundId: jamSounds[0].id });
     }
-  }, [jamSettings, jamSounds, jamReferenceSounds, jamReference, jamKit]);
+  }, [jamSettings, jamSounds, jamReferenceSounds, jamReference, jamKit, jamRecorded]);
 
   // The chosen synth sound or kit is rendered into one clip per note,
   // re-rendered shortly after its settings stop changing
@@ -300,6 +303,12 @@ export function LessonPlayer({
   useEffect(() => {
     if (jamReference) setJamSamples(jamReference.samples);
   }, [jamReference]);
+  // Recorded sounds play on the rows from the lowest up
+  useEffect(() => {
+    if (!jamRecorded) return;
+    const rows = Array.from(new Set(lessonProp.steps.map((s) => s.note))).sort((a, b) => a - b);
+    setJamSamples(Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(jamRecorded[row % jamRecorded.length])])));
+  }, [jamRecorded, lessonProp.steps]);
   useEffect(() => {
     const source = jamKit ? { kit: jamKit } : jamPatch ? { patch: jamPatch } : null;
     if (!source) return;
@@ -569,6 +578,29 @@ export function LessonPlayer({
   // Song lessons: pooled players for triggering overlapping regions of the stem file.
   const stemPlayersRef = useRef<Tone.Player[]>([]);
   const lastSliceRef = useRef<{ offset: number; at: number } | null>(null);
+
+  // Hold notes whose key is down, by lesson note. Their sound stops on
+  // release unless the hold already reached its end (`done`).
+  interface HeldNote {
+    stepIndex: number | null; // the chart note being held, if any
+    player?: Tone.Player;
+    timer?: number; // free/wait modes: completes the hold at its end
+    done: boolean;
+  }
+  const heldNotesRef = useRef<Map<number, HeldNote>>(new Map());
+  const [holdingSteps, setHoldingSteps] = useState<Set<number>>(new Set());
+  const setHolding = (stepIndex: number, holding: boolean) =>
+    setHoldingSteps((prev) => {
+      const next = new Set(prev);
+      if (holding) next.add(stepIndex);
+      else next.delete(stepIndex);
+      return next;
+    });
+  const releaseAllHolds = () => {
+    heldNotesRef.current.forEach((held) => window.clearTimeout(held.timer));
+    heldNotesRef.current.clear();
+    setHoldingSteps(new Set());
+  };
   const nextStemPlayerRef = useRef<number>(0);
   const stemPlayerLoadedRef = useRef<boolean>(false);
 
@@ -1258,7 +1290,7 @@ export function LessonPlayer({
     slice?: { offset: number; duration: number },
     startTime?: number,
     semitones?: number
-  ) => {
+  ): Tone.Player | undefined => {
     // Song lessons must play the step's own region of the original stem.
     if (lesson.stemAudio) {
       if (!slice) {
@@ -1299,7 +1331,7 @@ export function LessonPlayer({
             : -6 + (volumeOverride - 1) * 20
           : -6;
       player.start(startTime, slice.offset, slice.duration);
-      return;
+      return player;
     }
 
     // The note to play (use sampleNote if provided, for lesson step matching)
@@ -1352,7 +1384,7 @@ export function LessonPlayer({
       // pooled players are reused, so always (re)set the pitch shift
       samplePlayer.playbackRate = semitones ? 2 ** (semitones / 12) : 1;
       samplePlayer.start(startTime);
-      return;
+      return samplePlayer;
     }
 
     if (lesson.metadata?.tags?.includes('song')) {
@@ -1685,7 +1717,7 @@ export function LessonPlayer({
           lesson.steps.find((step) => step.note === translatedNote) ??
           null;
       }
-      playSound(
+      const player = playSound(
         translatedNote,
         soundStep?.note,
         undefined,
@@ -1694,7 +1726,25 @@ export function LessonPlayer({
         soundStep?.semitones
       );
 
-      if (isCorrectNext) {
+      if (soundStep && isHoldStep(lesson, soundStep)) {
+        // A long sound plays only while its key is down. The next note counts
+        // as played once it has been held to its end.
+        const held: HeldNote = { stepIndex: isCorrectNext ? nextStepIndex : null, player, done: false };
+        if (isCorrectNext) {
+          const durationMs = stepDurationMs(soundStep, lesson.bpm);
+          const stepIndex = nextStepIndex;
+          held.timer = window.setTimeout(() => {
+            held.done = true;
+            setHolding(stepIndex, false);
+            setPlayedNotes((prev) => {
+              const next = new Set(prev).add(stepIndex);
+              return next.size >= lesson.steps.length ? new Set() : next;
+            });
+          }, durationMs - holdToleranceMs(durationMs));
+          setHolding(stepIndex, true);
+        }
+        heldNotesRef.current.set(translatedNote, held);
+      } else if (isCorrectNext) {
         const newPlayedNotes = new Set(playedNotes).add(nextStepIndex);
 
         // Check if all notes are played - loop immediately for seamless play
@@ -1709,10 +1759,27 @@ export function LessonPlayer({
       const currentStep = lesson.steps[waitModeStepIndex];
       if (currentStep && translatedNote === currentStep.note) {
         // Correct note - play sound with the step's note for sample lookup
-        playSound(translatedNote, currentStep.note, undefined, currentStep.slice, undefined, currentStep.semitones);
+        const player = playSound(translatedNote, currentStep.note, undefined, currentStep.slice, undefined, currentStep.semitones);
 
-        // Check if this was the last note - loop immediately for seamless play
-        if (waitModeStepIndex >= lesson.steps.length - 1) {
+        if (isHoldStep(lesson, currentStep)) {
+          // A long sound must be held to its end before the lesson moves on
+          const stepIndex = waitModeStepIndex;
+          const durationMs = stepDurationMs(currentStep, lesson.bpm);
+          const held: HeldNote = { stepIndex, player, done: false };
+          held.timer = window.setTimeout(() => {
+            held.done = true;
+            setHolding(stepIndex, false);
+            if (stepIndex >= lesson.steps.length - 1) {
+              setPlayedNotes(new Set());
+              setWaitModeStepIndex(0);
+            } else {
+              setPlayedNotes((prev) => new Set(prev).add(stepIndex));
+              setWaitModeStepIndex(stepIndex + 1);
+            }
+          }, durationMs - holdToleranceMs(durationMs));
+          heldNotesRef.current.set(translatedNote, held);
+          setHolding(stepIndex, true);
+        } else if (waitModeStepIndex >= lesson.steps.length - 1) {
           setPlayedNotes(new Set());
           setWaitModeStepIndex(0);
         } else {
@@ -1731,7 +1798,12 @@ export function LessonPlayer({
         const playableStep = getPlayableStepForInput(translatedNote, lessonTimeSeconds);
 
         if (!lesson.stemAudio || playableStep) {
-          playSound(translatedNote, playableStep?.note, undefined, playableStep?.slice, undefined, playableStep?.semitones);
+          const player = playSound(translatedNote, playableStep?.note, undefined, playableStep?.slice, undefined, playableStep?.semitones);
+          if (playableStep && isHoldStep(lesson, playableStep)) {
+            // the engine scores the hold (onHoldStart/onHoldEnd); the sound
+            // stops on release unless the hold reached its end
+            heldNotesRef.current.set(translatedNote, { stepIndex: null, player, done: false });
+          }
         }
 
         engineRef.current.processNote(translatedNote, timestamp);
@@ -1747,6 +1819,24 @@ export function LessonPlayer({
       });
     }, 200);
   }, [deviceMapping, currentMode, waitModeStepIndex, lesson.steps, lesson.stemAudio, playedNotes, getPlayableStepForInput, disabledNotes, playJamNote]);
+
+  // A key or pad was released: a hold note let go before its end stops
+  // sounding and does not count.
+  const handleNoteRelease = useCallback((hardwareNote: number) => {
+    const note = deviceMapping?.mappings[hardwareNote] ?? hardwareNote;
+    const held = heldNotesRef.current.get(note);
+    if (held) {
+      heldNotesRef.current.delete(note);
+      window.clearTimeout(held.timer);
+      if (!held.done) {
+        held.player?.stop();
+        if (held.stepIndex !== null) setHolding(held.stepIndex, false);
+      }
+    }
+    engineRef.current?.processNoteOff(note);
+  }, [deviceMapping]);
+  const handleNoteReleaseRef = useRef(handleNoteRelease);
+  handleNoteReleaseRef.current = handleNoteRelease;
 
   useEffect(() => {
     // Initialize engine
@@ -1771,6 +1861,20 @@ export function LessonPlayer({
         setFinalScore(finalScore);
         setShowCompletion(true);
       },
+      onHoldStart: (stepIndex, step) => {
+        const held = heldNotesRef.current.get(step.note);
+        if (held) held.stepIndex = stepIndex;
+        setHolding(stepIndex, true);
+      },
+      onHoldEnd: (stepIndex, completed) => {
+        if (completed) {
+          // held to the end: let the sound finish even if the key is released now
+          heldNotesRef.current.forEach((held) => {
+            if (held.stepIndex === stepIndex) held.done = true;
+          });
+        }
+        setHolding(stepIndex, false);
+      },
     });
 
     engine.loadLesson(lesson);
@@ -1785,7 +1889,8 @@ export function LessonPlayer({
         if (event.type === 'noteon' && event.velocity > 0) {
           handleNoteInput(event.note, engineRef.current?.getCurrentTimeSeconds() ?? 0);
         } else if (event.type === 'noteoff' || (event.type === 'noteon' && event.velocity === 0)) {
-          // Handle note off - remove from active pads
+          // Handle note off - remove from active pads, end any hold
+          handleNoteReleaseRef.current(event.note);
           const translatedNote = translateMidiNote(event.note);
           setActivePads((prev) => {
             const newSet = new Set(prev);
@@ -1849,6 +1954,7 @@ export function LessonPlayer({
       const note = keyBindings[e.key.toLowerCase()];
       if (note !== undefined) {
         e.preventDefault();
+        handleNoteReleaseRef.current(note);
         // Remove from active pads
         setActivePads((prev) => {
           const newSet = new Set(prev);
@@ -1943,6 +2049,7 @@ export function LessonPlayer({
   );
 
   const resetRunState = () => {
+    releaseAllHolds();
     setPlayedNotes(new Set());
     setWaitModeStepIndex(0);
     setRecentFeedback([]);
@@ -2479,6 +2586,8 @@ export function LessonPlayer({
             jamNotes={jamNotes}
             onJamPointer={currentMode === 'jam' ? handleJamPointer : undefined}
             onJamCursorNote={currentMode === 'jam' ? handleJamCursorNote : undefined}
+            holdNotes={!!lesson.holdNotes}
+            holdingSteps={holdingSteps}
             onNoteReached={isGameMode ? handleNoteReached : undefined}
           />
         )}

@@ -1,3 +1,4 @@
+import { SOFTER_SOUNDS } from './jamSofter';
 import {
   DEFAULT_PATCH,
   PARAMS,
@@ -47,7 +48,9 @@ export interface JamDrum {
 export type JamSoundPreset =
   | { id: string; label: string; patch: JamSynthPatch }
   // A kit plays one drum per row, from the lowest row up
-  | { id: string; label: string; kit: JamDrum[] };
+  | { id: string; label: string; kit: JamDrum[] }
+  // One recorded sound (a file in softer/) per row, from the lowest row up
+  | { id: string; label: string; sounds: string[] };
 
 const SAMPLE_RATE = 44100;
 const VELOCITY = 110;
@@ -240,6 +243,8 @@ export const JAM_SOUND_PRESETS: JamSoundPreset[] = [
       gated(0.13, drum(0.25, hit({ frequency: 180, sweep: 620, sweepDecay: 0.018, toneLevel: 1, toneDecay: 0.3, noiseLevel: 0 }, { drive: 0.4 }))),
     ],
   },
+  // A sound from every track of the song Softer, in the song's order
+  { id: 'softer', label: 'Softer', sounds: SOFTER_SOUNDS },
 ];
 
 export const SYNTH_FAMILIES: SynthFamily[] = FAMILIES;

@@ -1,5 +1,6 @@
 import * as Tone from 'tone';
 import { renderJamSound } from './jamRenderer';
+import { jamSoundUrl } from './jamSoundFiles';
 import type { JamSampleSound, JamSoundPreset } from './jamSynth';
 import type { JamRoomSound } from './jamRoomProtocol';
 
@@ -39,7 +40,11 @@ export class JamRemoteVoices {
     const reference = sound ? references.find((candidate) => candidate.id === sound.id) : undefined;
     let samples: { [note: number]: string };
     let blobs: string[] = [];
-    if (preset) {
+    if (preset && 'sounds' in preset) {
+      // Recorded sounds play on the rows from the lowest up
+      const rows = [...notes].sort((a, b) => a - b);
+      samples = Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(preset.sounds[row % preset.sounds.length])]));
+    } else if (preset) {
       samples = await renderJamSound('kit' in preset ? { kit: preset.kit } : { patch: sound?.patch ?? preset.patch }, notes);
       blobs = Object.values(samples);
     } else if (reference) {

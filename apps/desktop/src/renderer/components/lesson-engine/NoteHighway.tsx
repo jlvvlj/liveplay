@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState, useMemo, type PointerEvent as ReactPointerEvent } from 'react';
 import { LessonStep, HitFeedback } from '../../types/lesson';
+import { HOLD_MIN_MS, stepDurationMs } from './holdNotes';
 import './NoteHighway.css';
 
 export type HighwayMode = 'free' | 'wait' | 'play' | 'jam';
@@ -32,6 +33,8 @@ interface NoteHighwayProps {
   jamNotes?: JamNote[]; // Notes played in jam mode
   onJamPointer?: (note: number | null) => void; // Jam mode: pitch under a held pointer, null on release
   onJamCursorNote?: (note: number) => void; // Jam mode: the row the ship moved to
+  holdNotes?: boolean; // long sounds are drawn as long as they last and must be held
+  holdingSteps?: Set<number>; // hold notes whose key is down right now
 }
 
 interface NoteHitState {
@@ -65,6 +68,7 @@ const JAM_CURSOR_DRIFT = 0.07; // Speed back home, per second
 const JAM_CURSOR_BURST_DECAY = 8; // 1/s: how fast one push eases out
 const JAM_CURSOR_FULL_THRUST = 6; // Notes per second that show the full engine flame
 const JAM_CURSOR_TAIL_PX = 16; // From the cursor point back to just behind the ship's tail (see .jam-cursor-ship)
+const COLLAPSED_NOTE_SIZE = 100; // collapsed-lane notes keep the CSS default size
 
 export function NoteHighway({
   steps,
@@ -82,6 +86,8 @@ export function NoteHighway({
   jamNotes = [],
   onJamPointer,
   onJamCursorNote,
+  holdNotes = false,
+  holdingSteps,
 }: NoteHighwayProps) {
   const [noteHitStates, setNoteHitStates] = useState<Map<number, NoteHitState>>(new Map());
   const [timingPopups, setTimingPopups] = useState<TimingPopup[]>([]);
@@ -157,6 +163,34 @@ export function NoteHighway({
     steps.map(step => ticksToMs(step.tick)),
     [steps, bpm]
   );
+
+  // Hold notes: how long each one's sound lasts (0 for ordinary notes)
+  const holdMs = useMemo(
+    () => steps.map((step) => {
+      if (!holdNotes) return 0;
+      const ms = stepDurationMs(step, bpm);
+      return ms >= HOLD_MIN_MS ? ms : 0;
+    }),
+    [steps, bpm, holdNotes]
+  );
+
+  // A hold note is a rectangle from its start to the end of its sound: its
+  // head sits where an ordinary note would, the tail runs to the end time.
+  const holdStyle = (stepIndex: number, size: number) => {
+    const ms = holdMs[stepIndex];
+    if (!ms) return {};
+    return {
+      width: `${size + ms * PIXELS_PER_MS}px`,
+      transform: `translateY(-50%) translateX(-${size / 2}px)`,
+    };
+  };
+  const holdClass = (stepIndex: number) =>
+    holdMs[stepIndex] ? ` hold${holdingSteps?.has(stepIndex) ? ' holding' : ''}` : '';
+  // Fills over the hold's duration while its key is down
+  const holdFill = (stepIndex: number) =>
+    holdMs[stepIndex] && holdingSteps?.has(stepIndex) ? (
+      <span className="hold-fill" style={{ animationDuration: `${holdMs[stepIndex]}ms` }} />
+    ) : null;
 
   // Get total duration of the song
   const totalDuration = useMemo(() => {
@@ -243,8 +277,8 @@ export function NoteHighway({
       let hasChanges = false;
 
       steps.forEach((_, stepIndex) => {
-        // Skip if already has a hit state
-        if (newStates.has(stepIndex)) return;
+        // Skip if already has a hit state, or is a hold note still being held
+        if (newStates.has(stepIndex) || holdingSteps?.has(stepIndex)) return;
 
         const stepTime = stepTimes[stepIndex];
         const timePassed = currentTime - stepTime;
@@ -261,7 +295,7 @@ export function NoteHighway({
 
       return hasChanges ? newStates : prev;
     });
-  }, [mode, currentTime, steps, stepTimes, noteSize]);
+  }, [mode, currentTime, steps, stepTimes, noteSize, holdingSteps]);
 
   // Notify when notes reach the hit zone
   useEffect(() => {
@@ -416,16 +450,26 @@ export function NoteHighway({
   // Calculate note position in pixels (equal spacing, index-based) for free/wait modes
   // Notes are positioned from left to right with margin on both sides
   const HIGHWAY_MARGIN = 160; // Margin from edges
+  // Equal spacing, plus room for each hold note's length
+  const freeWaitPositions = useMemo(() => {
+    let x = HIGHWAY_MARGIN;
+    return steps.map((_, i) => {
+      const position = x;
+      x += NOTE_SPACING_PX + holdMs[i] * PIXELS_PER_MS;
+      return position;
+    });
+  }, [steps, holdMs]);
   const getFreeWaitPixelPosition = (stepIndex: number): number => {
-    return HIGHWAY_MARGIN + stepIndex * NOTE_SPACING_PX;
+    return freeWaitPositions[stepIndex] ?? HIGHWAY_MARGIN + stepIndex * NOTE_SPACING_PX;
   };
 
   // Smooth scroll offset based on progress
   const freeWaitScrollOffset = useMemo(() => {
     const targetStep = mode === 'wait' ? currentStepIndex : playedSteps.size;
     // Start scrolling after 6 notes, keep current note visible on left side
-    return Math.max(0, targetStep - 6) * NOTE_SPACING_PX;
-  }, [mode, currentStepIndex, playedSteps.size]);
+    const anchor = Math.max(0, targetStep - 6);
+    return (freeWaitPositions[anchor] ?? HIGHWAY_MARGIN) - HIGHWAY_MARGIN;
+  }, [mode, currentStepIndex, playedSteps.size, freeWaitPositions]);
 
   // Check if note should be rendered (performance optimization)
   // Show ALL notes from the beginning up to some distance ahead of current position
@@ -471,7 +515,7 @@ export function NoteHighway({
         const timingClass = getTimingClass(hitState);
         const offTiming = isOffTimingHit(hitState);
 
-        let noteClass = 'note scrolling-note';
+        let noteClass = 'note scrolling-note' + holdClass(stepIndex);
         if (hitState?.hit) noteClass += ' hit';
         if (hitState?.accuracy === 'miss') noteClass += ' miss';
         if (timingClass) noteClass += ` ${timingClass}`;
@@ -489,19 +533,22 @@ export function NoteHighway({
                 opacity: offTiming ? opacity * OFF_TIMING_NOTE_OPACITY : opacity,
                 width: `${noteSize}px`,
                 height: `${noteSize}px`,
+                ...holdStyle(stepIndex, noteSize),
                 ...(shouldApplyColor && { backgroundColor: getLaneColor(laneIndex) }),
               }}
             >
+              {holdFill(stepIndex)}
               {label && <span className="note-label" style={{ fontSize: `${noteFontSize}px` }}>{label}</span>}
             </div>
             {offTiming && (
               <div
-                className={`note scrolling-note ghost-hit ${timingClass}${label ? ' has-label' : ''}`}
+                className={`note scrolling-note ghost-hit ${timingClass}${label ? ' has-label' : ''}${holdClass(stepIndex)}`}
                 style={{
                   left: `${pixelPosition + hitState!.deltaMs! * PIXELS_PER_MS}px`,
                   opacity,
                   width: `${noteSize}px`,
                   height: `${noteSize}px`,
+                  ...holdStyle(stepIndex, noteSize),
                 }}
               >
                 {label && <span className="note-label" style={{ fontSize: `${noteFontSize}px` }}>{label}</span>}
@@ -526,7 +573,7 @@ export function NoteHighway({
         const label = getNoteLabel(step.note);
         const pixelPosition = getFreeWaitPixelPosition(stepIndex);
 
-        let noteClass = 'note scrolling-note';
+        let noteClass = 'note scrolling-note' + holdClass(stepIndex);
         if (isPlayed) noteClass += ' played';
         else if (isCurrent) noteClass += ' current';
         else if (isGrayed) noteClass += ' grayed';
@@ -540,9 +587,11 @@ export function NoteHighway({
               left: `${pixelPosition}px`,
               width: `${noteSize}px`,
               height: `${noteSize}px`,
+              ...holdStyle(stepIndex, noteSize),
               backgroundColor: isPlayed ? undefined : getLaneColor(laneIndex),
             }}
           >
+            {holdFill(stepIndex)}
             {label && <span className="note-label" style={{ fontSize: `${noteFontSize}px` }}>{label}</span>}
           </div>
         );
@@ -562,7 +611,7 @@ export function NoteHighway({
         const label = getNoteLabel(step.note);
         const pixelPosition = getFreeWaitPixelPosition(stepIndex);
 
-        let noteClass = 'note scrolling-note';
+        let noteClass = 'note scrolling-note' + holdClass(stepIndex);
         if (isPlayed) noteClass += ' played';
         else if (isCurrent) noteClass += ' current';
         else if (isGrayed) noteClass += ' grayed';
@@ -574,9 +623,11 @@ export function NoteHighway({
             className={noteClass}
             style={{
               left: `${pixelPosition}px`,
+              ...holdStyle(stepIndex, COLLAPSED_NOTE_SIZE),
               backgroundColor: isPlayed ? undefined : getLaneColor(laneIndex),
             }}
           >
+            {holdFill(stepIndex)}
             {label && <span className="note-label" style={{ fontSize: `${collapsedFontSize}px` }}>{label}</span>}
           </div>
         );
@@ -597,7 +648,7 @@ export function NoteHighway({
         const timingClass = getTimingClass(hitState);
         const offTiming = isOffTimingHit(hitState);
 
-        let noteClass = 'note scrolling-note';
+        let noteClass = 'note scrolling-note' + holdClass(stepIndex);
         if (hitState?.hit) noteClass += ' hit';
         if (hitState?.accuracy === 'miss') noteClass += ' miss';
         if (timingClass) noteClass += ` ${timingClass}`;
@@ -613,17 +664,20 @@ export function NoteHighway({
               style={{
                 left: `${pixelPosition}px`,
                 opacity: offTiming ? opacity * OFF_TIMING_NOTE_OPACITY : opacity,
+                ...holdStyle(stepIndex, COLLAPSED_NOTE_SIZE),
                 ...(shouldApplyColor && { backgroundColor: getLaneColor(laneIndex) }),
               }}
             >
+              {holdFill(stepIndex)}
               {label && <span className="note-label" style={{ fontSize: `${collapsedFontSize}px` }}>{label}</span>}
             </div>
             {offTiming && (
               <div
-                className={`note scrolling-note ghost-hit ${timingClass}${label ? ' has-label' : ''}`}
+                className={`note scrolling-note ghost-hit ${timingClass}${label ? ' has-label' : ''}${holdClass(stepIndex)}`}
                 style={{
                   left: `${pixelPosition + hitState!.deltaMs! * PIXELS_PER_MS}px`,
                   opacity,
+                  ...holdStyle(stepIndex, COLLAPSED_NOTE_SIZE),
                 }}
               >
                 {label && <span className="note-label" style={{ fontSize: `${collapsedFontSize}px` }}>{label}</span>}

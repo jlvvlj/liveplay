@@ -1,5 +1,5 @@
 import type { JamSoundSource } from './jamSynth';
-import type { JamTrackNote } from './jamTracks';
+import { JAM_TRACKS, type JamTrackNote } from './jamTracks';
 
 // Renders Jam sounds and backing-track parts in workers, so long renders never
 // stall the highway. A part's notes are split over several workers and the
@@ -59,8 +59,16 @@ export async function renderJamSound(source: JamSoundSource, notes: number[]): P
 }
 
 // One part of a backing track's loop, unscaled (as jamTrackParts orders the
-// parts). Its distinct notes are dealt out to the workers, longest first.
+// parts). Its distinct notes are dealt out to the workers, longest first. A
+// recorded part is only mixed, and its hits cut each other short, so one
+// worker does all of it.
 export async function renderJamBackingPart(trackFile: string, part: number, notes: JamTrackNote[]): Promise<JamPartAudio> {
+  const track = JAM_TRACKS.find((candidate) => candidate.file === trackFile);
+  if (track?.sampled && part >= track.drums.length + track.layers.length) {
+    const reply = await request({ trackFile, part, notes });
+    if (!reply.part) throw new Error(`No audio for ${trackFile} part ${part}`);
+    return reply.part;
+  }
   const groups = new Map<string, JamTrackNote[]>();
   for (const note of notes) {
     const key = `${note.pitch}|${note.length}|${note.velocity}`;
