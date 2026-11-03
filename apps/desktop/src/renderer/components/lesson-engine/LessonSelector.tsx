@@ -13,6 +13,15 @@ import {
   readAbletonProject,
   renderBacking,
 } from '../../utils/abletonImport';
+import {
+  SavedProject,
+  allowReading,
+  canRememberFolders,
+  listSavedProjects,
+  pickAndSaveProject,
+  readFolder,
+  removeSavedProject,
+} from '../../utils/abletonLibrary';
 import './LessonSelector.css';
 
 interface LessonSelectorProps {
@@ -222,34 +231,94 @@ export function LessonSelector({ onLessonSelect, onSongSelect, onSongEdit, onSon
   const [songsError, setSongsError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Ableton projects are read in the browser from a picked folder
+  // Ableton projects are read in the browser from their folder. Where the
+  // browser can remember folders (Chrome, Edge) each project gets its own
+  // card that survives reloads; elsewhere a picked folder lasts until reload.
+  const UNSAVED = 'unsaved';
   const abletonInputRef = useRef<HTMLInputElement>(null);
-  const [abletonProject, setAbletonProject] = useState<AbletonProject | null>(null);
-  const [abletonReading, setAbletonReading] = useState(false);
-  const [abletonError, setAbletonError] = useState<string | null>(null);
+  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
+  const [openProjects, setOpenProjects] = useState<Record<string, AbletonProject>>({});
+  const [abletonBusy, setAbletonBusy] = useState<string | null>(null); // project id being read
+  const [abletonErrors, setAbletonErrors] = useState<Record<string, string>>({});
+  const [abletonPreparing, setAbletonPreparing] = useState<string | null>(null); // `${projectId}:${track}`
   useEffect(() => {
     // folder picking isn't a typed React prop
     abletonInputRef.current?.setAttribute('webkitdirectory', '');
   });
 
-  const handleAbletonFolder = async (files: File[]) => {
-    setAbletonReading(true);
-    setAbletonError(null);
+  const setAbletonError = (id: string, message: string | null) =>
+    setAbletonErrors((prev) => {
+      const next = { ...prev };
+      if (message) next[id] = message;
+      else delete next[id];
+      return next;
+    });
+
+  const readProject = async (id: string, read: () => Promise<AbletonProject>) => {
+    setAbletonBusy(id);
+    setAbletonError(id, null);
     try {
-      setAbletonProject(await readAbletonProject(files));
+      const project = await read();
+      setOpenProjects((prev) => ({ ...prev, [id]: project }));
     } catch (error) {
-      setAbletonProject(null);
-      setAbletonError(error instanceof Error ? error.message : String(error));
+      setAbletonError(id, error instanceof Error ? error.message : String(error));
     } finally {
-      setAbletonReading(false);
+      setAbletonBusy(null);
     }
   };
 
-  const [abletonPreparing, setAbletonPreparing] = useState<string | null>(null);
+  // Re-read from disk on every open, so new exports are picked up.
+  const openSavedProject = (saved: SavedProject) =>
+    readProject(saved.id, async () => {
+      await allowReading(saved);
+      return readAbletonProject(await readFolder(saved.handle));
+    });
 
-  const playAbletonTrack = async (project: AbletonProject, track: AbletonTrack) => {
-    setAbletonPreparing(track.name);
-    setAbletonError(null);
+  // Remembered projects come back after a reload. Those the browser still
+  // lets us read open straight away; the others open on click.
+  useEffect(() => {
+    if (!canRememberFolders()) return;
+    listSavedProjects()
+      .then(async (saved) => {
+        setSavedProjects(saved);
+        for (const project of saved) {
+          const handle = project.handle as unknown as { queryPermission(d: { mode: 'read' }): Promise<PermissionState> };
+          if ((await handle.queryPermission({ mode: 'read' })) === 'granted') openSavedProject(project);
+        }
+      })
+      .catch((error) => setAbletonError(UNSAVED, `Could not load saved projects: ${error}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleOpenAbleton = async () => {
+    if (abletonBusy) return;
+    if (!canRememberFolders()) {
+      abletonInputRef.current?.click();
+      return;
+    }
+    try {
+      const saved = await pickAndSaveProject();
+      if (!saved) return; // picker dismissed
+      setSavedProjects(await listSavedProjects());
+      await openSavedProject(saved);
+    } catch (error) {
+      setAbletonError(UNSAVED, error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const handleRemoveProject = async (saved: SavedProject) => {
+    await removeSavedProject(saved.id);
+    setSavedProjects((prev) => prev.filter((p) => p.id !== saved.id));
+    setOpenProjects((prev) => {
+      const next = { ...prev };
+      delete next[saved.id];
+      return next;
+    });
+  };
+
+  const playAbletonTrack = async (projectId: string, project: AbletonProject, track: AbletonTrack) => {
+    setAbletonPreparing(`${projectId}:${track.name}`);
+    setAbletonError(projectId, null);
     try {
       const exported = project.exports.get(track.name);
       const sample = exported ? null : findSampleFile(project, track);
@@ -262,11 +331,40 @@ export function LessonSelector({ onLessonSelect, onSongSelect, onSongEdit, onSon
         })
       );
     } catch (error) {
-      setAbletonError(`Could not prepare ${track.name}: ${error instanceof Error ? error.message : String(error)}`);
+      setAbletonError(projectId, `Could not prepare ${track.name}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setAbletonPreparing(null);
     }
   };
+
+  const renderAbletonTracks = (projectId: string, project: AbletonProject) => (
+    <>
+      <p className="lesson-description">
+        {project.name} · {project.tempo} BPM ·{' '}
+        {project.exports.size > 0
+          ? `${project.exports.size} exported tracks (real sound + backing)`
+          : 'no exported tracks: sample tracks only, no backing'}
+      </p>
+      <div className="song-card-actions">
+        {project.tracks
+          .filter((track) => isPlayable(project, track))
+          .map((track) => (
+            <button
+              key={track.name}
+              className="song-action-button song-stem-lesson-button"
+              disabled={abletonPreparing !== null}
+              onClick={(e) => {
+                e.stopPropagation(); // a track button opens the lesson, not the card
+                playAbletonTrack(projectId, project, track);
+              }}
+              title={`${track.notes.length} notes`}
+            >
+              {abletonPreparing === `${projectId}:${track.name}` ? 'Preparing…' : track.name}
+            </button>
+          ))}
+      </div>
+    </>
+  );
 
   const fetchSongs = async () => {
     try {
@@ -482,56 +580,84 @@ export function LessonSelector({ onLessonSelect, onSongSelect, onSongEdit, onSon
             type="file"
             style={{ display: 'none' }}
             onChange={(e) => {
-              const files = Array.from(e.target.files ?? []);
-              if (files.length > 0) handleAbletonFolder(files);
+              const files = Array.from(e.target.files ?? []).map((file) => ({ path: file.webkitRelativePath, file }));
+              if (files.length > 0) readProject(UNSAVED, () => readAbletonProject(files));
               e.target.value = '';
             }}
           />
           <div
-            className={`lesson-card import-card ${abletonReading ? 'loading' : ''}`}
-            onClick={() => !abletonReading && abletonInputRef.current?.click()}
+            className={`lesson-card import-card ${abletonBusy === UNSAVED ? 'loading' : ''}`}
+            onClick={handleOpenAbleton}
             title="Choose an Ableton project folder"
           >
             <div className="lesson-card-header">
-              <h3>{abletonReading ? 'Reading project…' : '+ Open Ableton project'}</h3>
+              <h3>{abletonBusy === UNSAVED ? 'Reading project…' : '+ Open Ableton project'}</h3>
             </div>
             <div className="lesson-card-body">
-              {!abletonProject && (
+              {!openProjects[UNSAVED] && (
                 <p className="lesson-description">
                   Choose an Ableton project folder, then pick a track to play its notes.
+                  {canRememberFolders()
+                    ? ' The project stays here after a reload.'
+                    : ' This browser cannot remember the folder: pick it again after a reload.'}
                 </p>
               )}
-              {abletonError && <p className="lesson-description song-error-text">{abletonError}</p>}
-              {abletonProject && (
-                <>
-                  <p className="lesson-description">
-                    {abletonProject.name} · {abletonProject.tempo} BPM ·{' '}
-                    {abletonProject.exports.size > 0
-                      ? `${abletonProject.exports.size} exported tracks (real sound + backing)`
-                      : 'no exported tracks: sample tracks only, no backing'}
-                  </p>
-                  <div className="song-card-actions">
-                    {abletonProject.tracks
-                      .filter((track) => isPlayable(abletonProject, track))
-                      .map((track) => (
-                        <button
-                          key={track.name}
-                          className="song-action-button song-stem-lesson-button"
-                          disabled={abletonPreparing !== null}
-                          onClick={(e) => {
-                            e.stopPropagation(); // a track button opens the lesson, not the folder picker
-                            playAbletonTrack(abletonProject, track);
-                          }}
-                          title={`${track.notes.length} notes`}
-                        >
-                          {abletonPreparing === track.name ? 'Preparing…' : track.name}
-                        </button>
-                      ))}
-                  </div>
-                </>
-              )}
+              {abletonErrors[UNSAVED] && <p className="lesson-description song-error-text">{abletonErrors[UNSAVED]}</p>}
+              {openProjects[UNSAVED] && renderAbletonTracks(UNSAVED, openProjects[UNSAVED])}
             </div>
           </div>
+
+          {savedProjects.map((saved) => {
+            const project = openProjects[saved.id];
+            return (
+              <div
+                key={saved.id}
+                className={`lesson-card song-card ${abletonBusy === saved.id ? 'loading' : ''}`}
+                onClick={() => !project && abletonBusy === null && openSavedProject(saved)}
+              >
+                <div className="lesson-card-header">
+                  <h3>{saved.name}</h3>
+                  <span className="instrument-tag pads">ableton</span>
+                </div>
+                <div className="lesson-card-body">
+                  {!project && (
+                    <p className="lesson-description">
+                      {abletonBusy === saved.id ? 'Reading project…' : 'Click to open this project'}
+                    </p>
+                  )}
+                  {abletonErrors[saved.id] && (
+                    <p className="lesson-description song-error-text">{abletonErrors[saved.id]}</p>
+                  )}
+                  {project && renderAbletonTracks(saved.id, project)}
+                  <div className="song-card-actions">
+                    {project && (
+                      <button
+                        className="song-action-button"
+                        disabled={abletonBusy !== null}
+                        title="Read the folder again, e.g. after a new export"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openSavedProject(saved);
+                        }}
+                      >
+                        ↻ Reload
+                      </button>
+                    )}
+                    <button
+                      className="song-action-button song-delete-button"
+                      title="Forget this project (the folder itself is not touched)"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveProject(saved);
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
 
           {songsError && <div className="songs-error">{songsError}</div>}
 
