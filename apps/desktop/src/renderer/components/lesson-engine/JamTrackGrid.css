@@ -71,13 +71,13 @@
   padding-left: 5.25rem;
 }
 
-/* Rows are as tall as a 1/8 cell is wide (16 per section), so 1/8 cells stay
+/* Rows are as tall as a 1/8 cell is wide (32 per section), so 1/8 cells stay
    square at any width and the others keep their shape: 1/4 twice as wide,
    1/16 half as wide, 1/32 a quarter. With the same gap everywhere, every
    resolution's cells line up with the 1/8 columns. */
 .jam-grid-body {
   --jam-grid-eighth: calc(
-    (100cqw - var(--jam-grid-name) - var(--jam-grid-gap) - 15 * var(--jam-grid-cell-gap)) / 16
+    (100cqw - var(--jam-grid-name) - var(--jam-grid-gap) - 31 * var(--jam-grid-cell-gap)) / 32
   );
   container-type: inline-size;
   position: relative;
@@ -249,9 +249,29 @@ button.jam-grid-name:hover {
   }
 }
 
-/* Rows too short for two lines keep only the row's name */
+/* Rows too short for two lines keep only the row's name; beats too narrow
+   for "+" keep only their numbers */
+@container (max-width: 900px) {
+  .jam-grid-division,
+  .jam-grid-and {
+    visibility: hidden;
+  }
+}
+
+/* Upright phones: names spill out of their tiny chips, and only each bar's
+   first beat is numbered */
 @container (max-width: 520px) {
-  .jam-grid-division {
-    display: none;
+  .jam-grid-name {
+    overflow: visible;
+    background: none;
+    font-size: 0.55rem;
+  }
+
+  .jam-grid-beat {
+    font-size: 0.6rem;
+  }
+
+  .jam-grid-beat:not(.bar-start) {
+    visibility: hidden;
   }
 }

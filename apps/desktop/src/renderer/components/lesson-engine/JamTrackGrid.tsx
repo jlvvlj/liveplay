@@ -3,11 +3,11 @@ import { JAM_TRACK_BARS, jamTrackParts, type JamTrack, type JamTrackNote } from 
 import './JamTrackGrid.css';
 
 // The Jam tab's backing track as an editable step grid: one row per drum and
-// per synth part, two bars at a time. Clicking a cell adds or removes a hit or
+// per synth part, four bars at a time. Clicking a cell adds or removes a hit or
 // a note; a row's name switches its resolution. The page follows the playhead
 // unless a section is picked.
 
-const SECTION_BARS = 2;
+const SECTION_BARS = 4;
 const SECTION_STEPS = SECTION_BARS * 16;
 const SECTIONS = JAM_TRACK_BARS / SECTION_BARS;
 const LOOP_STEPS = JAM_TRACK_BARS * 16;
@@ -138,9 +138,12 @@ export function JamTrackGrid({ track, notes, divisions, edited, onChange, onRese
       <div className="jam-grid-body">
         <div className="jam-grid-row jam-grid-beats">
           <div className="jam-grid-name" />
-          <div className="jam-grid-cells" style={{ gridTemplateColumns: `repeat(${SECTION_STEPS / 2}, 1fr)` }}>
+          <div className="jam-grid-cells" style={{ gridTemplateColumns: `repeat(${SECTION_STEPS / 2}, minmax(0, 1fr))` }}>
             {Array.from({ length: SECTION_STEPS / 2 }, (_, i) => (
-              <span key={i} className={i % 2 === 0 ? 'jam-grid-beat' : 'jam-grid-and'}>
+              <span
+                key={i}
+                className={i % 2 === 0 ? `jam-grid-beat ${i % 8 === 0 ? 'bar-start' : ''}` : 'jam-grid-and'}
+              >
                 {i % 2 === 0 ? i / 2 + 1 : '+'}
               </span>
             ))}
@@ -163,7 +166,7 @@ export function JamTrackGrid({ track, notes, divisions, edited, onChange, onRese
                 {name}
                 <div
                   className={`jam-grid-cells ${division >= 16 ? 'narrow' : ''}`}
-                  style={{ gridTemplateColumns: `repeat(${cells}, 1fr)` }}
+                  style={{ gridTemplateColumns: `repeat(${cells}, minmax(0, 1fr))` }}
                 >
                   {Array.from({ length: cells }, (_, cell) => {
                     const cellStart = first + cell * cellSteps;
