@@ -12,11 +12,13 @@ import {
   lessonStartBeat,
   readAbletonProject,
   renderBacking,
+  withSoundLengths,
 } from '../../utils/abletonImport';
 import {
   SavedProject,
   allowReading,
   canRememberFolders,
+  detectAudioTrack,
   listSavedProjects,
   pickAndSaveProject,
   readFolder,
@@ -316,22 +318,29 @@ export function LessonSelector({ onLessonSelect, onSongSelect, onSongEdit, onSon
     });
   };
 
-  const playAbletonTrack = async (projectId: string, project: AbletonProject, track: AbletonTrack) => {
-    setAbletonPreparing(`${projectId}:${track.name}`);
+  const playAbletonTrack = async (
+    projectId: string,
+    project: AbletonProject,
+    name: string,
+    getTrack: () => AbletonTrack | Promise<AbletonTrack>
+  ) => {
+    setAbletonPreparing(`${projectId}:${name}`);
     setAbletonError(projectId, null);
     try {
+      const track = await getTrack();
       const exported = project.exports.get(track.name);
       const sample = exported ? null : findSampleFile(project, track);
       const backing = await renderBacking(project, track, (lessonStartBeat(track) * 60) / project.tempo);
-      onLessonSelect(
-        abletonTrackToLesson(project, track, {
-          export: exported ? URL.createObjectURL(exported) : undefined,
-          sample: sample ? URL.createObjectURL(sample) : undefined,
-          backing: backing ?? undefined,
-        })
-      );
+      const lesson = abletonTrackToLesson(project, track, {
+        export: exported ? URL.createObjectURL(exported) : undefined,
+        sample: sample ? URL.createObjectURL(sample) : undefined,
+        backing: backing ?? undefined,
+      });
+      // with an export, each note's real sound length is known: long sounds
+      // become hold notes
+      onLessonSelect(exported ? await withSoundLengths(lesson, exported) : lesson);
     } catch (error) {
-      setAbletonError(projectId, `Could not prepare ${track.name}: ${error instanceof Error ? error.message : String(error)}`);
+      setAbletonError(projectId, `Could not prepare ${name}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setAbletonPreparing(null);
     }
@@ -355,7 +364,7 @@ export function LessonSelector({ onLessonSelect, onSongSelect, onSongEdit, onSon
               disabled={abletonPreparing !== null}
               onClick={(e) => {
                 e.stopPropagation(); // a track button opens the lesson, not the card
-                playAbletonTrack(projectId, project, track);
+                playAbletonTrack(projectId, project, track.name, () => track);
               }}
               title={`${track.notes.length} notes`}
             >
@@ -363,6 +372,29 @@ export function LessonSelector({ onLessonSelect, onSongSelect, onSongEdit, onSon
             </button>
           ))}
       </div>
+      {project.audioTracks.some((name) => project.exports.has(name)) && (
+        <>
+          <p className="lesson-description">Audio tracks · hits detected from the export</p>
+          <div className="song-card-actions">
+            {project.audioTracks
+              .filter((name) => project.exports.has(name))
+              .map((name) => (
+                <button
+                  key={name}
+                  className="song-action-button song-stem-lesson-button"
+                  disabled={abletonPreparing !== null}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    playAbletonTrack(projectId, project, name, () => detectAudioTrack(project, name));
+                  }}
+                  title="Detects the hits in this track's export (a few seconds the first time)"
+                >
+                  {abletonPreparing === `${projectId}:${name}` ? 'Analyzing…' : name}
+                </button>
+              ))}
+          </div>
+        </>
+      )}
     </>
   );
 

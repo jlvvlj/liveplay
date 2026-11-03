@@ -7,6 +7,7 @@ import {
   LessonScore,
   PracticeModeSettings,
 } from '../../types/lesson';
+import { holdToleranceMs, isHoldStep, stepDurationMs } from './holdNotes';
 
 export type LessonEngineState = 'stopped' | 'playing' | 'paused' | 'waiting';
 
@@ -17,6 +18,17 @@ export interface LessonEngineCallbacks {
   onStateChange?: (state: LessonEngineState) => void;
   onLoop?: () => void;
   onComplete?: (finalScore: LessonScore) => void;
+  // Hold notes: a hold starts when its note is hit on time and ends when it
+  // is released or reaches its end; only then is it scored
+  onHoldStart?: (stepIndex: number, step: LessonStep) => void;
+  onHoldEnd?: (stepIndex: number, completed: boolean) => void;
+}
+
+interface ActiveHold {
+  note: number;
+  endTime: number; // lesson seconds at which the note's sound ends
+  toleranceSeconds: number; // released this close to the end still counts
+  feedback: HitFeedback; // timing of the press, reported if the hold completes
 }
 
 /**
@@ -53,6 +65,7 @@ export class LessonEngine {
   private scheduledSteps: Map<number, LessonStep> = new Map();
   private expectedSteps: Map<number, { step: LessonStep; time: number }> = new Map();
   private processedSteps: Set<number> = new Set();
+  private activeHolds: Map<number, ActiveHold> = new Map();
 
   private score: LessonScore = {
     totalSteps: 0,
@@ -184,6 +197,7 @@ export class LessonEngine {
     this.scheduledSteps.clear();
     this.expectedSteps.clear();
     this.processedSteps.clear();
+    this.activeHolds.clear();
     this.setState('stopped');
   }
 
@@ -242,8 +256,27 @@ export class LessonEngine {
 
     console.log(`[LessonEngine] ✓ Hit on next step ${targetIndex}. Delta: ${delta.toFixed(0)}ms`);
     const feedback = this.generateFeedback(target.step, note, currentTime, delta);
-    this.updateScore(feedback);
     this.processedSteps.add(targetIndex);
+
+    if (this.lesson && isHoldStep(this.lesson, target.step)) {
+      // A hold note is scored when it is released or reaches its end
+      const durationMs = stepDurationMs(target.step, this.lesson.bpm);
+      const hold: ActiveHold = {
+        note,
+        endTime: target.time + durationMs / 1000,
+        toleranceSeconds: holdToleranceMs(durationMs) / 1000,
+        feedback,
+      };
+      this.activeHolds.set(targetIndex, hold);
+      this.callbacks.onHoldStart?.(targetIndex, target.step);
+      const version = this.scheduleVersion;
+      this.scheduleTimeout(() => {
+        if (version === this.scheduleVersion) this.finishHold(targetIndex, true);
+      }, Math.max(0, hold.endTime - hold.toleranceSeconds - currentTime));
+      return null;
+    }
+
+    this.updateScore(feedback);
 
     if (this.callbacks.onHitFeedback) {
       this.callbacks.onHitFeedback(feedback);
@@ -252,6 +285,38 @@ export class LessonEngine {
     }
 
     return feedback;
+  }
+
+  /**
+   * Process the release of a note: a hold note let go before its end is a
+   * miss, one held to (nearly) its end is a hit.
+   */
+  processNoteOff(note: number): void {
+    const currentTime = this.getCurrentTimeSeconds();
+    for (const [stepIndex, hold] of this.activeHolds) {
+      if (hold.note !== note) continue;
+      this.finishHold(stepIndex, currentTime >= hold.endTime - hold.toleranceSeconds);
+    }
+  }
+
+  /** Whether a hold note on this note is in progress. */
+  isHolding(note: number): boolean {
+    for (const hold of this.activeHolds.values()) {
+      if (hold.note === note) return true;
+    }
+    return false;
+  }
+
+  private finishHold(stepIndex: number, completed: boolean): void {
+    const hold = this.activeHolds.get(stepIndex);
+    if (!hold) return;
+    this.activeHolds.delete(stepIndex);
+    const feedback: HitFeedback = completed
+      ? hold.feedback
+      : { ...hold.feedback, accuracy: 'miss', points: POINTS.miss };
+    this.updateScore(feedback);
+    this.callbacks.onHitFeedback?.(feedback);
+    this.callbacks.onHoldEnd?.(stepIndex, completed);
   }
 
   /**
@@ -392,6 +457,7 @@ export class LessonEngine {
     // Clear processed and expected steps
     this.processedSteps.clear();
     this.expectedSteps.clear();
+    this.activeHolds.clear();
 
     this.playbackStartLessonTime = 0;
     this.playbackStartRealTime = Tone.now();
