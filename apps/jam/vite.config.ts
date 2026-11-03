@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
+import type { Server } from 'http';
+import { createJamRooms } from '../../server/jamRooms';
 
 // The jam app (npm run dev:jam / build:jam): the Jam tab as a standalone static
 // site. Its sounds and backing tracks are rendered in the browser; in
@@ -31,8 +33,19 @@ function serveAudioPlugin() {
   };
 }
 
+// Jam rooms (play together online) on the development server itself, so phones
+// on the same network can join a room on this machine
+function jamRoomsPlugin() {
+  return {
+    name: 'jam-rooms',
+    configureServer(server: { httpServer: Server | null }) {
+      if (server.httpServer) createJamRooms().attach(server.httpServer);
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), serveAudioPlugin()],
+  plugins: [react(), serveAudioPlugin(), jamRoomsPlugin()],
   root: __dirname,
   base: '/',
   build: {

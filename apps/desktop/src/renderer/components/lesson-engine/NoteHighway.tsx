@@ -4,11 +4,14 @@ import './NoteHighway.css';
 
 export type HighwayMode = 'free' | 'wait' | 'play' | 'jam';
 
-// A note played in jam mode, already snapped to its 16th (ms on the jam clock)
+// A note played in jam mode, already snapped to its 16th (ms on the jam clock).
+// Another player's note in a jam room has their color; it leaves from the line
+// rather than this player's ship.
 export interface JamNote {
   id: number;
   note: number;
   timeMs: number;
+  color?: string;
 }
 
 interface NoteHighwayProps {
@@ -668,7 +671,7 @@ export function NoteHighway({
     const ids = new Set<number>();
     for (const jamNote of jamNotes) {
       ids.add(jamNote.id);
-      if (jamNote.timeMs > currentTime || jamCursor.born.has(jamNote.id)) continue;
+      if (jamNote.color || jamNote.timeMs > currentTime || jamCursor.born.has(jamNote.id)) continue;
       jamCursor.born.set(jamNote.id, { x: Math.min(range, Math.max(0, jamCursor.x)), dy: jamShipOffset(jamNote.note) });
       // Notes that sounded long before this tick (e.g. a remount) leave no push
       if (currentTime - jamNote.timeMs < 250) {
@@ -696,10 +699,11 @@ export function NoteHighway({
         const sounded = age >= 0;
         const opacity = sounded ? Math.max(0, 1 - age / JAM_FADE_MS) : 0.5;
         if (opacity === 0) return null;
-        const born = sounded ? jamCursor.born.get(jamNote.id) : undefined;
-        const left = born
-          ? jamNote.timeMs * JAM_PIXELS_PER_MS + born.x
-          : currentTime * JAM_PIXELS_PER_MS + jamCursor.x;
+        const born = jamNote.color ? { x: 0, dy: 0 } : sounded ? jamCursor.born.get(jamNote.id) : undefined;
+        const left =
+          born && sounded
+            ? jamNote.timeMs * JAM_PIXELS_PER_MS + born.x
+            : currentTime * JAM_PIXELS_PER_MS + (born ? 0 : jamCursor.x);
         const dy = born ? born.dy : jamShipOffset(jamNote.note);
         return (
           <div
@@ -711,7 +715,7 @@ export function NoteHighway({
               width: `${dotSize}px`,
               height: `${dotSize}px`,
               opacity,
-              color: getLaneColor(laneIndex),
+              color: jamNote.color ?? getLaneColor(laneIndex),
             }}
           />
         );
