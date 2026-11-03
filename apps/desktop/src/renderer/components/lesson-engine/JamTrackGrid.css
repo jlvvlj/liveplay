@@ -17,6 +17,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Clear of the Jam tab's corner buttons (one or two, 36px each) */
+.highway-container:has(.jam-corner-btn) .jam-grid-title {
+  padding-left: 2.75rem;
+}
+
+.highway-container:has(.jam-corner-btn + .jam-corner-btn) .jam-grid-title {
+  padding-left: 5.25rem;
+}
+
 .jam-grid-body {
   position: relative;
   display: flex;
