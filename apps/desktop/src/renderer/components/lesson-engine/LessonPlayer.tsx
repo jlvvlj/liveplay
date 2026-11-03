@@ -8,6 +8,7 @@ import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
 import { JAM_TRACKS, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
 import { renderJamBackingPart, renderJamSound } from './jamRenderer';
+import { jamSoundUrl } from './jamSoundFiles';
 import {
   JamBackingMixer,
   defaultJamTrackMix,
@@ -90,7 +91,7 @@ function validTrackEdits(saved: unknown): Record<string, JamTrackEdit> {
   return Object.fromEntries(
     Object.entries(saved as Record<string, JamTrackEdit>).filter(([file, edit]) => {
       const track = JAM_TRACKS.find((candidate) => candidate.file === file);
-      const partCount = track ? track.drums.length + track.layers.length : -1;
+      const partCount = track ? jamTrackParts(track).length : -1;
       return Array.isArray(edit?.parts) && edit.parts.length === partCount && Array.isArray(edit.divisions);
     })
   );
@@ -101,7 +102,7 @@ function validTrackMixes(saved: unknown): Record<string, JamTrackMix> {
   return Object.fromEntries(
     Object.entries(saved as Record<string, JamTrackMix>).filter(([file, mix]) => {
       const track = JAM_TRACKS.find((candidate) => candidate.file === file);
-      const partCount = track ? track.drums.length + track.layers.length : -1;
+      const partCount = track ? jamTrackParts(track).length : -1;
       return [mix?.levels, mix?.mutes, mix?.solos].every((list) => Array.isArray(list) && list.length === partCount);
     })
   );
@@ -203,6 +204,7 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
   const jamPatch = jamSettings ? jamSettings.patches[jamSettings.soundId] : undefined;
   const jamKitPreset = jamSounds?.find((sound) => sound.id === jamSettings?.soundId);
   const jamKit = jamKitPreset && 'kit' in jamKitPreset ? jamKitPreset.kit : undefined;
+  const jamRecorded = jamKitPreset && 'sounds' in jamKitPreset ? jamKitPreset.sounds : undefined;
 
   // Jam tab: recorded reference sounds on this machine, if any
   const [jamReferenceSounds, setJamReferenceSounds] = useState<JamSampleSound[] | null>(null);
@@ -225,10 +227,10 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
   // A remembered reference sound that is no longer on this machine: back to the first preset
   useEffect(() => {
     if (!jamSettings || !jamSounds?.length || jamReferenceSounds === null) return;
-    if (!jamSettings.patches[jamSettings.soundId] && !jamKit && !jamReference) {
+    if (!jamSettings.patches[jamSettings.soundId] && !jamKit && !jamRecorded && !jamReference) {
       setJamSettings({ ...jamSettings, soundId: jamSounds[0].id });
     }
-  }, [jamSettings, jamSounds, jamReferenceSounds, jamReference, jamKit]);
+  }, [jamSettings, jamSounds, jamReferenceSounds, jamReference, jamKit, jamRecorded]);
 
   // The chosen synth sound or kit is rendered into one clip per note,
   // re-rendered shortly after its settings stop changing
@@ -236,6 +238,12 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
   useEffect(() => {
     if (jamReference) setJamSamples(jamReference.samples);
   }, [jamReference]);
+  // Recorded sounds play on the rows from the lowest up
+  useEffect(() => {
+    if (!jamRecorded) return;
+    const rows = Array.from(new Set(lessonProp.steps.map((s) => s.note))).sort((a, b) => a - b);
+    setJamSamples(Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(jamRecorded[row % jamRecorded.length])])));
+  }, [jamRecorded, lessonProp.steps]);
   useEffect(() => {
     const source = jamKit ? { kit: jamKit } : jamPatch ? { patch: jamPatch } : null;
     if (!source) return;

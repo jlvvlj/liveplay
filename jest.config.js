@@ -15,5 +15,6 @@ module.exports = {
     '/instrument-lab/engine/synth\\.mjs$': '<rootDir>/tests/mocks/instrumentLabSynth.ts',
     '/instrument-lab/engine/drums\\.mjs$': '<rootDir>/tests/mocks/instrumentLabDrums.ts',
     '^\\./jamRenderer$': '<rootDir>/tests/mocks/jamRenderer.ts',
+    '^\\./jamSoundFiles$': '<rootDir>/tests/mocks/jamSoundFiles.ts',
   },
 };

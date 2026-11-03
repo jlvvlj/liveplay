@@ -75,12 +75,14 @@ export const PENTATONIC_GROOVE_JAM: Lesson = {
   },
 };
 
-// Same sixteen rows over another backing track
-const jamSong = (id: string, title: string, bpm: number, file: string, description: string): Lesson => ({
+// Same sixteen rows over another backing track, moved up `transpose`
+// semitones for a track in another key
+const jamSong = (id: string, title: string, bpm: number, file: string, description: string, transpose = 0): Lesson => ({
   ...PENTATONIC_GROOVE_JAM,
   id,
   title,
   bpm,
+  steps: PENTATONIC_GROOVE_JAM.steps.map((step) => ({ ...step, note: step.note + transpose })),
   backingTrack: `samples/pentatonic_jam/${file}`,
   metadata: { ...PENTATONIC_GROOVE_JAM.metadata, description },
 });
@@ -90,4 +92,6 @@ export const JAM_SONGS: Lesson[] = [
   jamSong('chip-run-jam', 'Chip Run', 112, 'chip_run.wav', '8-bit pulse bass, square arpeggio and chip drums'),
   jamSong('night-drift-jam', 'Night Drift', 76, 'night_drift.wav', 'Slow warm pad, sine sub, soft bells, rim and shaker'),
   jamSong('wood-steps-jam', 'Wood Steps', 100, 'wood_steps.wav', 'Woody bass, electric piano stabs, clap, shaker and woodblock'),
+  // In B-flat minor: the rows a semitone up
+  jamSong('softer-jam', 'Softer', 122, 'softer.wav', 'The last 8 bars of Softer, with its own sounds', 1),
 ];

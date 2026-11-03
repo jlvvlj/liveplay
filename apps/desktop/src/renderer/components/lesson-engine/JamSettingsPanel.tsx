@@ -253,6 +253,8 @@ export function JamSettingsPanel({
           {soundGrid(sounds.filter((sound) => 'patch' in sound))}
           <div className="jam-subhead">Drums</div>
           {soundGrid(sounds.filter((sound) => 'kit' in sound))}
+          <div className="jam-subhead">Songs</div>
+          {soundGrid(sounds.filter((sound) => 'sounds' in sound))}
           {referenceSounds.length > 0 && (
             <>
               <div className="jam-subhead">Reference</div>
