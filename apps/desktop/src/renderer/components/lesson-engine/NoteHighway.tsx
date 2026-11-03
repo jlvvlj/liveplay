@@ -1,6 +1,17 @@
-import { Fragment, useEffect, useRef, useState, useMemo, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useMemo,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { LessonStep, HitFeedback } from '../../types/lesson';
 import { HOLD_MIN_MS, stepDurationMs } from './holdNotes';
+import { jamTrackLevels, type JamTrackMix } from './jamBackingMixer';
+import { JamLanesHandle, JamLaneStrip } from './JamLaneStrip';
 import './NoteHighway.css';
 
 export type HighwayMode = 'free' | 'wait' | 'play' | 'jam';
@@ -32,6 +43,18 @@ interface NoteHighwayProps {
   onJamCursorNote?: (note: number) => void; // Jam mode: the row the ship moved to
   holdNotes?: boolean; // long sounds are drawn as long as they last and must be held
   holdingSteps?: Set<number>; // hold notes whose key is down right now
+  jamLanes?: JamLanes; // Jam mode: each row's controls, on its left
+}
+
+// Jam mode row controls: names by note, and solo / mute / level for `rows`
+// (the notes the mix's lists follow)
+export interface JamLanes {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  names: { [note: number]: string };
+  rows: number[];
+  mix: JamTrackMix;
+  onMixChange: (mix: JamTrackMix) => void;
 }
 
 interface NoteHitState {
@@ -85,6 +108,7 @@ export function NoteHighway({
   onJamCursorNote,
   holdNotes = false,
   holdingSteps,
+  jamLanes,
 }: NoteHighwayProps) {
   const [noteHitStates, setNoteHitStates] = useState<Map<number, NoteHitState>>(new Map());
   const [timingPopups, setTimingPopups] = useState<TimingPopup[]>([]);
@@ -109,10 +133,21 @@ export function NoteHighway({
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
+  // Jam mode: the rows' controls take the left of the highway, up to the
+  // right edge of their fold bar; the ship and its notes move right of them
+  const jamFoldRef = useRef<HTMLButtonElement>(null);
+  const [jamInset, setJamInset] = useState<number>(0);
+  useLayoutEffect(() => {
+    const fold = jamFoldRef.current;
+    const container = containerRef.current;
+    setJamInset(fold && container ? fold.getBoundingClientRect().right - container.getBoundingClientRect().left : 0);
+  }, [containerWidth, containerHeight, jamLanes?.open]);
+  const jamWidth = containerWidth - jamInset;
+
   // Calculate hit zone offset based on container width
   const hitZoneOffset = useMemo(() => {
-    return containerWidth * (mode === 'jam' ? JAM_CURSOR_HOME_PERCENT : HIT_ZONE_PERCENT);
-  }, [containerWidth, mode]);
+    return mode === 'jam' ? jamInset + jamWidth * JAM_CURSOR_HOME_PERCENT : containerWidth * HIT_ZONE_PERCENT;
+  }, [containerWidth, mode, jamInset, jamWidth]);
 
   // Get unique notes from the lesson (sorted by MIDI value)
   const uniqueNotes = useMemo(() =>
@@ -715,9 +750,9 @@ export function NoteHighway({
   if (mode === 'jam' && jamCursor.time !== currentTime) {
     const dt = jamCursor.time === null ? 0 : Math.min(0.1, Math.max(0, (currentTime - jamCursor.time) / 1000));
     jamCursor.time = currentTime;
-    const range = containerWidth * (JAM_CURSOR_MAX_PERCENT - JAM_CURSOR_HOME_PERCENT);
+    const range = jamWidth * (JAM_CURSOR_MAX_PERCENT - JAM_CURSOR_HOME_PERCENT);
     const decay = Math.exp(-JAM_CURSOR_BURST_DECAY * dt);
-    jamCursor.x += (jamCursor.v * (1 - decay)) / JAM_CURSOR_BURST_DECAY - containerWidth * JAM_CURSOR_DRIFT * dt;
+    jamCursor.x += (jamCursor.v * (1 - decay)) / JAM_CURSOR_BURST_DECAY - jamWidth * JAM_CURSOR_DRIFT * dt;
     jamCursor.v *= decay;
     const ids = new Set<number>();
     for (const jamNote of jamNotes) {
@@ -726,7 +761,7 @@ export function NoteHighway({
       jamCursor.born.set(jamNote.id, { x: Math.min(range, Math.max(0, jamCursor.x)), dy: jamShipOffset(jamNote.note) });
       // Notes that sounded long before this tick (e.g. a remount) leave no push
       if (currentTime - jamNote.timeMs < 250) {
-        jamCursor.v += containerWidth * JAM_CURSOR_PUSH * JAM_CURSOR_BURST_DECAY;
+        jamCursor.v += jamWidth * JAM_CURSOR_PUSH * JAM_CURSOR_BURST_DECAY;
       }
     }
     for (const id of jamCursor.born.keys()) if (!ids.has(id)) jamCursor.born.delete(id);
@@ -770,6 +805,33 @@ export function NoteHighway({
           />
         );
       });
+  };
+
+  // A row's controls; its mix entry is found by its note
+  const jamLaneSilent = (note: number): boolean => {
+    if (!jamLanes) return false;
+    const index = jamLanes.rows.indexOf(note);
+    return jamTrackLevels(jamLanes.mix)[index] === 0;
+  };
+  const renderJamLaneStrip = (note: number, label: string, color: string) => {
+    if (!jamLanes) return null;
+    const { mix, onMixChange } = jamLanes;
+    const index = jamLanes.rows.indexOf(note);
+    const set = <K extends keyof JamTrackMix>(key: K, value: JamTrackMix[K][number]) =>
+      onMixChange({ ...mix, [key]: mix[key].map((current, i) => (i === index ? value : current)) });
+    return (
+      <JamLaneStrip
+        name={jamLanes.names[note] ?? label}
+        tag={label}
+        tagColor={color}
+        solo={mix.solos[index] ?? false}
+        mute={mix.mutes[index] ?? false}
+        level={mix.levels[index] ?? 1}
+        onSolo={() => set('solos', !mix.solos[index])}
+        onMute={() => set('mutes', !mix.mutes[index])}
+        onLevel={(level) => set('levels', level)}
+      />
+    );
   };
 
   // Jam mode pointer play: press a row to play its pitch, hold to keep playing,
@@ -848,7 +910,7 @@ export function NoteHighway({
   const renderJamCursor = () => {
     if (!jamCursorY) return null;
     const lane = jamCursorY.note === null ? -1 : noteToLane(jamCursorY.note);
-    const fullThrust = containerWidth * JAM_CURSOR_PUSH * JAM_CURSOR_FULL_THRUST;
+    const fullThrust = jamWidth * JAM_CURSOR_PUSH * JAM_CURSOR_FULL_THRUST;
     const thrust = Math.min(1, jamCursor.v / fullThrust);
     return (
       <div
@@ -890,7 +952,11 @@ export function NoteHighway({
   };
 
   return (
-    <div ref={containerRef} className={`note-highway ${isCollapsed ? 'collapsed' : ''} ${mode === 'jam' ? 'jam' : ''}`}>
+    <div
+      ref={containerRef}
+      className={`note-highway ${isCollapsed ? 'collapsed' : ''} ${mode === 'jam' ? 'jam' : ''} ${jamLanes ? `jam-strips ${jamLanes.open ? '' : 'strips-closed'}` : ''}`}
+      style={mode === 'jam' ? ({ '--jam-inset': `${jamInset}px` } as CSSProperties) : undefined}
+    >
       {/* Hit zone indicator line - fixed position (for play mode) */}
       {mode === 'play' && (
         <div className={`timing-line ${hasActivePad ? 'active' : ''}`} />
@@ -914,15 +980,21 @@ export function NoteHighway({
         >
           {Array.from({ length: laneCount }).map((_, rowIndex) => {
             const laneIndex = laneCount - 1 - rowIndex;
+            const note = uniqueNotes[laneIndex];
+            const label = getNoteLabel(note) ?? getLaneLabel(laneIndex);
             return (
               <div
                 key={laneIndex}
-                data-jam-note={uniqueNotes[laneIndex]}
-                className={`lane ${activePads && Array.from(activePads).some(note => noteToLane(note) === laneIndex) ? 'lane-active' : ''}`}
+                data-jam-note={note}
+                className={`lane ${activePads && Array.from(activePads).some(note => noteToLane(note) === laneIndex) ? 'lane-active' : ''} ${jamLanes && jamLaneSilent(note) ? 'silent' : ''}`}
               >
-                <div className="lane-label" style={{ color: getLaneColor(laneIndex) }}>
-                  {getNoteLabel(uniqueNotes[laneIndex]) ?? getLaneLabel(laneIndex)}
-                </div>
+                {jamLanes ? (
+                  jamLanes.open && <div className="jam-lane-box">{renderJamLaneStrip(note, label, getLaneColor(laneIndex))}</div>
+                ) : (
+                  <div className="lane-label" style={{ color: getLaneColor(laneIndex) }}>
+                    {label}
+                  </div>
+                )}
 
                 <div
                   className="notes-scroll-container"
@@ -935,6 +1007,11 @@ export function NoteHighway({
               </div>
             );
           })}
+          {jamLanes && (
+            <div className="jam-lanes-fold">
+              <JamLanesHandle ref={jamFoldRef} open={jamLanes.open} onToggle={() => jamLanes.onOpenChange(!jamLanes.open)} />
+            </div>
+          )}
         </div>
       ) : isCollapsed ? (
         mode === 'play' ? (

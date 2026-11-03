@@ -76,6 +76,10 @@ interface JamSettings {
   // Backing tracks edited in the grid, and their mixer settings, by file
   tracks: Record<string, JamTrackEdit>;
   mixes: Record<string, JamTrackMix>;
+  // The highway's rows' solo, mute and levels, by sound, and whether the
+  // lane controls (grid and highway) are shown
+  rowMixes: Record<string, JamTrackMix>;
+  lanesOpen: boolean;
 }
 
 // An edited backing track: its notes, one list per part, and the grid
@@ -121,6 +125,8 @@ function loadJamSettings(sounds: JamSoundPreset[], songIds: string[]): JamSettin
     effects: DEFAULT_JAM_EFFECTS,
     tracks: {},
     mixes: {},
+    rowMixes: {},
+    lanesOpen: true,
   };
   try {
     const saved = JSON.parse(localStorage.getItem(JAM_SETTINGS_KEY) ?? 'null') as Partial<JamSettings> | null;
@@ -135,6 +141,8 @@ function loadJamSettings(sounds: JamSoundPreset[], songIds: string[]): JamSettin
       effects: { ...DEFAULT_JAM_EFFECTS, ...saved.effects },
       tracks: validTrackEdits(saved.tracks),
       mixes: validTrackMixes(saved.mixes),
+      rowMixes: saved.rowMixes && typeof saved.rowMixes === 'object' ? saved.rowMixes : {},
+      lanesOpen: typeof saved.lanesOpen === 'boolean' ? saved.lanesOpen : defaults.lanesOpen,
     };
   } catch {
     return defaults; // storage unavailable: start from the presets
@@ -242,7 +250,7 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
   useEffect(() => {
     if (!jamRecorded) return;
     const rows = Array.from(new Set(lessonProp.steps.map((s) => s.note))).sort((a, b) => a - b);
-    setJamSamples(Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(jamRecorded[row % jamRecorded.length])])));
+    setJamSamples(Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(jamRecorded[row % jamRecorded.length].file)])));
   }, [jamRecorded, lessonProp.steps]);
   useEffect(() => {
     const source = jamKit ? { kit: jamKit } : jamPatch ? { patch: jamPatch } : null;
@@ -287,6 +295,29 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
     () => Array.from(new Set(fullLesson.steps.map((s) => s.note))).sort((a, b) => a - b),
     [fullLesson.steps]
   );
+
+  // Jam tab: each highway row's name (its recorded sound's, else its pitch's)
+  // and its solo, mute and level, kept per sound
+  const jamRowNames = useMemo(
+    () =>
+      Object.fromEntries(
+        allLaneNotes.map((note, row) => [
+          note,
+          jamRecorded ? jamRecorded[row % jamRecorded.length].name : Tone.Frequency(note, 'midi').toNote(),
+        ])
+      ),
+    [allLaneNotes, jamRecorded]
+  );
+  const savedRowMix = jamSettings?.rowMixes[jamSettings.soundId];
+  const jamRowMix = useMemo(
+    () =>
+      savedRowMix && savedRowMix.levels.length === allLaneNotes.length
+        ? savedRowMix
+        : defaultJamTrackMix(allLaneNotes.length),
+    [savedRowMix, allLaneNotes.length]
+  );
+  const jamRowLevelsRef = useRef<number[]>([]);
+  jamRowLevelsRef.current = jamTrackLevels(jamRowMix);
   const [disabledNotes, setDisabledNotes] = useState<Set<number>>(() =>
     loadDisabledNotes(fullLesson, allLaneNotes)
   );
@@ -1337,7 +1368,12 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
     // The same pitch twice on one 16th sounds once
     const prev = jamNotesRef.current;
     if (prev.some((n) => n.note === row && n.timeMs === timeMs)) return slot;
-    playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, Math.max(start + slot * sixteenth, Tone.now()), step?.semitones);
+    // A muted row (or one left out by a solo) still draws its note, silently
+    const level = jamOnly ? jamRowLevelsRef.current[allLaneNotes.indexOf(row)] ?? 1 : 1;
+    if (level > 0) {
+      const player = playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, Math.max(start + slot * sixteenth, Tone.now()), step?.semitones);
+      if (player && level < 1) player.volume.value += 20 * Math.log10(level);
+    }
     const next = [
       ...prev.filter((n) => n.timeMs > elapsed * 1000 - JAM_NOTE_LIFETIME_MS),
       { id: ++jamNoteIdRef.current, note: row, timeMs },
@@ -1345,7 +1381,7 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
     jamNotesRef.current = next;
     setJamNotes(next);
     return slot;
-  }, [jamRows, lesson.steps, lesson.bpm, jamOnly, jamNotesVolume]);
+  }, [jamRows, lesson.steps, lesson.bpm, jamOnly, jamNotesVolume, allLaneNotes]);
 
   // Repeat spacing in 16ths: the latest held number key's rate, else the chosen one
   const jamHoldStep = useCallback(() => {
@@ -2300,6 +2336,8 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
             divisions={jamTrackEdit?.divisions ?? jamTrackNotes.map(() => null)}
             edited={!!jamTrackEdit || !!jamSettings.mixes[jamTrack.file]}
             mix={jamTrackMix!}
+            lanesOpen={jamSettings.lanesOpen}
+            onLanesOpenChange={(lanesOpen) => setJamSettings({ ...jamSettings, lanesOpen })}
             onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamTrack.file]: mix } })}
             paused={jamPaused}
             onTogglePause={toggleJamPause}
@@ -2334,6 +2372,19 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
             holdNotes={!!lesson.holdNotes}
             holdingSteps={holdingSteps}
             onNoteReached={isGameMode ? handleNoteReached : undefined}
+            jamLanes={
+              currentMode === 'jam' && jamSettings
+                ? {
+                    open: jamSettings.lanesOpen,
+                    onOpenChange: (lanesOpen) => setJamSettings({ ...jamSettings, lanesOpen }),
+                    names: jamRowNames,
+                    rows: allLaneNotes,
+                    mix: jamRowMix,
+                    onMixChange: (mix) =>
+                      setJamSettings({ ...jamSettings, rowMixes: { ...jamSettings.rowMixes, [jamSettings.soundId]: mix } }),
+                  }
+                : undefined
+            }
           />
         )}
 
