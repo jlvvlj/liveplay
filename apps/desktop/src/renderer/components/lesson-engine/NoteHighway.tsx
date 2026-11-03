@@ -741,27 +741,32 @@ export function NoteHighway({
   // follows the mouse up and down, between the top and bottom row centers
   const [jamCursorY, setJamCursorY] = useState<{ y: number; note: number | null } | null>(null);
 
+  // The jam rows, top to bottom (the lanes also hold the lane controls' fold)
+  const jamRowElements = (): HTMLElement[] =>
+    Array.from(jamLanesRef.current?.querySelectorAll<HTMLElement>(':scope > [data-jam-note]') ?? []);
+
   // Where the rows are: the top row's center (px from the highway top) and
   // the distance from one row's center to the next
   const jamRowSpan = (): { top: number; step: number } | null => {
-    const lanes = jamLanesRef.current;
+    const rows = jamRowElements();
     const container = containerRef.current;
-    if (!lanes?.firstElementChild || !lanes.lastElementChild || !container) return null;
+    if (!rows.length || !container) return null;
     const origin = container.getBoundingClientRect().top;
-    const first = lanes.firstElementChild.getBoundingClientRect();
-    const last = lanes.lastElementChild.getBoundingClientRect();
+    const first = rows[0].getBoundingClientRect();
+    const last = rows[rows.length - 1].getBoundingClientRect();
     const top = first.top + first.height / 2 - origin;
     const bottom = last.top + last.height / 2 - origin;
-    return { top, step: lanes.children.length > 1 ? (bottom - top) / (lanes.children.length - 1) : 0 };
+    return { top, step: rows.length > 1 ? (bottom - top) / (rows.length - 1) : 0 };
   };
 
   // Every ship's height (px from the highway top): this player's ('') and the
   // other players' in a jam room, by id
-  const jamRows = mode === 'jam' ? jamRowSpan() : null;
+  const jamRowList = mode === 'jam' ? jamRowElements() : [];
+  const jamRows = jamRowList.length ? jamRowSpan() : null;
   const jamShipYs = new Map<string, number>();
   if (jamCursorY) jamShipYs.set('', jamCursorY.y);
-  if (jamRows && jamLanesRef.current) {
-    const lastRow = jamLanesRef.current.children.length - 1;
+  if (jamRows) {
+    const lastRow = jamRowList.length - 1;
     for (const ship of jamShips) {
       jamShipYs.set(ship.id, jamRows.top + Math.min(lastRow, Math.max(0, ship.row)) * jamRows.step);
     }
@@ -903,11 +908,11 @@ export function NoteHighway({
   };
 
   const moveJamCursor = (clientY: number, note: number | null) => {
-    const lanes = jamLanesRef.current;
+    const rows = jamRowElements();
     const container = containerRef.current;
-    if (!lanes?.firstElementChild || !lanes.lastElementChild || !container) return;
-    const top = lanes.firstElementChild.getBoundingClientRect();
-    const bottom = lanes.lastElementChild.getBoundingClientRect();
+    if (!rows.length || !container) return;
+    const top = rows[0].getBoundingClientRect();
+    const bottom = rows[rows.length - 1].getBoundingClientRect();
     const y = Math.min(bottom.top + bottom.height / 2, Math.max(top.top + top.height / 2, clientY));
     setJamCursorY((prev) => ({ y: y - container.getBoundingClientRect().top, note: note ?? prev?.note ?? null }));
   };
@@ -929,8 +934,8 @@ export function NoteHighway({
   // Start the cursor on the middle row
   useEffect(() => {
     if (mode !== 'jam' || jamCursorY) return;
-    const lanes = jamLanesRef.current;
-    const middle = lanes?.children[Math.floor(lanes.children.length / 2)] as HTMLElement | undefined;
+    const rows = jamRowElements();
+    const middle = rows[Math.floor(rows.length / 2)] as HTMLElement | undefined;
     if (!middle) return;
     const rect = middle.getBoundingClientRect();
     moveJamCursor(rect.top + rect.height / 2, Number(middle.dataset.jamNote));
@@ -998,11 +1003,10 @@ export function NoteHighway({
     );
   };
   const renderJamCursor = () => {
-    const rows = jamLanesRef.current?.children;
     const others = jamShips.flatMap((ship) => {
       const y = jamShipYs.get(ship.id);
-      if (y === undefined || !rows?.length) return [];
-      const row = rows[Math.min(rows.length - 1, Math.max(0, Math.round(ship.row)))] as HTMLElement;
+      if (y === undefined || !jamRowList.length) return [];
+      const row = jamRowList[Math.min(jamRowList.length - 1, Math.max(0, Math.round(ship.row)))];
       const lane = noteToLane(Number(row.dataset.jamNote));
       return [renderJamShip(ship.id, y, lane >= 0 ? getLaneColor(lane) : undefined, ship.name, ship.color)];
     });
