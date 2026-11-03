@@ -3,7 +3,7 @@ import * as Tone from 'tone';
 import { LessonEngine, LessonEngineState } from './LessonEngine';
 import { Lesson, LessonStep, HitFeedback, LessonScore, PracticeModeSettings } from '../../types/lesson';
 import { MidiEvent, DeviceMapping } from '../../types/electron';
-import { NoteHighway, HighwayMode, JamNote } from './NoteHighway';
+import { NoteHighway, HighwayMode, JamNote, JamShip } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
 import { JAM_TRACKS, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
@@ -26,6 +26,10 @@ import {
   type JamSynthPatch,
   type JamEffects,
 } from './jamSynth';
+import { audioTimeAt, hitSlot, remoteNoteSlot } from './jamClock';
+import { JamRoom, newJamRoomCode, type JamRoomPlayer } from './jamRoom';
+import { JAM_ROOM_CODE, type JamRoomNote, type JamRoomSound, type JamRoomState } from './jamRoomProtocol';
+import { JamRemoteVoices } from './jamRemoteVoices';
 import { holdToleranceMs, isHoldStep, stepDurationMs } from './holdNotes';
 import './LessonPlayer.css';
 
@@ -38,6 +42,8 @@ interface LessonPlayerProps {
   jamSounds?: JamSoundPreset[];
   // Jam tab: songs (backing tracks) to choose from in the sidebar; `lesson` is the default
   jamSongs?: Lesson[];
+  // Jam tab: the room server (WebSocket URL) for playing together online; no rooms without one
+  jamRoomServer?: string;
 }
 
 const MIN_EFFECTIVE_SPEED = 0.01;
@@ -54,6 +60,18 @@ const JAM_HOLD_DIVISIONS = [4, 8, 16, 32];
 const JAM_HOLD_KEYS: Record<string, number> = { '1': 4, '2': 8, '3': 16, '4': 32 };
 const DEFAULT_JAM_HOLD_DIVISION = 16;
 const JAM_HOLD_LOOKAHEAD_S = 0.1;
+// Notes are scheduled at least this far ahead of the audio clock
+const JAM_SCHEDULE_MARGIN_S = 0.01;
+// Jam rooms: a player must have a note this long before it sounds, on top of
+// its audio output latency, to schedule it (message handling, scheduling)
+const JAM_ROOM_RECEIVE_MARGIN_S = 0.02;
+// A song started or resumed in a room begins this long after the click, so
+// every player has the news in time to start with it
+const JAM_ROOM_START_LEAD_MS = 400;
+// A grid this far off the room's clock (drift between the audio and system
+// clocks) is moved back onto it
+const JAM_ROOM_RESYNC_S = 0.015;
+const JAM_ROOM_RESYNC_MS = 1000;
 
 // Jam tab volumes: the backing track tops out about 6 dB louder than in
 // lessons (x1.3 on -2 dB) and the played notes start below it, so the groove
@@ -112,6 +130,46 @@ function validTrackMixes(saved: unknown): Record<string, JamTrackMix> {
   );
 }
 const JAM_SETTINGS_KEY = 'melodics.jamSettings.v1';
+// The player's name in jam rooms, remembered in this browser
+const JAM_NAME_KEY = 'melodics.jamName.v1';
+function loadJamName(): string {
+  try {
+    return localStorage.getItem(JAM_NAME_KEY) ?? '';
+  } catch {
+    return ''; // storage unavailable: the room gives a numbered name
+  }
+}
+
+// A field that takes typed text
+function isTextEntry(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable || target instanceof HTMLTextAreaElement) return true;
+  return target instanceof HTMLInputElement && !['checkbox', 'radio', 'range', 'button', 'submit'].includes(target.type);
+}
+
+// The page's own AudioContext under Tone's wrapper, which lacks output timestamps
+function rawAudioContext(): AudioContext {
+  const raw = Tone.getContext().rawContext as AudioContext & { _nativeAudioContext?: AudioContext };
+  return raw._nativeAudioContext ?? raw;
+}
+
+// A room state with every track and part that did not change kept as it was,
+// so only the parts edited since are rendered again
+function keepUnchangedTracks(prev: JamRoomState | null, next: JamRoomState): JamRoomState {
+  if (!prev) return next;
+  const tracks = Object.fromEntries(
+    Object.entries(next.tracks).map(([file, edit]) => {
+      const old = prev.tracks[file];
+      if (!old) return [file, edit];
+      if (JSON.stringify(old) === JSON.stringify(edit)) return [file, old];
+      const parts = edit.parts.map((part, index) =>
+        JSON.stringify(old.parts[index]) === JSON.stringify(part) ? old.parts[index] : part
+      );
+      return [file, { ...edit, parts }];
+    })
+  );
+  return { ...next, tracks };
+}
 
 const presetPatches = (sounds: JamSoundPreset[]): Record<string, JamSynthPatch> =>
   Object.fromEntries(sounds.flatMap((sound) => ('patch' in sound ? [[sound.id, sound.patch]] : [])));
@@ -198,14 +256,44 @@ function saveDisabledNotes(lesson: Lesson, notes: number[], disabled: Set<number
   }
 }
 
-export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, jamSounds, jamSongs }: LessonPlayerProps) {
+export function LessonPlayer({
+  lesson: lessonArg,
+  onComplete,
+  jamOnly = false,
+  jamSounds,
+  jamSongs,
+  jamRoomServer,
+}: LessonPlayerProps) {
   // Jam tab: the chosen song, synth sound, its (editable) settings and the
   // effects, remembered between visits
   const [jamSettings, setJamSettings] = useState<JamSettings | null>(() =>
     jamSounds?.length ? loadJamSettings(jamSounds, [lessonArg.id, ...(jamSongs ?? []).map((song) => song.id)]) : null
   );
+  // Jam room (playing together online): the room, its jam once joined and
+  // synced, its players, and why the last one ended if it ended by itself.
+  // In a room its jam replaces this browser's song, play / pause and grid edits.
+  const [jamRoom, setJamRoom] = useState<JamRoom | null>(null);
+  const [jamRoomState, setJamRoomState] = useState<JamRoomState | null>(null);
+  const [jamRoomPlayers, setJamRoomPlayers] = useState<JamRoomPlayer[]>([]);
+  const [jamRoomEnded, setJamRoomEnded] = useState<'full' | 'lost' | null>(null);
+  const jamRoomRef = useRef<JamRoom | null>(null);
+  jamRoomRef.current = jamRoom;
+  const jamRoomStateRef = useRef<JamRoomState | null>(null);
+  jamRoomStateRef.current = jamRoomState;
+  const jamRoomStartAt = jamRoomState ? jamRoomState.startAt : null;
+  // This player's name on their ship; empty for the room's numbered name
+  const [jamName, setJamName] = useState<string>(loadJamName);
+  useEffect(() => {
+    try {
+      localStorage.setItem(JAM_NAME_KEY, jamName);
+    } catch {
+      // storage unavailable: the name lasts until the page closes
+    }
+  }, [jamName]);
+
   // Switching songs swaps the lesson in place, so volumes and the sidebar stay as they are
-  const lessonProp = jamSongs?.find((song) => song.id === jamSettings?.songId) ?? lessonArg;
+  const jamSongId = jamRoomState?.songId ?? jamSettings?.songId;
+  const lessonProp = jamSongs?.find((song) => song.id === jamSongId) ?? lessonArg;
   useEffect(() => {
     if (jamSettings && jamSounds) saveJamSettings(jamSettings, jamSounds);
   }, [jamSettings, jamSounds]);
@@ -387,6 +475,8 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
   const [jamView, setJamView] = useState<'highway' | 'grid'>('highway');
   // Jam tab paused, and how far it had played when it was (seconds)
   const [jamPaused, setJamPaused] = useState<boolean>(false);
+  // In a room, play / pause is the room's
+  const jamIsPaused = jamRoomState ? jamRoomState.startAt === null : jamPaused;
   const jamResumeAtRef = useRef<number>(0);
   // Rates of the number keys held down, latest last; the latest one is used
   const [jamKeyDivisions, setJamKeyDivisions] = useState<number[]>([]);
@@ -853,7 +943,7 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
   // Jam: the backing track's data and its notes as edited in the grid. The
   // track is rendered live from them, and again after every edit.
   const jamTrack = jamOnly ? jamTrackFor(lesson.backingTrack) : undefined;
-  const jamTrackEdit = jamTrack ? jamSettings?.tracks[jamTrack.file] : undefined;
+  const jamTrackEdit = jamTrack ? (jamRoomState ?? jamSettings)?.tracks[jamTrack.file] : undefined;
   const jamTrackOriginal = useMemo(() => (jamTrack ? jamTrackParts(jamTrack).map((part) => part.notes) : null), [jamTrack]);
   const jamTrackNotes = jamTrackEdit?.parts ?? jamTrackOriginal;
   const jamTrackNotesRef = useRef(jamTrackNotes);
@@ -1124,11 +1214,12 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
   // Jam mode clock and pulse: the backing track loops when the lesson has one,
   // otherwise a soft click marks the beats. Runs for as long as the Jam tab is open.
   useEffect(() => {
-    if (currentMode !== 'jam' || jamPaused) return;
+    if (currentMode !== 'jam' || jamIsPaused) return;
 
     let cancelled = false;
     let clockInterval: ReturnType<typeof setInterval> | null = null;
     let pulseInterval: ReturnType<typeof setInterval> | null = null;
+    let resyncInterval: ReturnType<typeof setInterval> | null = null;
     // Its level is the volume slider's job, so moving the slider never restarts the jam
     const backing = backingTrackRef.current?.loaded && backingTrackLoaded ? backingTrackRef.current : null;
     // A song with a backing track starts once it has loaded (this runs again then)
@@ -1138,22 +1229,45 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
       await Tone.start();
       if (cancelled) return;
 
-      // After a pause it carries on from where it stopped
-      const resume = jamResumeAtRef.current;
+      // The jam's grid on the audio clock: `start` is the audio time of its
+      // first 16th, as it leaves the speakers
+      const context = rawAudioContext();
+      const room = jamRoomRef.current;
+      let start: number;
+      if (room && jamRoomStartAt !== null) {
+        // In a room it is the room's: the first 16th left every player's speakers at the room's start
+        start = audioTimeAt(context, room.clock.toPage(jamRoomStartAt));
+      } else {
+        // After a pause it carries on from where it stopped
+        start = context.currentTime + 0.1 - jamResumeAtRef.current;
+      }
       jamResumeAtRef.current = 0;
-      const start = Tone.now() + 0.1 - resume;
       jamStartRef.current = start;
+      // The music comes in right away, or at a room's start still to come
+      const playAt = Math.max(start, context.currentTime + 0.1);
+      const offset = playAt - start;
 
       if (backing) {
         // An edit made while the audio was locked may have swapped the player
         const player = backingTrackRef.current ?? backing;
         player.loop = true;
         player.playbackRate = 1;
-        player.start(start + resume, resume);
+        player.start(playAt, offset);
+        // The audio clock drifts from the room's: once the grid is off by more
+        // than a few ms, the track jumps back onto the room's grid
+        if (room && jamRoomStartAt !== null) {
+          resyncInterval = setInterval(() => {
+            const expected = audioTimeAt(context, room.clock.toPage(jamRoomStartAt));
+            if (jamStartRef.current === null || Math.abs(expected - jamStartRef.current) < JAM_ROOM_RESYNC_S) return;
+            const at = context.currentTime + 0.05;
+            jamStartRef.current = expected;
+            (backingTrackRef.current ?? backing).start(at, at - expected);
+          }, JAM_ROOM_RESYNC_MS);
+        }
       } else {
         const beatSeconds = 60 / lesson.bpm;
         const beatsPerBar = (lesson.timeSignature || { numerator: 4, denominator: 4 }).numerator;
-        let nextBeat = Math.ceil(resume / beatSeconds);
+        let nextBeat = Math.ceil(offset / beatSeconds);
         // Schedule clicks slightly ahead on the audio clock so they never drift
         pulseInterval = setInterval(() => {
           const horizon = Tone.now() + 0.15;
@@ -1170,8 +1284,9 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
         }, 50);
       }
 
+      // The highway shows what is heard
       clockInterval = setInterval(() => {
-        setCurrentTime(Math.max(0, (Tone.now() - start) * 1000));
+        if (jamStartRef.current !== null) setCurrentTime(Math.max(0, (audioTimeAt(context) - jamStartRef.current) * 1000));
       }, 16);
     };
     begin();
@@ -1180,6 +1295,7 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
       cancelled = true;
       if (clockInterval) clearInterval(clockInterval);
       if (pulseInterval) clearInterval(pulseInterval);
+      if (resyncInterval) clearInterval(resyncInterval);
       // The backing may have been swapped for an edited one since it started
       for (const player of new Set([backing, backingTrackRef.current])) {
         if (!player) continue;
@@ -1198,15 +1314,26 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
       setJamNotes([]);
       setCurrentTime(0);
     };
-  }, [currentMode, lesson.bpm, lesson.timeSignature, lesson.backingTrack, backingTrackLoaded, jamPaused]);
+  }, [currentMode, lesson.bpm, lesson.timeSignature, lesson.backingTrack, backingTrackLoaded, jamIsPaused, jamRoomStartAt]);
 
   // A new song starts from its beginning
   useEffect(() => {
     jamResumeAtRef.current = 0;
   }, [lesson.id]);
 
+  // Where the jam is, as heard (s)
+  const jamHeardPosition = (): number =>
+    jamStartRef.current === null ? 0 : Math.max(0, audioTimeAt(rawAudioContext()) - jamStartRef.current);
+
   const toggleJamPause = () => {
-    if (!jamPaused && jamStartRef.current !== null) jamResumeAtRef.current = Math.max(0, Tone.now() - jamStartRef.current);
+    const room = jamRoomRef.current;
+    if (room && jamRoomState) {
+      const { songId, startAt, position } = jamRoomState;
+      if (startAt !== null) room.setState({ songId, startAt: null, position: jamHeardPosition() });
+      else room.setState({ songId, startAt: room.clock.now() + JAM_ROOM_START_LEAD_MS - position * 1000, position });
+      return;
+    }
+    if (!jamPaused && jamStartRef.current !== null) jamResumeAtRef.current = jamHeardPosition();
     setJamPaused(!jamPaused);
   };
 
@@ -1349,9 +1476,21 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
     [lesson.steps]
   );
 
+  // Adds a dot to the highway, dropping the ones that have scrolled off
+  const addJamNote = useCallback((note: Omit<JamNote, 'id'>, heardMs: number) => {
+    const next = [
+      ...jamNotesRef.current.filter((n) => n.timeMs > heardMs - JAM_NOTE_LIFETIME_MS),
+      { ...note, id: ++jamNoteIdRef.current },
+    ];
+    jamNotesRef.current = next;
+    setJamNotes(next);
+  }, []);
+
   // Plays the row nearest `note` at the given position in 16ths (default: the
-  // next point of a grid `grid` 16ths apart) and returns that position, or null
-  // when the jam clock isn't running
+  // next point of a grid `grid` 16ths apart from where the music is heard) and
+  // returns that position, or null when the jam clock isn't running. In a room
+  // the note also goes to the other players, and lands no sooner than they
+  // can all play it on the same 16th.
   const playJamNote = useCallback((note: number, atSlot?: number, grid = 1): number | null => {
     const start = jamStartRef.current;
     if (start === null || jamRows.length === 0) return null;
@@ -1361,27 +1500,168 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
     );
     const step = lesson.steps.find((s) => s.note === row);
     const sixteenth = 60 / lesson.bpm / 4;
-    const elapsed = Tone.now() - start;
-    const slot = atSlot ?? Math.max(0, Math.ceil((elapsed - JAM_LATE_GRACE_S) / (sixteenth * grid)) * grid);
+    const context = rawAudioContext();
+    const heard = audioTimeAt(context) - start;
+    const room = jamRoomRef.current?.ready ? jamRoomRef.current : null;
+    const lead = room?.lead ?? 0;
+    const slot = atSlot ?? hitSlot(heard / sixteenth, JAM_LATE_GRACE_S / sixteenth, lead / sixteenth, grid);
     const timeMs = slot * sixteenth * 1000;
 
     // The same pitch twice on one 16th sounds once
-    const prev = jamNotesRef.current;
-    if (prev.some((n) => n.note === row && n.timeMs === timeMs)) return slot;
+    if (jamNotesRef.current.some((n) => !n.peer && n.note === row && n.timeMs === timeMs)) return slot;
     // A muted row (or one left out by a solo) still draws its note, silently
     const level = jamOnly ? jamRowLevelsRef.current[allLaneNotes.indexOf(row)] ?? 1 : 1;
     if (level > 0) {
-      const player = playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, Math.max(start + slot * sixteenth, Tone.now()), step?.semitones);
+      const at = Math.max(start + slot * sixteenth, context.currentTime + JAM_SCHEDULE_MARGIN_S);
+      const player = playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, at, step?.semitones);
       if (player && level < 1) player.volume.value += 20 * Math.log10(level);
     }
-    const next = [
-      ...prev.filter((n) => n.timeMs > elapsed * 1000 - JAM_NOTE_LIFETIME_MS),
-      { id: ++jamNoteIdRef.current, note: row, timeMs },
-    ];
-    jamNotesRef.current = next;
-    setJamNotes(next);
+    room?.sendNote({ song: lesson.id, slot, note: row });
+    addJamNote({ note: row, timeMs }, heard * 1000);
     return slot;
-  }, [jamRows, lesson.steps, lesson.bpm, jamOnly, jamNotesVolume, allLaneNotes]);
+  }, [jamRows, lesson.steps, lesson.bpm, lesson.id, jamOnly, jamNotesVolume, allLaneNotes, addJamNote]);
+
+  // Another player's note: on its own 16th when it came in time, else like a late hit
+  const remoteVoicesRef = useRef<JamRemoteVoices | null>(null);
+  const playRemoteJamNote = useCallback((from: string, note: JamRoomNote) => {
+    const start = jamStartRef.current;
+    if (start === null || note.song !== lesson.id) return;
+    const sixteenth = 60 / lesson.bpm / 4;
+    const context = rawAudioContext();
+    const earliest = (context.currentTime + JAM_SCHEDULE_MARGIN_S - start) / sixteenth;
+    const slot = remoteNoteSlot(note.slot, earliest, JAM_LATE_GRACE_S / sixteenth);
+    // This player's row levels (mutes, solos) apply to everyone's notes
+    const level = jamRowLevelsRef.current[allLaneNotes.indexOf(note.note)] ?? 1;
+    if (!remoteVoicesRef.current?.play(from, note.note, start + slot * sixteenth, jamNotesVolume, level)) {
+      console.warn('[LessonPlayer] A jam room player\'s sound is still being prepared; their note was not played.', { from });
+    }
+    addJamNote({ note: note.note, timeMs: slot * sixteenth * 1000, peer: from }, (audioTimeAt(context) - start) * 1000);
+  }, [lesson.id, lesson.bpm, jamNotesVolume, allLaneNotes, addJamNote]);
+  const playRemoteJamNoteRef = useRef(playRemoteJamNote);
+  playRemoteJamNoteRef.current = playRemoteJamNote;
+
+  // Jam rooms. This player's sound, as the others render it
+  const jamRoomPatch = jamSettings?.patches[jamSettings.soundId];
+  const jamRoomSound = useMemo<JamRoomSound | null>(
+    () => (jamSettings ? { id: jamSettings.soundId, ...(jamRoomPatch ? { patch: jamRoomPatch } : {}) } : null),
+    [jamSettings?.soundId, jamRoomPatch] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  // How long before a note sounds this device must have it (s)
+  const jamRoomNeed = (): number => {
+    const context = rawAudioContext();
+    return JAM_ROOM_RECEIVE_MARGIN_S + Math.max(0, context.currentTime - audioTimeAt(context));
+  };
+
+  // Leaves the room; the jam carries on here from where the room was
+  const leaveJamRoom = (ended: 'full' | 'lost' | null = null) => {
+    const room = jamRoomRef.current;
+    if (!room) return;
+    room.leave();
+    const state = jamRoomStateRef.current;
+    if (state) {
+      setJamSettings((settings) => settings && { ...settings, songId: state.songId });
+      jamResumeAtRef.current = state.startAt === null ? state.position : jamHeardPosition();
+      setJamPaused(state.startAt === null);
+    }
+    remoteVoicesRef.current?.dispose();
+    remoteVoicesRef.current = null;
+    setJamRoom(null);
+    setJamRoomState(null);
+    setJamRoomPlayers([]);
+    setJamRoomEnded(ended);
+    const url = new URL(location.href);
+    url.searchParams.delete('room');
+    history.replaceState(history.state, '', url);
+  };
+  const leaveJamRoomRef = useRef(leaveJamRoom);
+  leaveJamRoomRef.current = leaveJamRoom;
+
+  const joinJamRoom = (code: string) => {
+    if (!jamRoomServer || !jamSettings) return;
+    jamRoomRef.current?.leave();
+    setJamRoomEnded(null);
+    let first = true;
+    const wasPlaying = !jamIsPaused;
+    const room: JamRoom = new JamRoom(
+      code,
+      jamRoomServer,
+      {
+        name: jamName,
+        state: { songId: lessonProp.id, startAt: null, position: jamHeardPosition(), tracks: jamSettings.tracks },
+        sound: jamRoomSound,
+        need: jamRoomNeed(),
+      },
+      {
+        onState: (state) => {
+          // A room this player just opened takes over the jam where it is, still playing
+          if (first) {
+            first = false;
+            if (wasPlaying && state.startAt === null && room.players().length === 1) {
+              const position = jamHeardPosition();
+              room.setState({ songId: state.songId, startAt: room.clock.now() - position * 1000, position });
+              return;
+            }
+          }
+          setJamRoomState((prev) => keepUnchangedTracks(prev, state));
+        },
+        onPlayers: setJamRoomPlayers,
+        onNote: (from, note) => playRemoteJamNoteRef.current(from, note),
+        onClosed: (reason) => leaveJamRoomRef.current(reason),
+      }
+    );
+    jamRoomRef.current = room;
+    setJamRoom(room);
+    const url = new URL(location.href);
+    url.searchParams.set('room', code);
+    history.replaceState(history.state, '', url);
+  };
+
+  // A link with a room code joins that room
+  useEffect(() => {
+    const code = new URLSearchParams(location.search).get('room')?.toUpperCase();
+    if (jamRoomServer && code && JAM_ROOM_CODE.test(code)) joinJamRoom(code);
+    return () => {
+      jamRoomRef.current?.leave();
+      remoteVoicesRef.current?.dispose();
+      remoteVoicesRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A changed name goes out once typing pauses
+  useEffect(() => {
+    if (!jamRoom) return;
+    const timer = setTimeout(() => jamRoom.setPeer(jamName, jamRoomSound, jamRoomNeed()), 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jamRoom, jamRoomSound, jamName]);
+
+  // The other players' ships, and this player's going out to them
+  const jamShips = useMemo<JamShip[]>(
+    () =>
+      jamRoomPlayers.flatMap((player) =>
+        !player.you && player.row !== null
+          ? [{ id: player.id, name: player.name, color: player.color, row: player.row }]
+          : []
+      ),
+    [jamRoomPlayers]
+  );
+  const handleJamCursorMove = useCallback((row: number) => jamRoomRef.current?.setCursor(row), []);
+
+  // The other players' sounds, rendered here
+  useEffect(() => {
+    const bus = jamNotesBusRef.current;
+    if (!jamRoom || !jamSounds || !bus) return;
+    const voices = (remoteVoicesRef.current ??= new JamRemoteVoices(bus));
+    const notes = Array.from(new Set(lessonProp.steps.map((s) => s.note)));
+    const others = jamRoomPlayers.filter((player) => !player.you);
+    voices.keepOnly(others.map((player) => player.id));
+    for (const player of others) {
+      voices
+        .set(player.id, player.sound, notes, jamSounds, jamReferenceSounds ?? [])
+        .catch((err) => console.error('[LessonPlayer] Could not prepare a jam room player\'s sound:', err));
+    }
+  }, [jamRoom, jamRoomPlayers, jamSounds, jamReferenceSounds, lessonProp.steps]);
 
   // Repeat spacing in 16ths: the latest held number key's rate, else the chosen one
   const jamHoldStep = useCallback(() => {
@@ -1446,9 +1726,10 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
     updateJamHold();
   }, [updateJamHold]);
 
-  // How far the backing track has played, in 16ths
+  // How far the backing track has played as heard, in 16ths
   const getJamStep = useCallback(
-    () => (jamStartRef.current === null ? null : (Tone.now() - jamStartRef.current) / (60 / lesson.bpm / 4)),
+    () =>
+      jamStartRef.current === null ? null : (audioTimeAt(rawAudioContext()) - jamStartRef.current) / (60 / lesson.bpm / 4),
     [lesson.bpm]
   );
 
@@ -1715,6 +1996,8 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
   // Set up keyboard event listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Keys typed into a field (a name, a room code) are text, not notes
+      if (isTextEntry(e.target)) return;
       // ESC key to stop lesson and exit game mode
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -2339,16 +2622,30 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
             lanesOpen={jamSettings.lanesOpen}
             onLanesOpenChange={(lanesOpen) => setJamSettings({ ...jamSettings, lanesOpen })}
             onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamTrack.file]: mix } })}
-            paused={jamPaused}
+            paused={jamIsPaused}
             onTogglePause={toggleJamPause}
-            onChange={(parts, divisions) =>
-              setJamSettings({ ...jamSettings, tracks: { ...jamSettings.tracks, [jamTrack.file]: { parts, divisions } } })
-            }
+            onChange={(parts, divisions) => {
+              const edit = { parts, divisions };
+              if (jamRoom && jamRoomState) {
+                setJamRoomState({ ...jamRoomState, tracks: { ...jamRoomState.tracks, [jamTrack.file]: edit } });
+                jamRoom.setTrack(jamTrack.file, edit);
+              } else {
+                setJamSettings({ ...jamSettings, tracks: { ...jamSettings.tracks, [jamTrack.file]: edit } });
+              }
+            }}
             onReset={() => {
-              const tracks = { ...jamSettings.tracks };
               const mixes = { ...jamSettings.mixes };
-              delete tracks[jamTrack.file];
               delete mixes[jamTrack.file];
+              if (jamRoom && jamRoomState) {
+                const tracks = { ...jamRoomState.tracks };
+                delete tracks[jamTrack.file];
+                setJamRoomState({ ...jamRoomState, tracks });
+                jamRoom.setTrack(jamTrack.file, null);
+                setJamSettings({ ...jamSettings, mixes });
+                return;
+              }
+              const tracks = { ...jamSettings.tracks };
+              delete tracks[jamTrack.file];
               setJamSettings({ ...jamSettings, tracks, mixes });
             }}
             getStep={getJamStep}
@@ -2369,6 +2666,8 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
             jamNotes={jamNotes}
             onJamPointer={currentMode === 'jam' ? handleJamPointer : undefined}
             onJamCursorNote={currentMode === 'jam' ? handleJamCursorNote : undefined}
+            onJamCursorMove={jamRoom ? handleJamCursorMove : undefined}
+            jamShips={jamShips}
             holdNotes={!!lesson.holdNotes}
             holdingSteps={holdingSteps}
             onNoteReached={isGameMode ? handleNoteReached : undefined}
@@ -2412,7 +2711,21 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
           <JamSettingsPanel
             songs={jamSongs ?? [lessonArg]}
             songId={lessonProp.id}
-            onSongChange={(songId) => setJamSettings({ ...jamSettings, songId })}
+            onSongChange={(songId) =>
+              jamRoom && jamRoomState
+                ? jamRoom.setState({ songId, startAt: jamRoom.clock.now() + JAM_ROOM_START_LEAD_MS, position: 0 })
+                : setJamSettings({ ...jamSettings, songId })
+            }
+            room={
+              jamRoomServer
+                ? { code: jamRoom?.code ?? null, joined: !!jamRoomState, players: jamRoomPlayers, ended: jamRoomEnded }
+                : undefined
+            }
+            roomName={jamName}
+            onRoomNameChange={setJamName}
+            onRoomStart={() => joinJamRoom(newJamRoomCode())}
+            onRoomJoin={joinJamRoom}
+            onRoomLeave={() => leaveJamRoom()}
             view={jamView}
             onViewChange={jamTrack ? setJamView : undefined}
             sounds={jamSounds}

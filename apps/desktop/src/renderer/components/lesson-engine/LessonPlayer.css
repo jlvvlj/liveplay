@@ -1914,3 +1914,96 @@
     width: min(300px, 88vw);
   }
 }
+
+/* Jam rooms: playing together online */
+.jam-room-code,
+.jam-room-join {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.jam-room-code > span {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.35rem;
+  letter-spacing: 0.2em;
+  color: #fff;
+}
+
+.jam-room-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+}
+
+.jam-room-join .jam-sound-option:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.jam-room-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.jam-room-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-room-you {
+  flex-basis: 100%;
+}
+
+.jam-room-name {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.3);
+  font: inherit;
+  outline: none;
+}
+
+.jam-room-name:focus {
+  border-bottom-color: rgba(255, 255, 255, 0.8);
+}
+
+.jam-room-name::placeholder {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.jam-room-latency {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.jam-room-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+}
+
+.jam-room-ended {
+  margin-top: 0.5rem;
+  color: #fca5a5;
+  font-size: 0.8rem;
+}

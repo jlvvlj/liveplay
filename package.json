@@ -13,6 +13,7 @@
     "build:renderer": "cd apps/desktop && vite build",
     "dev:jam": "cd apps/jam && vite",
     "build:jam": "cd apps/jam && vite build",
+    "start:jam-rooms": "tsx server/jam-rooms.ts",
     "build:electron": "tsc -p apps/desktop/tsconfig.main.json",
     "build:app": "electron-builder",
     "test": "jest",
@@ -47,6 +48,7 @@
     "@types/node": "^20.10.6",
     "@types/react": "^18.2.46",
     "@types/react-dom": "^18.2.18",
+    "@types/ws": "^8.18.2",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
     "@vitejs/plugin-react": "^4.2.1",
@@ -77,7 +79,8 @@
     "prisma": "^5.7.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "tone": "^14.7.77"
+    "tone": "^14.7.77",
+    "ws": "^8.22.1"
   },
   "build": {
     "appId": "com.melodics.mvp",

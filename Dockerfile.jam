@@ -1,0 +1,15 @@
+# The hosted jam (fly.toml): the built jam app and its room server
+FROM node:20-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+# Install scripts build the desktop app's native MIDI module and Electron, which the jam does not use
+RUN npm ci --ignore-scripts
+COPY tsconfig.json ./
+COPY apps/jam apps/jam
+COPY apps/desktop/src/renderer apps/desktop/src/renderer
+COPY instrument-lab/engine instrument-lab/engine
+COPY server/jamRooms.ts server/jam-rooms.ts server/
+RUN npm run build:jam
+ENV NODE_ENV=production JAM_STATIC_DIR=apps/jam/dist PORT=8080
+EXPOSE 8080
+CMD ["npx", "tsx", "server/jam-rooms.ts"]

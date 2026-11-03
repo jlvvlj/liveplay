@@ -16,11 +16,22 @@ import './NoteHighway.css';
 
 export type HighwayMode = 'free' | 'wait' | 'play' | 'jam';
 
-// A note played in jam mode, already snapped to its 16th (ms on the jam clock)
+// A note played in jam mode, already snapped to its 16th (ms on the jam clock).
+// Another player's note in a jam room has their id (`peer`); it leaves from
+// their ship.
 export interface JamNote {
   id: number;
   note: number;
   timeMs: number;
+  peer?: string;
+}
+
+// Another player's ship in a jam room: its height in rows from the top
+export interface JamShip {
+  id: string;
+  name: string;
+  color: string;
+  row: number;
 }
 
 interface NoteHighwayProps {
@@ -41,6 +52,8 @@ interface NoteHighwayProps {
   jamNotes?: JamNote[]; // Notes played in jam mode
   onJamPointer?: (note: number | null) => void; // Jam mode: pitch under a held pointer, null on release
   onJamCursorNote?: (note: number) => void; // Jam mode: the row the ship moved to
+  onJamCursorMove?: (row: number) => void; // Jam mode: the ship's height in rows from the top
+  jamShips?: JamShip[]; // Jam room: the other players' ships
   holdNotes?: boolean; // long sounds are drawn as long as they last and must be held
   holdingSteps?: Set<number>; // hold notes whose key is down right now
   jamLanes?: JamLanes; // Jam mode: each row's controls, on its left
@@ -87,6 +100,7 @@ const JAM_CURSOR_PUSH = 0.016; // Distance one note moves it
 const JAM_CURSOR_DRIFT = 0.07; // Speed back home, per second
 const JAM_CURSOR_BURST_DECAY = 8; // 1/s: how fast one push eases out
 const JAM_CURSOR_FULL_THRUST = 6; // Notes per second that show the full engine flame
+const NO_JAM_SHIPS: JamShip[] = [];
 const JAM_CURSOR_TAIL_PX = 16; // From the cursor point back to just behind the ship's tail (see .jam-cursor-ship)
 const COLLAPSED_NOTE_SIZE = 100; // collapsed-lane notes keep the CSS default size
 
@@ -106,6 +120,8 @@ export function NoteHighway({
   jamNotes = [],
   onJamPointer,
   onJamCursorNote,
+  onJamCursorMove,
+  jamShips = NO_JAM_SHIPS,
   holdNotes = false,
   holdingSteps,
   jamLanes,
@@ -725,56 +741,103 @@ export function NoteHighway({
   // follows the mouse up and down, between the top and bottom row centers
   const [jamCursorY, setJamCursorY] = useState<{ y: number; note: number | null } | null>(null);
 
-  // How far the ship sits above (-) or below (+) the middle of a note's row, so
-  // its notes leave at the ship's height; 0 when the ship is on another row
-  // (notes from keys or MIDI)
-  const jamShipOffset = (note: number): number => {
-    const lane = jamLanesRef.current?.querySelector<HTMLElement>(`[data-jam-note="${note}"]`);
+  // The jam rows, top to bottom (the lanes also hold the lane controls' fold)
+  const jamRowElements = (): HTMLElement[] =>
+    Array.from(jamLanesRef.current?.querySelectorAll<HTMLElement>(':scope > [data-jam-note]') ?? []);
+
+  // Where the rows are: the top row's center (px from the highway top) and
+  // the distance from one row's center to the next
+  const jamRowSpan = (): { top: number; step: number } | null => {
+    const rows = jamRowElements();
     const container = containerRef.current;
-    if (!jamCursorY || !lane || !container) return 0;
-    const rect = lane.getBoundingClientRect();
-    const offset = jamCursorY.y - (rect.top - container.getBoundingClientRect().top + rect.height / 2);
-    return Math.abs(offset) <= rect.height / 2 ? offset : 0;
+    if (!rows.length || !container) return null;
+    const origin = container.getBoundingClientRect().top;
+    const first = rows[0].getBoundingClientRect();
+    const last = rows[rows.length - 1].getBoundingClientRect();
+    const top = first.top + first.height / 2 - origin;
+    const bottom = last.top + last.height / 2 - origin;
+    return { top, step: rows.length > 1 ? (bottom - top) / (rows.length - 1) : 0 };
   };
 
-  // Jam cursor motion, advanced once per clock tick: x is how far right of home
-  // it is, v the leftover push of recent notes. Each note is born where the ship
-  // was when it sounded (`born`), so the trail shows where the ship has been.
-  const jamCursorRef = useRef<{ time: number | null; x: number; v: number; born: Map<number, { x: number; dy: number }> }>({
-    time: null,
-    x: 0,
-    v: 0,
-    born: new Map(),
-  });
-  const jamCursor = jamCursorRef.current;
-  if (mode === 'jam' && jamCursor.time !== currentTime) {
-    const dt = jamCursor.time === null ? 0 : Math.min(0.1, Math.max(0, (currentTime - jamCursor.time) / 1000));
-    jamCursor.time = currentTime;
-    const range = jamWidth * (JAM_CURSOR_MAX_PERCENT - JAM_CURSOR_HOME_PERCENT);
-    const decay = Math.exp(-JAM_CURSOR_BURST_DECAY * dt);
-    jamCursor.x += (jamCursor.v * (1 - decay)) / JAM_CURSOR_BURST_DECAY - jamWidth * JAM_CURSOR_DRIFT * dt;
-    jamCursor.v *= decay;
-    const ids = new Set<number>();
-    for (const jamNote of jamNotes) {
-      ids.add(jamNote.id);
-      if (jamNote.timeMs > currentTime || jamCursor.born.has(jamNote.id)) continue;
-      jamCursor.born.set(jamNote.id, { x: Math.min(range, Math.max(0, jamCursor.x)), dy: jamShipOffset(jamNote.note) });
-      // Notes that sounded long before this tick (e.g. a remount) leave no push
-      if (currentTime - jamNote.timeMs < 250) {
-        jamCursor.v += jamWidth * JAM_CURSOR_PUSH * JAM_CURSOR_BURST_DECAY;
-      }
-    }
-    for (const id of jamCursor.born.keys()) if (!ids.has(id)) jamCursor.born.delete(id);
-    if (jamCursor.x <= 0) jamCursor.x = 0;
-    if (jamCursor.x >= range) {
-      jamCursor.x = range;
-      jamCursor.v = 0;
+  // Every ship's height (px from the highway top): this player's ('') and the
+  // other players' in a jam room, by id
+  const jamRowList = mode === 'jam' ? jamRowElements() : [];
+  const jamRows = jamRowList.length ? jamRowSpan() : null;
+  const jamShipYs = new Map<string, number>();
+  if (jamCursorY) jamShipYs.set('', jamCursorY.y);
+  if (jamRows) {
+    const lastRow = jamRowList.length - 1;
+    for (const ship of jamShips) {
+      jamShipYs.set(ship.id, jamRows.top + Math.min(lastRow, Math.max(0, ship.row)) * jamRows.step);
     }
   }
 
-  // Render jam mode dots as the ship's exhaust: each waits at the nozzle, just
-  // behind the ship and at its height, until its 16th sounds, then drifts left
-  // from there as it fades.
+  // How far a ship at height `shipY` sits above (-) or below (+) the middle of
+  // a note's row, so its notes leave at the ship's height; 0 when the ship is
+  // on another row (notes from keys or MIDI)
+  const jamShipOffset = (note: number, shipY: number | undefined): number => {
+    const lane = jamLanesRef.current?.querySelector<HTMLElement>(`[data-jam-note="${note}"]`);
+    const container = containerRef.current;
+    if (shipY === undefined || !lane || !container) return 0;
+    const rect = lane.getBoundingClientRect();
+    const offset = shipY - (rect.top - container.getBoundingClientRect().top + rect.height / 2);
+    return Math.abs(offset) <= rect.height / 2 ? offset : 0;
+  };
+
+  // Ship motion, advanced once per clock tick: x is how far right of home a
+  // ship is, v the leftover push of its recent notes. Each player's ship is
+  // pushed by that player's notes. Each note is born where its ship was when
+  // it sounded (`born`), so the trail shows where the ship has been.
+  const jamMotionRef = useRef<{
+    time: number | null;
+    ships: Map<string, { x: number; v: number }>;
+    born: Map<number, { x: number; dy: number }>;
+  }>({ time: null, ships: new Map(), born: new Map() });
+  const jamMotion = jamMotionRef.current;
+  const shipMotion = (ship: string) => {
+    let motion = jamMotion.ships.get(ship);
+    if (!motion) jamMotion.ships.set(ship, (motion = { x: 0, v: 0 }));
+    return motion;
+  };
+  if (mode === 'jam' && jamMotion.time !== currentTime) {
+    const dt = jamMotion.time === null ? 0 : Math.min(0.1, Math.max(0, (currentTime - jamMotion.time) / 1000));
+    jamMotion.time = currentTime;
+    const range = jamWidth * (JAM_CURSOR_MAX_PERCENT - JAM_CURSOR_HOME_PERCENT);
+    const decay = Math.exp(-JAM_CURSOR_BURST_DECAY * dt);
+    for (const motion of jamMotion.ships.values()) {
+      motion.x += (motion.v * (1 - decay)) / JAM_CURSOR_BURST_DECAY - jamWidth * JAM_CURSOR_DRIFT * dt;
+      motion.v *= decay;
+    }
+    const ids = new Set<number>();
+    for (const jamNote of jamNotes) {
+      ids.add(jamNote.id);
+      if (jamNote.timeMs > currentTime || jamMotion.born.has(jamNote.id)) continue;
+      const ship = jamNote.peer ?? '';
+      const motion = shipMotion(ship);
+      jamMotion.born.set(jamNote.id, {
+        x: Math.min(range, Math.max(0, motion.x)),
+        dy: jamShipOffset(jamNote.note, jamShipYs.get(ship)),
+      });
+      // Notes that sounded long before this tick (e.g. a remount) leave no push
+      if (currentTime - jamNote.timeMs < 250) {
+        motion.v += jamWidth * JAM_CURSOR_PUSH * JAM_CURSOR_BURST_DECAY;
+      }
+    }
+    for (const id of jamMotion.born.keys()) if (!ids.has(id)) jamMotion.born.delete(id);
+    const players = new Set(jamShips.map((ship) => ship.id));
+    for (const [ship, motion] of jamMotion.ships) {
+      if (ship !== '' && !players.has(ship)) jamMotion.ships.delete(ship);
+      if (motion.x <= 0) motion.x = 0;
+      if (motion.x >= range) {
+        motion.x = range;
+        motion.v = 0;
+      }
+    }
+  }
+
+  // Render jam mode dots as their ship's exhaust: each waits at the nozzle,
+  // just behind the ship and at its height, until its 16th sounds, then
+  // drifts left from there as it fades.
   const renderJamNotes = (laneIndex: number) => {
     const dotSize = noteSize * 0.55;
     const nozzle = JAM_CURSOR_TAIL_PX + dotSize / 2;
@@ -785,11 +848,12 @@ export function NoteHighway({
         const sounded = age >= 0;
         const opacity = sounded ? Math.max(0, 1 - age / JAM_FADE_MS) : 0.5;
         if (opacity === 0) return null;
-        const born = sounded ? jamCursor.born.get(jamNote.id) : undefined;
+        const ship = jamNote.peer ?? '';
+        const born = sounded ? jamMotion.born.get(jamNote.id) : undefined;
         const left = born
           ? jamNote.timeMs * JAM_PIXELS_PER_MS + born.x
-          : currentTime * JAM_PIXELS_PER_MS + jamCursor.x;
-        const dy = born ? born.dy : jamShipOffset(jamNote.note);
+          : currentTime * JAM_PIXELS_PER_MS + shipMotion(ship).x;
+        const dy = born ? born.dy : jamShipOffset(jamNote.note, jamShipYs.get(ship));
         return (
           <div
             key={jamNote.id}
@@ -844,11 +908,11 @@ export function NoteHighway({
   };
 
   const moveJamCursor = (clientY: number, note: number | null) => {
-    const lanes = jamLanesRef.current;
+    const rows = jamRowElements();
     const container = containerRef.current;
-    if (!lanes?.firstElementChild || !lanes.lastElementChild || !container) return;
-    const top = lanes.firstElementChild.getBoundingClientRect();
-    const bottom = lanes.lastElementChild.getBoundingClientRect();
+    if (!rows.length || !container) return;
+    const top = rows[0].getBoundingClientRect();
+    const bottom = rows[rows.length - 1].getBoundingClientRect();
     const y = Math.min(bottom.top + bottom.height / 2, Math.max(top.top + top.height / 2, clientY));
     setJamCursorY((prev) => ({ y: y - container.getBoundingClientRect().top, note: note ?? prev?.note ?? null }));
   };
@@ -858,11 +922,20 @@ export function NoteHighway({
     if (jamCursorNote !== null) onJamCursorNote?.(jamCursorNote);
   }, [jamCursorNote, onJamCursorNote]);
 
+  // The ship's height in rows from the top, for the other players in a jam room
+  const jamCursorPx = jamCursorY?.y ?? null;
+  useEffect(() => {
+    const rows = jamRowSpan();
+    if (jamCursorPx === null || !rows || !onJamCursorMove) return;
+    onJamCursorMove(rows.step > 0 ? (jamCursorPx - rows.top) / rows.step : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jamCursorPx, onJamCursorMove]);
+
   // Start the cursor on the middle row
   useEffect(() => {
     if (mode !== 'jam' || jamCursorY) return;
-    const lanes = jamLanesRef.current;
-    const middle = lanes?.children[Math.floor(lanes.children.length / 2)] as HTMLElement | undefined;
+    const rows = jamRowElements();
+    const middle = rows[Math.floor(rows.length / 2)] as HTMLElement | undefined;
     if (!middle) return;
     const rect = middle.getBoundingClientRect();
     moveJamCursor(rect.top + rect.height / 2, Number(middle.dataset.jamNote));
@@ -906,24 +979,40 @@ export function NoteHighway({
     </div>
   );
 
-  // Jam cursor: a small ship whose engine flame grows with the push of recent notes
-  const renderJamCursor = () => {
-    if (!jamCursorY) return null;
-    const lane = jamCursorY.note === null ? -1 : noteToLane(jamCursorY.note);
+  // Jam cursor: a small ship whose engine flame grows with the push of recent
+  // notes, in the color of the row it is on. The other players' ships in a jam
+  // room carry their name, on a tag in their color.
+  const renderJamShip = (ship: string, y: number, color: string | undefined, name?: string, tag?: string) => {
+    const motion = shipMotion(ship);
     const fullThrust = jamWidth * JAM_CURSOR_PUSH * JAM_CURSOR_FULL_THRUST;
-    const thrust = Math.min(1, jamCursor.v / fullThrust);
+    const thrust = Math.min(1, motion.v / fullThrust);
     return (
       <div
-        className="jam-cursor"
-        style={{
-          transform: `translate(${hitZoneOffset + jamCursor.x}px, ${jamCursorY.y}px)`,
-          color: lane >= 0 ? getLaneColor(lane) : undefined,
-        }}
+        key={ship}
+        className={name === undefined ? 'jam-cursor' : 'jam-cursor jam-cursor-other'}
+        style={{ transform: `translate(${hitZoneOffset + motion.x}px, ${y}px)`, color }}
       >
         <div className="jam-cursor-flame" style={{ transform: `translateY(-50%) scaleX(${0.25 + thrust})`, opacity: 0.35 + thrust * 0.65 }} />
         <div className="jam-cursor-ship" />
+        {name !== undefined && (
+          <div className="jam-cursor-name" style={{ background: tag }}>
+            {name}
+          </div>
+        )}
       </div>
     );
+  };
+  const renderJamCursor = () => {
+    const others = jamShips.flatMap((ship) => {
+      const y = jamShipYs.get(ship.id);
+      if (y === undefined || !jamRowList.length) return [];
+      const row = jamRowList[Math.min(jamRowList.length - 1, Math.max(0, Math.round(ship.row)))];
+      const lane = noteToLane(Number(row.dataset.jamNote));
+      return [renderJamShip(ship.id, y, lane >= 0 ? getLaneColor(lane) : undefined, ship.name, ship.color)];
+    });
+    if (!jamCursorY) return others;
+    const lane = jamCursorY.note === null ? -1 : noteToLane(jamCursorY.note);
+    return [...others, renderJamShip('', jamCursorY.y, lane >= 0 ? getLaneColor(lane) : undefined)];
   };
 
   const formatClock = (ms: number): string => {

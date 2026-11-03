@@ -1,0 +1,25 @@
+# The hosted jam: the jam app and its rooms on one address
+# (fly deploy --ha=false). Rooms live in the server's memory, so it runs on
+# exactly one machine; it stops when nobody is connected and starts again
+# on the next visit.
+app = 'liveplay-jam'
+primary_region = 'nrt'
+
+[build]
+  dockerfile = 'Dockerfile.jam'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = 'connections'
+    soft_limit = 400
+    hard_limit = 500
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'
