@@ -1,12 +1,12 @@
 import { Lesson } from '../../types/lesson';
 
-// Songs for the Jam tab. Their notes are played with the Jam tab's synth
-// sounds (jamSynth.ts); the backing groove is rendered by
-// scripts/make-pentatonic-jam-audio.mjs into audio/samples/pentatonic_jam/.
+// Songs for the Jam tab, picked in its sidebar. Their notes are played with
+// the Jam tab's synth sounds (jamSynth.ts). A song's `backingTrack` names its
+// track in jamTracks.ts, which the Jam tab renders live; its BPM must match.
 
 export const PENTATONIC_GROOVE_JAM: Lesson = {
   id: 'pentatonic-groove-jam',
-  title: 'Pentatonic Groove Jam',
+  title: 'Pentatonic Groove',
   instrument: 'keys',
   bpm: 90,
   timeSignature: {
@@ -75,4 +75,19 @@ export const PENTATONIC_GROOVE_JAM: Lesson = {
   },
 };
 
-export const JAM_SONGS: Lesson[] = [PENTATONIC_GROOVE_JAM];
+// Same sixteen rows over another backing track
+const jamSong = (id: string, title: string, bpm: number, file: string, description: string): Lesson => ({
+  ...PENTATONIC_GROOVE_JAM,
+  id,
+  title,
+  bpm,
+  backingTrack: `samples/pentatonic_jam/${file}`,
+  metadata: { ...PENTATONIC_GROOVE_JAM.metadata, description },
+});
+
+export const JAM_SONGS: Lesson[] = [
+  PENTATONIC_GROOVE_JAM,
+  jamSong('chip-run-jam', 'Chip Run', 112, 'chip_run.wav', '8-bit pulse bass, square arpeggio and chip drums'),
+  jamSong('night-drift-jam', 'Night Drift', 76, 'night_drift.wav', 'Slow warm pad, sine sub, soft bells, rim and shaker'),
+  jamSong('wood-steps-jam', 'Wood Steps', 100, 'wood_steps.wav', 'Woody bass, electric piano stabs, clap, shaker and woodblock'),
+];

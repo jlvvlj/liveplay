@@ -441,16 +441,26 @@
   }
 }
 
-/* Jam mode: notes sound at 80%, so keep the right-edge fade off them */
+/* Jam mode: the cursor rests near the left and can be pushed far right, so
+   keep both edge fades narrow */
+.note-highway.jam::before,
 .note-highway.jam::after {
   width: 80px;
 }
 
 /* Jam mode dots - colored by row via `color`, glowing, with a fading tail */
+/* The jam cursor stands in for the mouse pointer */
 .jam-lanes {
-  cursor: pointer;
+  cursor: none;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* no long-press menu on phones */
+}
+
+/* Notes leave at the ship's height, which can be near a row's edge */
+.jam-lanes .lane {
+  overflow: visible;
 }
 
 .jam-dot {
@@ -507,26 +517,78 @@
   z-index: 0;
 }
 
-.jam-motion-grid,
+/* Far and near specks, drifting at different speeds */
 .jam-motion-specks {
   position: absolute;
   inset: 0;
   background-repeat: repeat;
-}
-
-/* Bar, beat and 16th lines */
-.jam-motion-grid {
-  background-image:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 2px, transparent 2px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px);
-}
-
-/* Far and near specks, drifting at different speeds */
-.jam-motion-specks {
   background-image:
     radial-gradient(circle, rgba(148, 197, 255, 0.35) 0 1px, transparent 1.5px),
     radial-gradient(circle, rgba(255, 255, 255, 0.22) 0 1.5px, transparent 2px);
   background-size: 173px 131px, 251px 197px;
   background-position-y: 17px, 83px;
+}
+
+/* Jam cursor: a small ship pointing right, colored by its row, with an engine
+   flame behind it. Positioned by transform at its tip's base point. */
+.jam-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  color: #ffffff;
+  pointer-events: none;
+  z-index: 21;
+  will-change: transform;
+}
+
+.jam-cursor-ship {
+  position: absolute;
+  left: -12px;
+  top: -11px;
+  width: 26px;
+  height: 22px;
+  background: currentColor;
+  clip-path: polygon(0 0, 100% 50%, 0 100%, 26% 50%);
+  filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 14px currentColor);
+}
+
+.jam-cursor-flame {
+  position: absolute;
+  right: 6px;
+  top: 0;
+  width: 46px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(270deg, #ffffff 0%, currentColor 35%, transparent 100%);
+  transform-origin: right center;
+  filter: blur(1px);
+}
+
+/* Jam on a sideways phone: sixteen rows in little height, so a slimmer clock
+   bar, tighter padding and smaller row labels */
+@media (max-height: 500px) {
+  .note-highway.jam::before,
+  .note-highway.jam::after {
+    bottom: 28px;
+  }
+
+  .note-highway.jam .highway-progress {
+    height: 28px;
+    gap: 0;
+  }
+
+  .note-highway.jam .jam-motion {
+    bottom: 28px;
+  }
+
+  .note-highway.jam .jam-lanes {
+    gap: 0;
+    padding: 0.25rem 0 calc(0.25rem + 28px);
+  }
+
+  .note-highway.jam .lane-label {
+    font-size: 0.7rem;
+  }
 }

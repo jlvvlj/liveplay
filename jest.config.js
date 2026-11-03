@@ -13,5 +13,7 @@ module.exports = {
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '/instrument-lab/engine/synth\\.mjs$': '<rootDir>/tests/mocks/instrumentLabSynth.ts',
+    '/instrument-lab/engine/drums\\.mjs$': '<rootDir>/tests/mocks/instrumentLabDrums.ts',
+    '^\\./jamRenderer$': '<rootDir>/tests/mocks/jamRenderer.ts',
   },
 };

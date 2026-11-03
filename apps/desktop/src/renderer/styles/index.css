@@ -78,6 +78,7 @@ body {
 /* Jam tab: one screen tall, the jam highway fills everything under the nav */
 .app.app-jam {
   height: 100vh;
+  height: 100dvh; /* phones: the visible height, between the browser's bars */
   min-height: 0;
 }
 

@@ -1,117 +1,72 @@
-// Renders the backing groove for the "Pentatonic Groove Jam" with the
-// Instrument Lab's offline synth and drum engines: 8 bars in A minor that loop
-// seamlessly at 90 BPM. BPM must match the song's bpm in jamSongs.ts. The notes
-// you play are synthesized live in the app (jamSynth.ts).
+// Exports the Jam tab's backing tracks (jamTracks.ts) as WAV files, rendered by
+// jamTrackRender.ts with the Instrument Lab's offline synth and drum engines,
+// looping seamlessly. The Jam tab itself renders them live, so edits in its
+// grid can be heard.
 //
-//   node scripts/make-pentatonic-jam-audio.mjs [audio dir]
+//   npx tsx scripts/make-pentatonic-jam-audio.mjs [audio dir]
 //
-// Writes into <audio dir>/samples/pentatonic_jam/ (default: ./audio).
+// Writes 16-bit WAVs into <audio dir>/samples/pentatonic_jam/ (default: ./audio).
+// All tracks are scaled to the same loudness, so switching tracks never changes
+// the level.
 import fs from "node:fs";
 import path from "node:path";
-import { renderNotes } from "../instrument-lab/engine/synth.mjs";
-import { renderDrums, encodeStereoWav } from "../instrument-lab/engine/drums.mjs";
+import { JAM_TRACKS, jamTrackParts } from "../apps/desktop/src/renderer/components/lesson-engine/jamTracks.ts";
+import {
+  JAM_TRACK_TARGET_RMS_DB,
+  jamLoopScale,
+  jamLoopSeconds,
+  renderJamPartLoop,
+} from "../apps/desktop/src/renderer/components/lesson-engine/jamTrackRender.ts";
 
 const SAMPLE_RATE = 44100;
-const BPM = 90;
-const BARS = 8;
-const SIXTEENTH = 60 / BPM / 4;
-const LOOP_SECONDS = BARS * 16 * SIXTEENTH;
-const TAIL_SECONDS = 2;
+const MAX_PEAK_DB = -1;
 
-const BASS = {
-  family: "triangle",
-  brightness: 0.3,
-  attack: 0.005,
-  decay: 0.3,
-  sustain: 0.45,
-  release: 0.12,
-  gain: 1.1,
-};
-const PAD = {
-  family: "saw",
-  brightness: 0.18,
-  body: 0.5,
-  attack: 0.45,
-  decay: 1.2,
-  sustain: 0.6,
-  release: 0.9,
-  detune: 14,
-  gain: 0.35,
-};
-
-// One chord per bar, twice: Am7 | Fmaj7 | C | G
-const CHORDS = [
-  { root: 45, pad: [57, 60, 64, 67] },
-  { root: 41, pad: [53, 57, 60, 64] },
-  { root: 48, pad: [55, 60, 64, 67] },
-  { root: 43, pad: [55, 59, 62, 67] },
-];
-// Bass rhythm within a bar: [16th, length in 16ths]
-const BASS_RHYTHM = [[0, 3], [3, 2], [6, 2], [8, 4], [14, 2]];
-
-const drum = (id, model, extra, hits) => ({
-  id,
-  patch: { detail: 0, ...extra, model },
-  asset: { channels: [new Float32Array(1)], sampleRate: SAMPLE_RATE },
-  notes: hits,
-});
-
-function hitsPerBar(steps, velocity) {
-  const notes = [];
-  for (let bar = 0; bar < BARS + 1; bar++)
-    for (const [step, vel = velocity] of steps)
-      notes.push({ start: (bar * 16 + step) * SIXTEENTH, velocity: vel });
-  return notes;
+function renderTrack(track) {
+  const parts = jamTrackParts(track).map((part, p) => renderJamPartLoop(track, p, part.notes, SAMPLE_RATE));
+  const scale = jamLoopScale(parts);
+  const loop = [0, 1].map((c) => {
+    const channel = new Float32Array(parts[0][c].length);
+    for (const part of parts) for (let i = 0; i < channel.length; i++) channel[i] += part[c][i];
+    return channel;
+  });
+  let peak = 0;
+  for (const ch of loop) for (let i = 0; i < ch.length; i++) peak = Math.max(peak, Math.abs((ch[i] *= scale)));
+  const peakDb = 20 * Math.log10(peak);
+  if (peakDb > MAX_PEAK_DB) {
+    throw new Error(`${track.file}: peak ${peakDb.toFixed(1)} dBFS at ${JAM_TRACK_TARGET_RMS_DB} dB RMS; lower its loudest layer`);
+  }
+  return { loop, loopSeconds: jamLoopSeconds(track), peakDb };
 }
 
-function renderGroove() {
-  const duration = LOOP_SECONDS + TAIL_SECONDS;
-  const drums = renderDrums(
-    [
-      drum("kick", { frequency: 52, sweep: 140, sweepDecay: 0.03, toneLevel: 1, toneDecay: 0.22, noiseLevel: 0.04, noiseDecay: 0.01 }, { gain: 1.1 },
-        hitsPerBar([[0], [6, 90], [8], [11, 70]], 120)),
-      drum("snare", { frequency: 190, toneLevel: 0.35, toneDecay: 0.07, noiseLevel: 0.9, noiseDecay: 0.13, pan: 0.45 }, { gain: 0.6, brightness: 0.8 },
-        hitsPerBar([[4], [12], [15, 35]], 110)),
-      drum("hat", { frequency: 9000, toneLevel: 0, noiseLevel: 0.6, noiseDecay: 0.025, pan: 0.6 }, { gain: 0.35, brightness: 1.8 },
-        hitsPerBar([[0, 70], [2, 110], [4, 70], [6, 110], [8, 70], [10, 110], [12, 70], [14, 110], [7, 40], [13, 40]], 90)),
-    ],
-    duration,
-    SAMPLE_RATE,
-  );
-
-  const bassNotes = [];
-  const padNotes = [];
-  for (let bar = 0; bar < BARS + 1; bar++) {
-    const chord = CHORDS[bar % CHORDS.length];
-    const barStart = bar * 16 * SIXTEENTH;
-    for (const [step, length] of BASS_RHYTHM)
-      bassNotes.push({
-        pitch: chord.root,
-        start: barStart + step * SIXTEENTH,
-        end: barStart + (step + length) * SIXTEENTH * 0.9,
-        velocity: step === 0 ? 120 : 95,
-      });
-    for (const pitch of chord.pad)
-      padNotes.push({ pitch, start: barStart, end: barStart + 16 * SIXTEENTH, velocity: 90 });
+// 16-bit stereo PCM: half the size of float, so phones load tracks twice as fast
+function encodeWav16([left, right]) {
+  const buffer = Buffer.alloc(44 + left.length * 4);
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + left.length * 4, 4);
+  buffer.write("WAVEfmt ", 8);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20); // PCM
+  buffer.writeUInt16LE(2, 22);
+  buffer.writeUInt32LE(SAMPLE_RATE, 24);
+  buffer.writeUInt32LE(SAMPLE_RATE * 4, 28);
+  buffer.writeUInt16LE(4, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(left.length * 4, 40);
+  for (let i = 0; i < left.length; i++) {
+    buffer.writeInt16LE(Math.round(left[i] * 32767), 44 + i * 4);
+    buffer.writeInt16LE(Math.round(right[i] * 32767), 46 + i * 4);
   }
-  const bass = renderNotes(BASS, bassNotes, duration, SAMPLE_RATE);
-  const pad = renderNotes(PAD, padNotes, duration, SAMPLE_RATE);
-
-  // Fold everything past the loop point back onto its start so the loop is seamless
-  const loopLength = Math.round(LOOP_SECONDS * SAMPLE_RATE);
-  const out = [new Float32Array(loopLength), new Float32Array(loopLength)];
-  for (let c = 0; c < 2; c++)
-    for (let i = 0; i < drums[c].length; i++)
-      out[c][i % loopLength] += drums[c][i] + bass[i] * 0.55 + pad[i] * (c === 0 ? 0.5 : 0.42);
-
-  const peak = Math.max(...out.map((ch) => ch.reduce((m, x) => Math.max(m, Math.abs(x)), 0)));
-  for (const ch of out) for (let i = 0; i < ch.length; i++) ch[i] *= 0.8 / peak;
-  return out;
+  return buffer;
 }
 
 const audioDir = path.resolve(process.argv[2] || "audio");
 const outDir = path.join(audioDir, "samples", "pentatonic_jam");
 fs.mkdirSync(outDir, { recursive: true });
 
-fs.writeFileSync(path.join(outDir, "groove.wav"), Buffer.from(encodeStereoWav(renderGroove(), SAMPLE_RATE)));
-console.log(`Wrote groove.wav (${LOOP_SECONDS.toFixed(2)} s loop) to ${outDir}`);
+for (const track of JAM_TRACKS) {
+  const { loop, loopSeconds, peakDb } = renderTrack(track);
+  fs.writeFileSync(path.join(outDir, track.file), encodeWav16(loop));
+  console.log(`${track.file}: ${track.bpm} BPM, ${loopSeconds.toFixed(2)} s loop, peak ${peakDb.toFixed(1)} dBFS`);
+}
+console.log(`Wrote ${JAM_TRACKS.length} tracks to ${outDir}`);

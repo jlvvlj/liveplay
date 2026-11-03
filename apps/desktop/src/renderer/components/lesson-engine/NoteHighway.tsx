@@ -28,6 +28,7 @@ interface NoteHighwayProps {
   labelMode?: 'letters' | 'numbers'; // Display key letters or note order numbers
   jamNotes?: JamNote[]; // Notes played in jam mode
   onJamPointer?: (note: number | null) => void; // Jam mode: pitch under a held pointer, null on release
+  onJamCursorNote?: (note: number) => void; // Jam mode: the row the ship moved to
 }
 
 interface NoteHitState {
@@ -50,9 +51,17 @@ const NOTE_SPACING_PX = 110; // Fixed spacing between notes in pixels (for free/
 const HIT_ZONE_PERCENT = 0.33; // Position of hit zone as percentage from left (33% = 1/3 from left)
 const PIXELS_PER_MS = 0.3; // How fast notes scroll in play mode (pixels per millisecond)
 const VISIBLE_BUFFER_MS = 3000; // Show notes this long after they pass the hit zone (play mode)
-const JAM_LINE_PERCENT = 0.8; // Jam mode plays at the right, so the trail of played notes fills the highway
 const JAM_FADE_MS = 2500; // Jam dots fade out over this long after they sound
 const JAM_PIXELS_PER_MS = 0.6; // Jam dots scroll twice as fast as play-mode notes
+// Jam cursor: rests at a fixed point, each played note pushes it right like an
+// engine burst, and it drifts slowly back home (fractions of the highway width)
+const JAM_CURSOR_HOME_PERCENT = 0.2;
+const JAM_CURSOR_MAX_PERCENT = 0.85;
+const JAM_CURSOR_PUSH = 0.016; // Distance one note moves it
+const JAM_CURSOR_DRIFT = 0.07; // Speed back home, per second
+const JAM_CURSOR_BURST_DECAY = 8; // 1/s: how fast one push eases out
+const JAM_CURSOR_FULL_THRUST = 6; // Notes per second that show the full engine flame
+const JAM_CURSOR_TAIL_PX = 16; // From the cursor point back to just behind the ship's tail (see .jam-cursor-ship)
 
 export function NoteHighway({
   steps,
@@ -69,6 +78,7 @@ export function NoteHighway({
   labelMode = 'letters',
   jamNotes = [],
   onJamPointer,
+  onJamCursorNote,
 }: NoteHighwayProps) {
   const [noteHitStates, setNoteHitStates] = useState<Map<number, NoteHitState>>(new Map());
   const [timingPopups, setTimingPopups] = useState<TimingPopup[]>([]);
@@ -95,7 +105,7 @@ export function NoteHighway({
 
   // Calculate hit zone offset based on container width
   const hitZoneOffset = useMemo(() => {
-    return containerWidth * (mode === 'jam' ? JAM_LINE_PERCENT : HIT_ZONE_PERCENT);
+    return containerWidth * (mode === 'jam' ? JAM_CURSOR_HOME_PERCENT : HIT_ZONE_PERCENT);
   }, [containerWidth, mode]);
 
   // Get unique notes from the lesson (sorted by MIDI value)
@@ -621,10 +631,64 @@ export function NoteHighway({
       });
   };
 
-  // Render jam mode dots: each sits on its pitch row at the 16th it sounds on,
-  // waits just right of the line until then, and drifts left as it fades.
+  const jamLanesRef = useRef<HTMLDivElement>(null);
+  // Jam cursor height (px from the highway top) and the row it is on; it only
+  // follows the mouse up and down, between the top and bottom row centers
+  const [jamCursorY, setJamCursorY] = useState<{ y: number; note: number | null } | null>(null);
+
+  // How far the ship sits above (-) or below (+) the middle of a note's row, so
+  // its notes leave at the ship's height; 0 when the ship is on another row
+  // (notes from keys or MIDI)
+  const jamShipOffset = (note: number): number => {
+    const lane = jamLanesRef.current?.querySelector<HTMLElement>(`[data-jam-note="${note}"]`);
+    const container = containerRef.current;
+    if (!jamCursorY || !lane || !container) return 0;
+    const rect = lane.getBoundingClientRect();
+    const offset = jamCursorY.y - (rect.top - container.getBoundingClientRect().top + rect.height / 2);
+    return Math.abs(offset) <= rect.height / 2 ? offset : 0;
+  };
+
+  // Jam cursor motion, advanced once per clock tick: x is how far right of home
+  // it is, v the leftover push of recent notes. Each note is born where the ship
+  // was when it sounded (`born`), so the trail shows where the ship has been.
+  const jamCursorRef = useRef<{ time: number | null; x: number; v: number; born: Map<number, { x: number; dy: number }> }>({
+    time: null,
+    x: 0,
+    v: 0,
+    born: new Map(),
+  });
+  const jamCursor = jamCursorRef.current;
+  if (mode === 'jam' && jamCursor.time !== currentTime) {
+    const dt = jamCursor.time === null ? 0 : Math.min(0.1, Math.max(0, (currentTime - jamCursor.time) / 1000));
+    jamCursor.time = currentTime;
+    const range = containerWidth * (JAM_CURSOR_MAX_PERCENT - JAM_CURSOR_HOME_PERCENT);
+    const decay = Math.exp(-JAM_CURSOR_BURST_DECAY * dt);
+    jamCursor.x += (jamCursor.v * (1 - decay)) / JAM_CURSOR_BURST_DECAY - containerWidth * JAM_CURSOR_DRIFT * dt;
+    jamCursor.v *= decay;
+    const ids = new Set<number>();
+    for (const jamNote of jamNotes) {
+      ids.add(jamNote.id);
+      if (jamNote.timeMs > currentTime || jamCursor.born.has(jamNote.id)) continue;
+      jamCursor.born.set(jamNote.id, { x: Math.min(range, Math.max(0, jamCursor.x)), dy: jamShipOffset(jamNote.note) });
+      // Notes that sounded long before this tick (e.g. a remount) leave no push
+      if (currentTime - jamNote.timeMs < 250) {
+        jamCursor.v += containerWidth * JAM_CURSOR_PUSH * JAM_CURSOR_BURST_DECAY;
+      }
+    }
+    for (const id of jamCursor.born.keys()) if (!ids.has(id)) jamCursor.born.delete(id);
+    if (jamCursor.x <= 0) jamCursor.x = 0;
+    if (jamCursor.x >= range) {
+      jamCursor.x = range;
+      jamCursor.v = 0;
+    }
+  }
+
+  // Render jam mode dots as the ship's exhaust: each waits at the nozzle, just
+  // behind the ship and at its height, until its 16th sounds, then drifts left
+  // from there as it fades.
   const renderJamNotes = (laneIndex: number) => {
     const dotSize = noteSize * 0.55;
+    const nozzle = JAM_CURSOR_TAIL_PX + dotSize / 2;
     return jamNotes
       .filter((jamNote) => noteToLane(jamNote.note) === laneIndex)
       .map((jamNote) => {
@@ -632,12 +696,18 @@ export function NoteHighway({
         const sounded = age >= 0;
         const opacity = sounded ? Math.max(0, 1 - age / JAM_FADE_MS) : 0.5;
         if (opacity === 0) return null;
+        const born = sounded ? jamCursor.born.get(jamNote.id) : undefined;
+        const left = born
+          ? jamNote.timeMs * JAM_PIXELS_PER_MS + born.x
+          : currentTime * JAM_PIXELS_PER_MS + jamCursor.x;
+        const dy = born ? born.dy : jamShipOffset(jamNote.note);
         return (
           <div
             key={jamNote.id}
             className={`jam-dot ${sounded ? 'sounded' : 'queued'}`}
             style={{
-              left: `${jamNote.timeMs * JAM_PIXELS_PER_MS}px`,
+              left: `${left - nozzle}px`,
+              top: `calc(50% + ${dy}px)`,
               width: `${dotSize}px`,
               height: `${dotSize}px`,
               opacity,
@@ -652,14 +722,39 @@ export function NoteHighway({
   // drag up or down to change pitch
   const jamPointerHeldRef = useRef<boolean>(false);
   const jamPointerNoteRef = useRef<number | null>(null);
-
   const jamNoteAt = (clientX: number, clientY: number): number | null => {
     const lane = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('[data-jam-note]');
     return lane ? Number(lane.dataset.jamNote) : jamPointerNoteRef.current;
   };
 
+  const moveJamCursor = (clientY: number, note: number | null) => {
+    const lanes = jamLanesRef.current;
+    const container = containerRef.current;
+    if (!lanes?.firstElementChild || !lanes.lastElementChild || !container) return;
+    const top = lanes.firstElementChild.getBoundingClientRect();
+    const bottom = lanes.lastElementChild.getBoundingClientRect();
+    const y = Math.min(bottom.top + bottom.height / 2, Math.max(top.top + top.height / 2, clientY));
+    setJamCursorY((prev) => ({ y: y - container.getBoundingClientRect().top, note: note ?? prev?.note ?? null }));
+  };
+
+  const jamCursorNote = jamCursorY?.note ?? null;
+  useEffect(() => {
+    if (jamCursorNote !== null) onJamCursorNote?.(jamCursorNote);
+  }, [jamCursorNote, onJamCursorNote]);
+
+  // Start the cursor on the middle row
+  useEffect(() => {
+    if (mode !== 'jam' || jamCursorY) return;
+    const lanes = jamLanesRef.current;
+    const middle = lanes?.children[Math.floor(lanes.children.length / 2)] as HTMLElement | undefined;
+    if (!middle) return;
+    const rect = middle.getBoundingClientRect();
+    moveJamCursor(rect.top + rect.height / 2, Number(middle.dataset.jamNote));
+  });
+
   const handleJamPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     const note = jamNoteAt(event.clientX, event.clientY);
+    moveJamCursor(event.clientY, note);
     if (note === null) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     jamPointerHeldRef.current = true;
@@ -668,6 +763,8 @@ export function NoteHighway({
   };
 
   const handleJamPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const hovered = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-jam-note]');
+    moveJamCursor(event.clientY, hovered ? Number(hovered.dataset.jamNote) : null);
     if (!jamPointerHeldRef.current) return;
     const note = jamNoteAt(event.clientX, event.clientY);
     if (note === null || note === jamPointerNoteRef.current) return;
@@ -682,25 +779,33 @@ export function NoteHighway({
     onJamPointer?.(null);
   };
 
-  // Jam mode backdrop that never stops moving: a beat grid scrolling with the
-  // music (16ths, beats, bars) and two layers of specks drifting slower behind it
-  const renderJamMotion = () => {
-    const scroll = hitZoneOffset - currentTime * JAM_PIXELS_PER_MS;
-    const sixteenthPx = (60000 / bpm / 4) * JAM_PIXELS_PER_MS;
-    const sizes = [sixteenthPx * 16, sixteenthPx * 4, sixteenthPx];
+  // Jam mode backdrop that never stops moving: two layers of specks drifting
+  // at different speeds
+  const renderJamMotion = () => (
+    <div className="jam-motion">
+      <div
+        className="jam-motion-specks"
+        style={{ backgroundPositionX: `${-currentTime * JAM_PIXELS_PER_MS * 0.2}px, ${-currentTime * JAM_PIXELS_PER_MS * 0.4}px` }}
+      />
+    </div>
+  );
+
+  // Jam cursor: a small ship whose engine flame grows with the push of recent notes
+  const renderJamCursor = () => {
+    if (!jamCursorY) return null;
+    const lane = jamCursorY.note === null ? -1 : noteToLane(jamCursorY.note);
+    const fullThrust = containerWidth * JAM_CURSOR_PUSH * JAM_CURSOR_FULL_THRUST;
+    const thrust = Math.min(1, jamCursor.v / fullThrust);
     return (
-      <div className="jam-motion">
-        <div
-          className="jam-motion-specks"
-          style={{ backgroundPositionX: `${-currentTime * JAM_PIXELS_PER_MS * 0.2}px, ${-currentTime * JAM_PIXELS_PER_MS * 0.4}px` }}
-        />
-        <div
-          className="jam-motion-grid"
-          style={{
-            backgroundSize: sizes.map((size) => `${size}px 100%`).join(', '),
-            backgroundPositionX: sizes.map(() => `${scroll}px`).join(', '),
-          }}
-        />
+      <div
+        className="jam-cursor"
+        style={{
+          transform: `translate(${hitZoneOffset + jamCursor.x}px, ${jamCursorY.y}px)`,
+          color: lane >= 0 ? getLaneColor(lane) : undefined,
+        }}
+      >
+        <div className="jam-cursor-flame" style={{ transform: `translateY(-50%) scaleX(${0.25 + thrust})`, opacity: 0.35 + thrust * 0.65 }} />
+        <div className="jam-cursor-ship" />
       </div>
     );
   };
@@ -737,6 +842,7 @@ export function NoteHighway({
         <div className={`timing-line ${hasActivePad ? 'active' : ''}`} />
       )}
       {mode === 'jam' && renderJamMotion()}
+      {mode === 'jam' && renderJamCursor()}
 
       {/* Floating timing judgments (early / late / perfect) at the hit zone */}
       {renderTimingPopups()}
@@ -744,6 +850,7 @@ export function NoteHighway({
       {mode === 'jam' ? (
         /* Jam mode: one row per pitch, highest on top; played notes scroll left from the line */
         <div
+          ref={jamLanesRef}
           className="lanes jam-lanes"
           onPointerDown={handleJamPointerDown}
           onPointerMove={handleJamPointerMove}

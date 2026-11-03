@@ -19,5 +19,5 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["apps/desktop/src/renderer/**/*"]
+  "include": ["apps/desktop/src/renderer/**/*", "apps/jam/main.tsx"]
 }

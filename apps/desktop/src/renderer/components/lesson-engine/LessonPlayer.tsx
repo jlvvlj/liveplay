@@ -5,8 +5,18 @@ import { Lesson, LessonStep, HitFeedback, LessonScore, PracticeModeSettings } fr
 import { MidiEvent, DeviceMapping } from '../../types/electron';
 import { NoteHighway, HighwayMode, JamNote } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
+import { JamTrackGrid } from './JamTrackGrid';
+import { JAM_TRACKS, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
+import { renderJamBackingPart, renderJamSound } from './jamRenderer';
 import {
-  renderJamSamples,
+  JamBackingMixer,
+  defaultJamTrackMix,
+  jamTrackLevels,
+  loadJamBackingMixer,
+  type BackingPlayer,
+  type JamTrackMix,
+} from './jamBackingMixer';
+import {
   loadJamReferenceSounds,
   DEFAULT_JAM_EFFECTS,
   JAM_ECHO_BEATS,
@@ -22,8 +32,10 @@ interface LessonPlayerProps {
   onComplete?: () => void;
   // Jam tab: the highway is always in jam mode and always running
   jamOnly?: boolean;
-  // Jam tab: synth sounds to choose from in the sidebar; the first is the default
+  // Jam tab: synth sounds and drum kits to choose from in the sidebar; the first is the default
   jamSounds?: JamSoundPreset[];
+  // Jam tab: songs (backing tracks) to choose from in the sidebar; `lesson` is the default
+  jamSongs?: Lesson[];
 }
 
 const MIN_EFFECTIVE_SPEED = 0.01;
@@ -34,8 +46,10 @@ const JAM_LATE_GRACE_S = 0.03;
 // Jam dots older than this have scrolled off the highway
 const JAM_NOTE_LIFETIME_MS = 4000;
 // A held pointer in jam mode replays its pitch this many times per bar (4/4),
-// scheduled this far ahead on the audio clock
+// or 3/2 as many as triplets, scheduled this far ahead on the audio clock.
+// Holding number key 1-4 plays the ship's row at the matching rate.
 const JAM_HOLD_DIVISIONS = [4, 8, 16, 32];
+const JAM_HOLD_KEYS: Record<string, number> = { '1': 4, '2': 8, '3': 16, '4': 32 };
 const DEFAULT_JAM_HOLD_DIVISION = 16;
 const JAM_HOLD_LOOKAHEAD_S = 0.1;
 
@@ -44,41 +58,94 @@ const JAM_HOLD_LOOKAHEAD_S = 0.1;
 // stays clearly audible
 const JAM_BACKING_TOP_DB = -2 + 20 * Math.log10(1.3);
 const DEFAULT_JAM_NOTES_VOLUME = 0.75;
+// Phone screens, upright (narrow) or sideways (short), in px: match the media
+// query in LessonPlayer.css
+const JAM_PHONE_WIDTH = 700;
+const JAM_PHONE_HEIGHT = 500;
 
-// Jam tab settings remembered in this browser: chosen sound, edited synth
-// settings per sound, and the effects
+// Jam tab settings remembered in this browser: chosen song, chosen sound,
+// edited synth settings per sound, and the effects. Only edited patches are
+// stored, so changes to the presets reach every browser.
 interface JamSettings {
+  songId: string;
   soundId: string;
   patches: Record<string, JamSynthPatch>;
   effects: JamEffects;
+  // Backing tracks edited in the grid, and their mixer settings, by file
+  tracks: Record<string, JamTrackEdit>;
+  mixes: Record<string, JamTrackMix>;
+}
+
+// An edited backing track: its notes, one list per part, and the grid
+// resolution picked per row (cells per bar; null keeps the coarsest that fits)
+export interface JamTrackEdit {
+  parts: JamTrackNote[][];
+  divisions: (number | null)[];
+}
+
+// Edits that no longer match their track's parts are left out
+function validTrackEdits(saved: unknown): Record<string, JamTrackEdit> {
+  if (!saved || typeof saved !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(saved as Record<string, JamTrackEdit>).filter(([file, edit]) => {
+      const track = JAM_TRACKS.find((candidate) => candidate.file === file);
+      const partCount = track ? track.drums.length + track.layers.length : -1;
+      return Array.isArray(edit?.parts) && edit.parts.length === partCount && Array.isArray(edit.divisions);
+    })
+  );
+}
+// Mixes that no longer match their track's parts are left out
+function validTrackMixes(saved: unknown): Record<string, JamTrackMix> {
+  if (!saved || typeof saved !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(saved as Record<string, JamTrackMix>).filter(([file, mix]) => {
+      const track = JAM_TRACKS.find((candidate) => candidate.file === file);
+      const partCount = track ? track.drums.length + track.layers.length : -1;
+      return [mix?.levels, mix?.mutes, mix?.solos].every((list) => Array.isArray(list) && list.length === partCount);
+    })
+  );
 }
 const JAM_SETTINGS_KEY = 'melodics.jamSettings.v1';
 
-function loadJamSettings(sounds: JamSoundPreset[]): JamSettings {
+const presetPatches = (sounds: JamSoundPreset[]): Record<string, JamSynthPatch> =>
+  Object.fromEntries(sounds.flatMap((sound) => ('patch' in sound ? [[sound.id, sound.patch]] : [])));
+
+function loadJamSettings(sounds: JamSoundPreset[], songIds: string[]): JamSettings {
+  const presets = presetPatches(sounds);
   const defaults: JamSettings = {
+    songId: songIds[0],
     soundId: sounds[0].id,
-    patches: Object.fromEntries(sounds.map((sound) => [sound.id, sound.patch])),
+    patches: presets,
     effects: DEFAULT_JAM_EFFECTS,
+    tracks: {},
+    mixes: {},
   };
   try {
     const saved = JSON.parse(localStorage.getItem(JAM_SETTINGS_KEY) ?? 'null') as Partial<JamSettings> | null;
     if (!saved) return defaults;
     return {
+      songId: typeof saved.songId === 'string' && songIds.includes(saved.songId) ? saved.songId : defaults.songId,
       // A reference sound id is kept too; it is checked once the reference list loads
       soundId: typeof saved.soundId === 'string' ? saved.soundId : defaults.soundId,
       patches: Object.fromEntries(
-        sounds.map((sound) => [sound.id, { ...sound.patch, ...saved.patches?.[sound.id] }])
+        Object.entries(presets).map(([id, patch]) => [id, { ...patch, ...saved.patches?.[id] }])
       ),
       effects: { ...DEFAULT_JAM_EFFECTS, ...saved.effects },
+      tracks: validTrackEdits(saved.tracks),
+      mixes: validTrackMixes(saved.mixes),
     };
   } catch {
     return defaults; // storage unavailable: start from the presets
   }
 }
 
-function saveJamSettings(settings: JamSettings) {
+function saveJamSettings(settings: JamSettings, sounds: JamSoundPreset[]) {
+  const presets = presetPatches(sounds);
+  const edited = Object.entries(settings.patches).filter(
+    ([id, patch]) => JSON.stringify(patch) !== JSON.stringify(presets[id])
+  );
   try {
-    localStorage.setItem(JAM_SETTINGS_KEY, JSON.stringify(settings));
+    localStorage.setItem(JAM_SETTINGS_KEY, JSON.stringify({ ...settings, patches: Object.fromEntries(edited) }));
   } catch {
     // storage unavailable: settings last for this visit only
   }
@@ -121,16 +188,20 @@ function saveDisabledNotes(lesson: Lesson, notes: number[], disabled: Set<number
   }
 }
 
-export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, jamSounds }: LessonPlayerProps) {
-  // Jam tab: the chosen synth sound, its (editable) settings and the effects,
-  // remembered between visits
+export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, jamSounds, jamSongs }: LessonPlayerProps) {
+  // Jam tab: the chosen song, synth sound, its (editable) settings and the
+  // effects, remembered between visits
   const [jamSettings, setJamSettings] = useState<JamSettings | null>(() =>
-    jamSounds?.length ? loadJamSettings(jamSounds) : null
+    jamSounds?.length ? loadJamSettings(jamSounds, [lessonArg.id, ...(jamSongs ?? []).map((song) => song.id)]) : null
   );
+  // Switching songs swaps the lesson in place, so volumes and the sidebar stay as they are
+  const lessonProp = jamSongs?.find((song) => song.id === jamSettings?.songId) ?? lessonArg;
   useEffect(() => {
-    if (jamSettings) saveJamSettings(jamSettings);
-  }, [jamSettings]);
+    if (jamSettings && jamSounds) saveJamSettings(jamSettings, jamSounds);
+  }, [jamSettings, jamSounds]);
   const jamPatch = jamSettings ? jamSettings.patches[jamSettings.soundId] : undefined;
+  const jamKitPreset = jamSounds?.find((sound) => sound.id === jamSettings?.soundId);
+  const jamKit = jamKitPreset && 'kit' in jamKitPreset ? jamKitPreset.kit : undefined;
 
   // Jam tab: recorded reference sounds on this machine, if any
   const [jamReferenceSounds, setJamReferenceSounds] = useState<JamSampleSound[] | null>(null);
@@ -153,23 +224,36 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
   // A remembered reference sound that is no longer on this machine: back to the first preset
   useEffect(() => {
     if (!jamSettings || !jamSounds?.length || jamReferenceSounds === null) return;
-    if (!jamSettings.patches[jamSettings.soundId] && !jamReference) {
+    if (!jamSettings.patches[jamSettings.soundId] && !jamKit && !jamReference) {
       setJamSettings({ ...jamSettings, soundId: jamSounds[0].id });
     }
-  }, [jamSettings, jamSounds, jamReferenceSounds, jamReference]);
+  }, [jamSettings, jamSounds, jamReferenceSounds, jamReference, jamKit]);
 
-  // The chosen sound is rendered into one clip per note, re-rendered shortly
-  // after its settings stop changing
+  // The chosen synth sound or kit is rendered into one clip per note,
+  // re-rendered shortly after its settings stop changing
   const [jamSamples, setJamSamples] = useState<{ [note: number]: string } | undefined>(undefined);
   useEffect(() => {
     if (jamReference) setJamSamples(jamReference.samples);
   }, [jamReference]);
   useEffect(() => {
-    if (!jamPatch) return;
+    const source = jamKit ? { kit: jamKit } : jamPatch ? { patch: jamPatch } : null;
+    if (!source) return;
     const notes = Array.from(new Set(lessonProp.steps.map((s) => s.note)));
-    const timer = setTimeout(() => setJamSamples(renderJamSamples(jamPatch, notes)), 120);
-    return () => clearTimeout(timer);
-  }, [jamPatch, lessonProp.steps]);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      renderJamSound(source, notes).then(
+        (samples) => {
+          if (cancelled) Object.values(samples).forEach((url) => URL.revokeObjectURL(url));
+          else setJamSamples(samples);
+        },
+        (err) => console.error('[LessonPlayer] Could not render the jam sound:', err)
+      );
+    }, 120);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [jamPatch, jamKit, lessonProp.steps]);
   // Free replaced clips once their players have been swapped out
   useEffect(
     () => () => {
@@ -247,12 +331,26 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
   const jamStartRef = useRef<number | null>(null); // Tone time the jam clock started at
   const jamNoteIdRef = useRef<number>(0);
   const jamNotesRef = useRef<JamNote[]>([]); // Mirrors jamNotes so input never reads a stale list
-  const jamHoldRef = useRef<{ note: number; nextSlot: number } | null>(null); // Pitch under a held pointer
+  // The repeating pitch, its spacing and next position (in 16ths)
+  const jamHoldRef = useRef<{ note: number; step: number; nextSlot: number } | null>(null);
   const jamHoldTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Jam tab: how often a held note repeats, in notes per bar
+  const jamPointerNoteRef = useRef<number | null>(null); // Row under a held pointer
+  const jamCursorNoteRef = useRef<number | null>(null); // Row the ship is on
+  // Jam tab: how often a held note repeats, in notes per bar, straight or as triplets
   const [jamHoldDivision, setJamHoldDivision] = useState<number>(DEFAULT_JAM_HOLD_DIVISION);
   const jamHoldDivisionRef = useRef<number>(DEFAULT_JAM_HOLD_DIVISION);
   jamHoldDivisionRef.current = jamHoldDivision;
+  const [jamHoldTriplet, setJamHoldTriplet] = useState<boolean>(false);
+  const jamHoldTripletRef = useRef<boolean>(false);
+  jamHoldTripletRef.current = jamHoldTriplet;
+  // Jam tab: the highway, or the backing track drawn as a step grid
+  const [jamView, setJamView] = useState<'highway' | 'grid'>('highway');
+  // Jam tab paused, and how far it had played when it was (seconds)
+  const [jamPaused, setJamPaused] = useState<boolean>(false);
+  const jamResumeAtRef = useRef<number>(0);
+  // Rates of the number keys held down, latest last; the latest one is used
+  const [jamKeyDivisions, setJamKeyDivisions] = useState<number[]>([]);
+  const jamKeyDivisionsRef = useRef<number[]>([]);
   // Track current step index for wait mode
   const [waitModeStepIndex, setWaitModeStepIndex] = useState<number>(0);
   // Track played notes for free/wait modes
@@ -276,7 +374,10 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
   const [metronomeVolume, setMetronomeVolume] = useState<number>(0);
   // Jam tab: volume of the notes you play, and its settings sidebar
   const [jamNotesVolume, setJamNotesVolume] = useState<number>(DEFAULT_JAM_NOTES_VOLUME);
-  const [showJamSettings, setShowJamSettings] = useState<boolean>(true);
+  // On a phone the sidebar would cover most of the highway, so it starts closed there
+  const [showJamSettings, setShowJamSettings] = useState<boolean>(
+    () => !(jamOnly && (window.innerWidth <= JAM_PHONE_WIDTH || window.innerHeight <= JAM_PHONE_HEIGHT))
+  );
 
   // Default keys for note assignments (in order of preference)
   // Expanded to support lessons with many unique notes (up to 36 keys)
@@ -396,7 +497,7 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
   // pool, so clearInterval cancels either
   const metronomeLoopRef = useRef<number | null>(null);
   // Backing track player
-  const backingTrackRef = useRef<Tone.Player | null>(null);
+  const backingTrackRef = useRef<BackingPlayer | null>(null);
   const [backingTrackLoaded, setBackingTrackLoaded] = useState<boolean>(false);
   // Song lessons: pooled players for triggering overlapping regions of the stem file.
   const stemPlayersRef = useRef<Tone.Player[]>([]);
@@ -686,6 +787,55 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
     };
   }, [lesson.id, lesson.samples]);
 
+  // Jam: the backing track's data and its notes as edited in the grid. The
+  // track is rendered live from them, and again after every edit.
+  const jamTrack = jamOnly ? jamTrackFor(lesson.backingTrack) : undefined;
+  const jamTrackEdit = jamTrack ? jamSettings?.tracks[jamTrack.file] : undefined;
+  const jamTrackOriginal = useMemo(() => (jamTrack ? jamTrackParts(jamTrack).map((part) => part.notes) : null), [jamTrack]);
+  const jamTrackNotes = jamTrackEdit?.parts ?? jamTrackOriginal;
+  const jamTrackNotesRef = useRef(jamTrackNotes);
+  jamTrackNotesRef.current = jamTrackNotes;
+  const renderedTrackNotesRef = useRef<JamTrackNote[][] | null>(null);
+
+  // After an edit: render the edited parts again and swap them in at the same point of the loop
+  useEffect(() => {
+    const mixer = backingTrackRef.current;
+    if (!jamTrack || !jamTrackNotes || !backingTrackLoaded || !(mixer instanceof JamBackingMixer)) return;
+    const rendered = renderedTrackNotesRef.current;
+    const changed = jamTrackNotes.map((_, part) => part).filter((part) => rendered?.[part] !== jamTrackNotes[part]);
+    if (!rendered || changed.length === 0) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      for (const part of changed) {
+        const notes = jamTrackNotes[part];
+        renderJamBackingPart(jamTrack.file, part, notes).then(
+          (audio) => {
+            if (cancelled || backingTrackRef.current !== mixer) return;
+            mixer.replace(part, audio);
+            rendered[part] = notes;
+          },
+          (err) => console.error('[LessonPlayer] Could not render the edited backing track:', err)
+        );
+      }
+    }, 120);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [jamTrack, jamTrackNotes, backingTrackLoaded]);
+
+  // The grid's mixer settings: levels, mutes and solos per part
+  const jamSavedMix = jamTrack ? jamSettings?.mixes[jamTrack.file] : undefined;
+  const jamPartCount = jamTrackNotes?.length ?? 0;
+  const jamTrackMix = useMemo(
+    () => (jamSavedMix ?? (jamPartCount ? defaultJamTrackMix(jamPartCount) : undefined)),
+    [jamSavedMix, jamPartCount]
+  );
+  useEffect(() => {
+    const mixer = backingTrackRef.current;
+    if (jamTrackMix && mixer instanceof JamBackingMixer) mixer.setLevels(jamTrackLevels(jamTrackMix));
+  }, [jamTrackMix, backingTrackLoaded]);
+
   // Load backing track if defined
   useEffect(() => {
     // Cleanup previous backing track
@@ -699,6 +849,36 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
       backingTrackRef.current = null;
     }
     setBackingTrackLoaded(false);
+
+    // Jam backing tracks are rendered from their notes
+    const jamTrackToLoad = jamOnly ? jamTrackFor(lesson.backingTrack) : undefined;
+    if (jamTrackToLoad) {
+      let cancelled = false;
+      const notes = jamTrackNotesRef.current!;
+      loadJamBackingMixer(jamTrackToLoad, notes).then(
+        (mixer) => {
+          if (cancelled) {
+            mixer.dispose();
+            return;
+          }
+          mixer.volume.value = -Infinity; // Start muted
+          backingTrackRef.current = mixer;
+          renderedTrackNotesRef.current = [...notes];
+          setBackingTrackLoaded(true);
+        },
+        (err) => console.error('[LessonPlayer] Could not render the backing track:', err)
+      );
+      return () => {
+        cancelled = true;
+        try {
+          backingTrackRef.current?.stop();
+          backingTrackRef.current?.dispose();
+        } catch (e) {
+          // Ignore disposal errors
+        }
+        backingTrackRef.current = null;
+      };
+    }
 
     if (lesson.backingTrack) {
       console.log('[LessonPlayer] Loading backing track:', lesson.backingTrack);
@@ -744,7 +924,7 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
         }
       }
     };
-  }, [lesson.id, lesson.backingTrack]);
+  }, [lesson.id, lesson.backingTrack, jamOnly]);
 
   // Update metronome volume when slider changes
   useEffect(() => {
@@ -859,32 +1039,58 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
     };
   }, [isGameMode, currentMode, state, lesson.bpm, lesson.beatGrid, lesson.timeSignature, practiceMode.speedMultiplier, playMetronomeTick, backingTrackLoaded, backingTrackVolume]);
 
+  // Browsers only let audio start from a tap, click or key press; the jam opens
+  // without one (e.g. the standalone jam app), so the first one anywhere starts it
+  useEffect(() => {
+    if (!jamOnly) return;
+    // iPhone: play through the silent switch, like a music app
+    const audioSession = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    if (audioSession) audioSession.type = 'playback';
+    const unlock = () => {
+      Tone.start().then(() => {
+        if (Tone.getContext().state === 'running') {
+          events.forEach((event) => document.removeEventListener(event, unlock, true));
+        }
+      });
+    };
+    const events = ['pointerdown', 'touchend', 'keydown'];
+    events.forEach((event) => document.addEventListener(event, unlock, true));
+    return () => events.forEach((event) => document.removeEventListener(event, unlock, true));
+  }, [jamOnly]);
+
   // Jam mode clock and pulse: the backing track loops when the lesson has one,
   // otherwise a soft click marks the beats. Runs for as long as the Jam tab is open.
   useEffect(() => {
-    if (currentMode !== 'jam') return;
+    if (currentMode !== 'jam' || jamPaused) return;
 
     let cancelled = false;
     let clockInterval: ReturnType<typeof setInterval> | null = null;
     let pulseInterval: ReturnType<typeof setInterval> | null = null;
     // Its level is the volume slider's job, so moving the slider never restarts the jam
     const backing = backingTrackRef.current?.loaded && backingTrackLoaded ? backingTrackRef.current : null;
+    // A song with a backing track starts once it has loaded (this runs again then)
+    if (lesson.backingTrack && !backing) return;
 
     const begin = async () => {
       await Tone.start();
       if (cancelled) return;
 
-      const start = Tone.now() + 0.1;
+      // After a pause it carries on from where it stopped
+      const resume = jamResumeAtRef.current;
+      jamResumeAtRef.current = 0;
+      const start = Tone.now() + 0.1 - resume;
       jamStartRef.current = start;
 
       if (backing) {
-        backing.loop = true;
-        backing.playbackRate = 1;
-        backing.start(start);
+        // An edit made while the audio was locked may have swapped the player
+        const player = backingTrackRef.current ?? backing;
+        player.loop = true;
+        player.playbackRate = 1;
+        player.start(start + resume, resume);
       } else {
         const beatSeconds = 60 / lesson.bpm;
         const beatsPerBar = (lesson.timeSignature || { numerator: 4, denominator: 4 }).numerator;
-        let nextBeat = 0;
+        let nextBeat = Math.ceil(resume / beatSeconds);
         // Schedule clicks slightly ahead on the audio clock so they never drift
         pulseInterval = setInterval(() => {
           const horizon = Tone.now() + 0.15;
@@ -911,12 +1117,14 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
       cancelled = true;
       if (clockInterval) clearInterval(clockInterval);
       if (pulseInterval) clearInterval(pulseInterval);
-      if (backing) {
-        backing.loop = false;
+      // The backing may have been swapped for an edited one since it started
+      for (const player of new Set([backing, backingTrackRef.current])) {
+        if (!player) continue;
         try {
-          backing.stop();
+          player.loop = false;
+          player.stop();
         } catch (e) {
-          // Ignore if not started
+          // Ignore if not started, or already disposed by a song change
         }
       }
       if (jamHoldTimerRef.current) clearInterval(jamHoldTimerRef.current);
@@ -927,7 +1135,17 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
       setJamNotes([]);
       setCurrentTime(0);
     };
-  }, [currentMode, lesson.bpm, lesson.timeSignature, backingTrackLoaded]);
+  }, [currentMode, lesson.bpm, lesson.timeSignature, lesson.backingTrack, backingTrackLoaded, jamPaused]);
+
+  // A new song starts from its beginning
+  useEffect(() => {
+    jamResumeAtRef.current = 0;
+  }, [lesson.id]);
+
+  const toggleJamPause = () => {
+    if (!jamPaused && jamStartRef.current !== null) jamResumeAtRef.current = Math.max(0, Tone.now() - jamStartRef.current);
+    setJamPaused(!jamPaused);
+  };
 
   const playSound = (
     note: number,
@@ -1068,9 +1286,10 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
     [lesson.steps]
   );
 
-  // Plays the row nearest `note` on the given 16th (default: the next one; half steps are 32nds) and
-  // returns that 16th, or null when the jam clock isn't running
-  const playJamNote = useCallback((note: number, atSlot?: number): number | null => {
+  // Plays the row nearest `note` at the given position in 16ths (default: the
+  // next point of a grid `grid` 16ths apart) and returns that position, or null
+  // when the jam clock isn't running
+  const playJamNote = useCallback((note: number, atSlot?: number, grid = 1): number | null => {
     const start = jamStartRef.current;
     if (start === null || jamRows.length === 0) return null;
 
@@ -1080,7 +1299,7 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
     const step = lesson.steps.find((s) => s.note === row);
     const sixteenth = 60 / lesson.bpm / 4;
     const elapsed = Tone.now() - start;
-    const slot = atSlot ?? Math.max(0, Math.ceil((elapsed - JAM_LATE_GRACE_S) / sixteenth));
+    const slot = atSlot ?? Math.max(0, Math.ceil((elapsed - JAM_LATE_GRACE_S) / (sixteenth * grid)) * grid);
     const timeMs = slot * sixteenth * 1000;
 
     // The same pitch twice on one 16th sounds once
@@ -1096,10 +1315,18 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
     return slot;
   }, [jamRows, lesson.steps, lesson.bpm, jamOnly, jamNotesVolume]);
 
-  // Pointer play on the jam highway: pressing plays the row at once (on the
-  // next 16th), holding repeats it at the chosen rate, dragging changes the row.
-  // Positions are counted in 16ths; a 32nd is half a 16th.
-  const handleJamPointer = useCallback((note: number | null) => {
+  // Repeat spacing in 16ths: the latest held number key's rate, else the chosen one
+  const jamHoldStep = useCallback(() => {
+    const keys = jamKeyDivisionsRef.current;
+    const division = keys.length ? keys[keys.length - 1] : jamHoldDivisionRef.current;
+    return (16 / division) * (jamHoldTripletRef.current ? 2 / 3 : 1);
+  }, []);
+
+  // Starts, steers or stops the repeat. A held pointer plays its row, a held
+  // number key the ship's row: at once (on the next 16th, or triplet), then
+  // again every step. A changed rate continues on its own grid.
+  const updateJamHold = useCallback(() => {
+    const note = jamPointerNoteRef.current ?? (jamKeyDivisionsRef.current.length ? jamCursorNoteRef.current : null);
     if (note === null) {
       if (jamHoldTimerRef.current) clearInterval(jamHoldTimerRef.current);
       jamHoldTimerRef.current = null;
@@ -1110,20 +1337,52 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
       jamHoldRef.current.note = note;
       return;
     }
-    const slot = playJamNote(note);
+    const step = jamHoldStep();
+    const slot = playJamNote(note, undefined, jamHoldTripletRef.current ? Math.min(step, 2 / 3) : 1);
     if (slot === null) return;
-    jamHoldRef.current = { note, nextSlot: slot + 16 / jamHoldDivisionRef.current };
+    jamHoldRef.current = { note, step, nextSlot: slot + step };
     jamHoldTimerRef.current = setInterval(() => {
       const hold = jamHoldRef.current;
       const start = jamStartRef.current;
       if (!hold || start === null) return;
       const sixteenth = 60 / lesson.bpm / 4;
+      const step = jamHoldStep();
+      if (step !== hold.step) {
+        const played = hold.nextSlot - hold.step;
+        const now = (Tone.now() - start) / sixteenth;
+        hold.nextSlot = Math.max(Math.floor(played / step + 1e-6) + 1, Math.ceil(now / step)) * step;
+        hold.step = step;
+      }
       while (start + hold.nextSlot * sixteenth < Tone.now() + JAM_HOLD_LOOKAHEAD_S) {
         playJamNote(hold.note, hold.nextSlot);
-        hold.nextSlot += 16 / jamHoldDivisionRef.current;
+        hold.nextSlot += hold.step;
       }
     }, 25);
-  }, [playJamNote, lesson.bpm]);
+  }, [playJamNote, lesson.bpm, jamHoldStep]);
+
+  // Pointer play on the jam highway: pressing plays the row, holding repeats
+  // it, dragging changes the row
+  const handleJamPointer = useCallback((note: number | null) => {
+    jamPointerNoteRef.current = note;
+    updateJamHold();
+  }, [updateJamHold]);
+
+  const handleJamCursorNote = useCallback((note: number) => {
+    jamCursorNoteRef.current = note;
+    if (jamKeyDivisionsRef.current.length) updateJamHold();
+  }, [updateJamHold]);
+
+  const setJamKeys = useCallback((divisions: number[]) => {
+    jamKeyDivisionsRef.current = divisions;
+    setJamKeyDivisions(divisions);
+    updateJamHold();
+  }, [updateJamHold]);
+
+  // How far the backing track has played, in 16ths
+  const getJamStep = useCallback(
+    () => (jamStartRef.current === null ? null : (Tone.now() - jamStartRef.current) / (60 / lesson.bpm / 4)),
+    [lesson.bpm]
+  );
 
   // Shared function to handle note input from both MIDI and keyboard
   const handleNoteInput = useCallback((hardwareNote: number, timestamp: number) => {
@@ -1319,6 +1578,13 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
 
       // Note input keys (use dynamic keyBindings)
       const note = keyBindings[e.key.toLowerCase()];
+      // Jam: an unbound number key 1-4 repeats the ship's row while held
+      const holdDivision = JAM_HOLD_KEYS[e.key];
+      if (currentMode === 'jam' && holdDivision && note === undefined) {
+        e.preventDefault();
+        if (!jamKeyDivisionsRef.current.includes(holdDivision)) setJamKeys([...jamKeyDivisionsRef.current, holdDivision]);
+        return;
+      }
       if (note !== undefined && !e.repeat) {
         e.preventDefault();
         handleNoteInput(note, engineRef.current?.getCurrentTimeSeconds() ?? 0);
@@ -1326,6 +1592,10 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      const holdDivision = JAM_HOLD_KEYS[e.key];
+      if (holdDivision && jamKeyDivisionsRef.current.includes(holdDivision)) {
+        setJamKeys(jamKeyDivisionsRef.current.filter((division) => division !== holdDivision));
+      }
       const note = keyBindings[e.key.toLowerCase()];
       if (note !== undefined) {
         e.preventDefault();
@@ -1338,14 +1608,21 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
       }
     };
 
+    // Keys released while the window is in the background never send keyup
+    const handleBlur = () => {
+      if (jamKeyDivisionsRef.current.length) setJamKeys([]);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
     };
-  }, [handleNoteInput, keyBindings]);
+  }, [handleNoteInput, keyBindings, currentMode, setJamKeys]);
 
   // Update current time from the engine's logical lesson clock. The lesson
   // duration stays fixed; speed changes how quickly this playhead advances.
@@ -1900,22 +2177,47 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
             )}
           </div>
         )}
-        <NoteHighway
-          steps={lesson.steps}
-          currentTime={currentTime}
-          bpm={lesson.bpm}
-          activePads={activePads}
-          hitFeedback={recentFeedback}
-          mode={currentMode}
-          currentStepIndex={waitModeStepIndex}
-          playedSteps={playedNotes}
-          isCollapsed={isCollapsed && !isGameMode && currentMode !== 'jam'}
-          noteToKeyMap={noteToKeyMap}
-          labelMode={labelMode}
-          jamNotes={jamNotes}
-          onJamPointer={currentMode === 'jam' ? handleJamPointer : undefined}
-          onNoteReached={isGameMode ? handleNoteReached : undefined}
-        />
+        {jamTrack && jamTrackNotes && jamSettings && jamView === 'grid' ? (
+          <JamTrackGrid
+            track={jamTrack}
+            notes={jamTrackNotes}
+            divisions={jamTrackEdit?.divisions ?? jamTrackNotes.map(() => null)}
+            edited={!!jamTrackEdit || !!jamSettings.mixes[jamTrack.file]}
+            mix={jamTrackMix!}
+            onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamTrack.file]: mix } })}
+            paused={jamPaused}
+            onTogglePause={toggleJamPause}
+            onChange={(parts, divisions) =>
+              setJamSettings({ ...jamSettings, tracks: { ...jamSettings.tracks, [jamTrack.file]: { parts, divisions } } })
+            }
+            onReset={() => {
+              const tracks = { ...jamSettings.tracks };
+              const mixes = { ...jamSettings.mixes };
+              delete tracks[jamTrack.file];
+              delete mixes[jamTrack.file];
+              setJamSettings({ ...jamSettings, tracks, mixes });
+            }}
+            getStep={getJamStep}
+          />
+        ) : (
+          <NoteHighway
+            steps={lesson.steps}
+            currentTime={currentTime}
+            bpm={lesson.bpm}
+            activePads={activePads}
+            hitFeedback={recentFeedback}
+            mode={currentMode}
+            currentStepIndex={waitModeStepIndex}
+            playedSteps={playedNotes}
+            isCollapsed={isCollapsed && !isGameMode && currentMode !== 'jam'}
+            noteToKeyMap={noteToKeyMap}
+            labelMode={labelMode}
+            jamNotes={jamNotes}
+            onJamPointer={currentMode === 'jam' ? handleJamPointer : undefined}
+            onJamCursorNote={currentMode === 'jam' ? handleJamCursorNote : undefined}
+            onNoteReached={isGameMode ? handleNoteReached : undefined}
+          />
+        )}
 
         {/* Play button - bottom right of highway (the Jam tab is always running) */}
         {!isGameMode && !jamOnly && (
@@ -1927,9 +2229,11 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
         {/* Jam tab: full-page highway; collapsed sidebar leaves only back and expand */}
         {jamOnly && !showJamSettings && (
           <div className="jam-corner-buttons">
-            <button className="jam-corner-btn" onClick={onComplete} title="Back">
-              &#8592;
-            </button>
+            {onComplete && (
+              <button className="jam-corner-btn" onClick={onComplete} title="Back">
+                &#8592;
+              </button>
+            )}
             <button className="jam-corner-btn" onClick={() => setShowJamSettings(true)} title="Show settings">
               &#187;
             </button>
@@ -1937,6 +2241,11 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
         )}
         {jamOnly && showJamSettings && jamSettings && jamSounds && (
           <JamSettingsPanel
+            songs={jamSongs ?? [lessonArg]}
+            songId={lessonProp.id}
+            onSongChange={(songId) => setJamSettings({ ...jamSettings, songId })}
+            view={jamView}
+            onViewChange={jamTrack ? setJamView : undefined}
             sounds={jamSounds}
             referenceSounds={jamReferenceSounds ?? []}
             soundId={jamSettings.soundId}
@@ -1947,13 +2256,15 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
             }
             onPatchReset={() => {
               const preset = jamSounds.find((sound) => sound.id === jamSettings.soundId);
-              if (preset) {
+              if (preset && 'patch' in preset) {
                 setJamSettings({ ...jamSettings, patches: { ...jamSettings.patches, [preset.id]: preset.patch } });
               }
             }}
             holdDivisions={JAM_HOLD_DIVISIONS}
-            holdDivision={jamHoldDivision}
+            holdDivision={jamKeyDivisions.length ? jamKeyDivisions[jamKeyDivisions.length - 1] : jamHoldDivision}
             onHoldDivisionChange={setJamHoldDivision}
+            holdTriplet={jamHoldTriplet}
+            onHoldTripletChange={setJamHoldTriplet}
             notesVolume={jamNotesVolume}
             onNotesVolumeChange={setJamNotesVolume}
             backingVolume={backingTrackVolume}
@@ -1968,7 +2279,7 @@ export function LessonPlayer({ lesson: lessonProp, onComplete, jamOnly = false, 
             onToggleKeys={() => setShowKeySettings(!showKeySettings)}
             labelMode={labelMode}
             onLabelModeChange={setLabelMode}
-            onBack={() => onComplete?.()}
+            onBack={onComplete}
             onClose={() => setShowJamSettings(false)}
           />
         )}

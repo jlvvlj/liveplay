@@ -1875,3 +1875,42 @@
   color: #fff;
 }
 
+/* Hold repeat: straight or triplet */
+.jam-feel-switch {
+  margin-left: auto;
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.jam-feel-switch button {
+  padding: 0.15rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.jam-feel-switch button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.jam-feel-switch button.active {
+  background: rgba(74, 222, 128, 0.18);
+  color: #fff;
+}
+
+
+/* Phones (JAM_PHONE_WIDTH / JAM_PHONE_HEIGHT in LessonPlayer.tsx): the sidebar
+   opens over the highway instead of pushing it aside */
+@media (max-width: 700px), (max-height: 500px) {
+  .lesson-player.jam-only .highway-container.with-jam-settings {
+    padding-left: 0;
+  }
+
+  .lesson-player.jam-only .game-settings-sidebar {
+    width: min(300px, 88vw);
+  }
+}

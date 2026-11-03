@@ -32,3 +32,5 @@ export function renderNotes(
   sampleRate?: number,
 ): Float32Array;
 export function encodeWav(audio: Float32Array, sampleRate?: number): ArrayBuffer;
+export function makeTable(patch: Partial<SynthPatch>, pitch: number, sampleRate: number): Float32Array;
+export function envelope(patch: SynthPatch, time: number, gate?: number): number;
