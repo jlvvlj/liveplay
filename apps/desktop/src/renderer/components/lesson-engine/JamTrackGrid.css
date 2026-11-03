@@ -124,71 +124,28 @@
 .jam-grid-lane {
   flex: 0 0 var(--jam-grid-name);
   display: flex;
-  align-items: stretch;
-  gap: 3px;
   min-width: 0;
 }
 
-.jam-grid-name {
-  flex: 1;
-  min-width: 0;
+/* Folded away: the cells take the controls' place */
+.jam-grid.lanes-closed {
+  --jam-grid-name: 0px;
+}
+
+/* The fold bar runs down the gap between the controls and the cells */
+.jam-grid-fold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--jam-grid-name);
+  width: var(--jam-grid-gap);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.3rem;
-  padding: 0 0.5rem;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  font-size: 0.8rem;
-  white-space: nowrap;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
-  cursor: pointer;
-  overflow: hidden;
+  padding: 0 2px;
+  z-index: 1;
 }
 
-button.jam-grid-name:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.jam-grid-division {
-  font-size: 0.65rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.jam-grid-toggle {
-  flex: 0 0 1.6rem;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 0.7rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.jam-grid-toggle:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.jam-grid-toggle.solo.on {
-  background: #e8b33f;
-  color: #1a1a1a;
-}
-
-.jam-grid-toggle.mute.on {
-  background: #d9534f;
-  color: #fff;
-}
-
-.jam-grid-level {
-  flex: 0 0 4rem;
-  min-width: 0;
-  align-self: center;
-  accent-color: #4ade80;
+.jam-grid-fold .jam-lanes-handle {
+  flex: 1;
 }
 
 /* A muted lane, or one left out by a solo, is drawn faded */
@@ -289,7 +246,7 @@ button.jam-grid-name:hover {
 @media (max-width: 700px), (max-height: 500px) {
   .jam-grid {
     --jam-grid-name: 6.5rem;
-    --jam-grid-gap: 0.4rem;
+    --jam-grid-gap: 12px; /* room for the fold bar */
     --jam-grid-cell-gap: 2px;
     padding: 0.75rem;
     gap: 0.6rem;
@@ -299,26 +256,10 @@ button.jam-grid-name:hover {
     font-size: 1.05rem;
   }
 
-  .jam-grid-name {
-    font-size: 0.68rem;
-  }
-
   .jam-grid-cell {
     border-radius: 4px;
   }
 
-  .jam-grid-name {
-    padding: 0 0.3rem;
-  }
-
-  .jam-grid-toggle {
-    flex-basis: 1.3rem;
-    font-size: 0.6rem;
-  }
-
-  .jam-grid-level {
-    display: none;
-  }
 }
 
 /* Upright phones: only the lane names fit beside the cells */
@@ -327,9 +268,6 @@ button.jam-grid-name:hover {
     --jam-grid-name: 3rem;
   }
 
-  .jam-grid-toggle {
-    display: none;
-  }
   .jam-grid-beat,
   .jam-grid-and {
     font-size: 0.7rem;
@@ -339,7 +277,7 @@ button.jam-grid-name:hover {
 /* Rows too short for two lines keep only the row's name; beats too narrow
    for "+" keep only their numbers */
 @container (max-width: 700px) {
-  .jam-grid-division,
+  .jam-grid .jam-lane-tag,
   .jam-grid-and {
     visibility: hidden;
   }
@@ -348,7 +286,7 @@ button.jam-grid-name:hover {
 /* Upright phones: names spill out of their tiny chips, and only each bar's
    first beat is numbered */
 @container (max-width: 520px) {
-  .jam-grid-name {
+  .jam-grid .jam-lane-name {
     overflow: visible;
     background: none;
     font-size: 0.55rem;

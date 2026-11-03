@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { JAM_TRACK_BARS, jamTrackParts, type JamTrack, type JamTrackNote } from './jamTracks';
 import type { JamTrackMix } from './jamBackingMixer';
+import { JamLanesHandle, JamLaneStrip } from './JamLaneStrip';
 import './JamTrackGrid.css';
 
 // The Jam tab's backing track as an editable step grid: one lane per drum and
 // per synth part, four bars at a time. Clicking a cell adds or removes a hit or
 // a note, dragging one up or down sets its velocity, and a lane's name switches
-// its resolution. Each lane has solo, mute and a level. The page follows the
-// playhead unless a section is picked.
+// its resolution. Each lane has solo, mute and a level, which fold away. The
+// page follows the playhead unless a section is picked.
 
 const SECTION_BARS = 4;
 const SECTION_STEPS = SECTION_BARS * 16;
@@ -29,6 +30,9 @@ interface JamTrackGridProps {
   // Resolution picked per lane, in cells per bar; null for the coarsest that fits
   divisions: (number | null)[];
   mix: JamTrackMix;
+  // Lane controls shown, or folded away
+  lanesOpen: boolean;
+  onLanesOpenChange: (open: boolean) => void;
   edited: boolean;
   paused: boolean;
   onChange: (notes: JamTrackNote[][], divisions: (number | null)[]) => void;
@@ -67,6 +71,8 @@ export function JamTrackGrid({
   notes,
   divisions,
   mix,
+  lanesOpen,
+  onLanesOpenChange,
   edited,
   paused,
   onChange,
@@ -184,7 +190,7 @@ export function JamTrackGrid({
   };
 
   return (
-    <div className="jam-grid">
+    <div className={`jam-grid ${lanesOpen ? '' : 'lanes-closed'}`}>
       <div className="jam-grid-head">
         <button
           className={`jam-grid-play ${paused ? '' : 'playing'}`}
@@ -237,34 +243,19 @@ export function JamTrackGrid({
           const silent = mix.mutes[row] || (soloing && !mix.solos[row]);
           const lane = (
             <div className="jam-grid-lane">
-              <button className="jam-grid-name" onClick={() => cycleDivision(row)}>
-                {part.name}
-                <span className="jam-grid-division">1/{division}</span>
-              </button>
-              <button
-                className={`jam-grid-toggle solo ${mix.solos[row] ? 'on' : ''}`}
-                onClick={() => setMix('solos', row, !mix.solos[row])}
-                aria-label={`Solo ${part.name}`}
-              >
-                S
-              </button>
-              <button
-                className={`jam-grid-toggle mute ${mix.mutes[row] ? 'on' : ''}`}
-                onClick={() => setMix('mutes', row, !mix.mutes[row])}
-                aria-label={`Mute ${part.name}`}
-              >
-                M
-              </button>
-              <input
-                className="jam-grid-level"
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={mix.levels[row]}
-                onChange={(event) => setMix('levels', row, parseFloat(event.target.value))}
-                aria-label={`${part.name} level`}
-              />
+              {lanesOpen && (
+                <JamLaneStrip
+                  name={part.name}
+                  tag={`1/${division}`}
+                  solo={mix.solos[row]}
+                  mute={mix.mutes[row]}
+                  level={mix.levels[row]}
+                  onNameClick={() => cycleDivision(row)}
+                  onSolo={() => setMix('solos', row, !mix.solos[row])}
+                  onMute={() => setMix('mutes', row, !mix.mutes[row])}
+                  onLevel={(level) => setMix('levels', row, level)}
+                />
+              )}
             </div>
           );
           if (part.kind === 'drum') {
@@ -338,6 +329,9 @@ export function JamTrackGrid({
             </div>
           );
         })}
+        <div className="jam-grid-fold">
+          <JamLanesHandle open={lanesOpen} onToggle={() => onLanesOpenChange(!lanesOpen)} />
+        </div>
         <div className="jam-grid-overlay">
           <div ref={playheadRef} className="jam-grid-playhead" style={{ width: `${100 / SECTION_STEPS}%` }} />
         </div>
