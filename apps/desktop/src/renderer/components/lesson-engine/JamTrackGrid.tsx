@@ -42,10 +42,12 @@ interface JamTrackGridProps {
 const fittingDivision = (notes: JamTrackNote[]) =>
   DIVISIONS.find((division) => notes.every((note) => Number.isInteger((note.step * division) / 16))) ?? 32;
 
-// A note's or hit's colour fills it from the bottom up to its velocity
+// A note's or hit's colour fills it from the bottom up to its velocity. The
+// fill spans the border too and is not tiled, or the border would show a
+// strip of the next tile.
 const velocityFill = (color: string, velocity: number) => {
   const level = Math.round((velocity / 127) * 100);
-  return `linear-gradient(to top, ${color} ${level}%, ${color}40 ${level}%)`;
+  return `linear-gradient(to top, ${color} ${level}%, ${color}40 ${level}%) border-box no-repeat`;
 };
 
 const noteKey = (note: JamTrackNote) => `${note.step}|${note.pitch}`;
