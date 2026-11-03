@@ -24,11 +24,16 @@ export interface JamRoomSound {
 
 export interface JamRoomPeer {
   id: string;
+  // The name on the player's ship; a numbered default until they give one
+  name: string;
   color: string;
   sound: JamRoomSound | null;
   // How long before a note sounds this player must have it (s): its
   // scheduling margin and audio output latency
   need: number;
+  // Where the player's ship is: 0 on the top row, 1 per row down, in between
+  // while it moves; null until it is on the highway
+  row: number | null;
 }
 
 // A note on the room's grid: its 16th since the song's first, and its row
@@ -40,13 +45,14 @@ export interface JamRoomNote {
 }
 
 export type JamClientMessage =
-  | { t: 'join'; room: string; state: JamRoomState; sound: JamRoomSound | null; need: number }
+  | { t: 'join'; room: string; name: string; state: JamRoomState; sound: JamRoomSound | null; need: number }
   | { t: 'ping'; c: number }
   | { t: 'state'; state: Omit<JamRoomState, 'tracks'> }
   | { t: 'track'; file: string; edit: JamTrackEdit | null }
-  | { t: 'peer'; sound: JamRoomSound | null; need: number }
+  | { t: 'peer'; name: string; sound: JamRoomSound | null; need: number }
   | { t: 'signal'; to: string; data: JamSignal }
   | { t: 'note'; note: JamRoomNote }
+  | { t: 'cursor'; seq: number; row: number }
   | { t: 'probe'; to: string; c: number; back: boolean };
 
 export type JamServerMessage =
@@ -59,6 +65,7 @@ export type JamServerMessage =
   | { t: 'peer'; peer: JamRoomPeer }
   | { t: 'signal'; from: string; data: JamSignal }
   | { t: 'note'; from: string; note: JamRoomNote }
+  | { t: 'cursor'; from: string; seq: number; row: number }
   | { t: 'probe'; from: string; c: number; back: boolean };
 
 // WebRTC set-up passed between two players through the server
@@ -67,9 +74,11 @@ export type JamSignal = { sdp: RTCSessionDescriptionInit } | { candidate: RTCIce
 // Between two players directly
 export type JamDirectMessage =
   | { t: 'note'; note: JamRoomNote }
+  | { t: 'cursor'; seq: number; row: number }
   | { t: 'ping'; c: number }
   | { t: 'pong'; c: number };
 
 export const JAM_ROOM_PATH = '/jam-room';
 export const JAM_ROOM_MAX_PLAYERS = 8;
 export const JAM_ROOM_CODE = /^[A-Z0-9]{4,8}$/;
+export const JAM_ROOM_NAME_MAX = 20;

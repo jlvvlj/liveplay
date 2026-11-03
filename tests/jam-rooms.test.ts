@@ -66,17 +66,27 @@ describe('jam rooms', () => {
 
   it('keeps the first player\'s jam, introduces players and relays notes', async () => {
     const a = await player(url);
-    a.send({ t: 'join', room: 'ABCD', state: STATE, sound: { id: 'soft-keys' }, need: 0.03 });
+    a.send({ t: 'join', room: 'ABCD', name: '  Aiko ', state: STATE, sound: { id: 'soft-keys' }, need: 0.03 });
     const welcomeA = await a.next('welcome');
     expect(welcomeA.state).toEqual(STATE);
     expect(welcomeA.peers).toHaveLength(1);
+    expect(welcomeA.peers[0].name).toBe('Aiko');
+    a.send({ t: 'cursor', seq: 1, row: 7.5 });
 
     const b = await player(url);
-    b.send({ t: 'join', room: 'ABCD', state: { ...STATE, songId: 'other' }, sound: null, need: 0.02 });
+    b.send({ t: 'join', room: 'ABCD', name: '', state: { ...STATE, songId: 'other' }, sound: null, need: 0.02 });
     const welcomeB = await b.next('welcome');
     expect(welcomeB.state.songId).toBe('chip-run-jam');
     expect(welcomeB.peers.map((peer) => peer.id)).toEqual([welcomeB.id, welcomeA.id]);
     expect(welcomeB.peers[0].color).not.toBe(welcomeB.peers[1].color);
+    // A player without a name gets their seat's; a newcomer sees where the others' ships are
+    expect(welcomeB.peers[0].name).toBe('Player 2');
+    expect(welcomeB.peers[1].row).toBe(7.5);
+
+    b.send({ t: 'cursor', seq: 1, row: 3 });
+    expect(await a.next('cursor')).toEqual({ t: 'cursor', from: welcomeB.id, seq: 1, row: 3 });
+    b.send({ t: 'peer', name: 'Ren', sound: null, need: 0.02 });
+    expect((await a.next('peer')).peer.name).toBe('Ren');
     expect((await a.next('joined')).peer.id).toBe(welcomeB.id);
 
     b.send({ t: 'note', note: { seq: 1, song: 'chip-run-jam', slot: 12, note: 57 } });
@@ -102,12 +112,12 @@ describe('jam rooms', () => {
     const players = [];
     for (let i = 0; i < 8; i++) {
       const p = await player(url);
-      p.send({ t: 'join', room: 'FULL', state: STATE, sound: null, need: 0 });
+      p.send({ t: 'join', room: 'FULL', name: '', state: STATE, sound: null, need: 0 });
       await p.next('welcome');
       players.push(p);
     }
     const late = await player(url);
-    late.send({ t: 'join', room: 'FULL', state: STATE, sound: null, need: 0 });
+    late.send({ t: 'join', room: 'FULL', name: '', state: STATE, sound: null, need: 0 });
     await late.next('full');
     players.forEach((p) => p.socket.close());
   });

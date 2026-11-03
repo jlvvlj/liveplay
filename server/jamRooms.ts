@@ -9,6 +9,7 @@ import {
   type JamRoomPeer,
   type JamRoomState,
   type JamServerMessage,
+  JAM_ROOM_NAME_MAX,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamRoomProtocol';
 
 // Jam rooms: players who join the same room code play one jam together. The
@@ -19,6 +20,10 @@ import {
 
 // One color per seat, in joining order
 const PEER_COLORS = ['#38bdf8', '#f472b6', '#a3e635', '#fbbf24', '#c084fc', '#fb7185', '#2dd4bf', '#f97316'];
+
+// A player's chosen name, or a numbered one by seat
+const playerName = (name: string, seat: number): string =>
+  name.trim().slice(0, JAM_ROOM_NAME_MAX) || `Player ${seat + 1}`;
 
 interface Member {
   socket: WebSocket;
@@ -76,8 +81,15 @@ export function createJamRooms() {
         }
         rooms.set(code, room);
         const taken = new Set([...room.members.values()].map((member) => member.peer.color));
-        const color = PEER_COLORS.find((candidate) => !taken.has(candidate)) ?? PEER_COLORS[0];
-        const peer: JamRoomPeer = { id, color, sound: message.sound, need: message.need };
+        const seat = Math.max(0, PEER_COLORS.findIndex((candidate) => !taken.has(candidate)));
+        const peer: JamRoomPeer = {
+          id,
+          name: playerName(message.name, seat),
+          color: PEER_COLORS[seat],
+          sound: message.sound,
+          need: message.need,
+          row: null,
+        };
         send(socket, {
           t: 'welcome',
           id,
@@ -106,7 +118,12 @@ export function createJamRooms() {
         case 'peer': {
           const member = room.members.get(id);
           if (!member) break;
-          member.peer = { ...member.peer, sound: message.sound, need: message.need };
+          member.peer = {
+            ...member.peer,
+            name: playerName(message.name, PEER_COLORS.indexOf(member.peer.color)),
+            sound: message.sound,
+            need: message.need,
+          };
           broadcast(room, { t: 'peer', peer: member.peer }, id);
           break;
         }
@@ -118,6 +135,12 @@ export function createJamRooms() {
         case 'note':
           broadcast(room, { t: 'note', from: id, note: message.note }, id);
           break;
+        case 'cursor': {
+          const member = room.members.get(id);
+          if (member) member.peer = { ...member.peer, row: message.row };
+          broadcast(room, { t: 'cursor', from: id, seq: message.seq, row: message.row }, id);
+          break;
+        }
         case 'probe': {
           const target = room.members.get(message.to);
           if (target) send(target.socket, { t: 'probe', from: id, c: message.c, back: message.back });

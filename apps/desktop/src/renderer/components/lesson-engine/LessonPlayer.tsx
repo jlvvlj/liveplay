@@ -3,7 +3,7 @@ import * as Tone from 'tone';
 import { LessonEngine, LessonEngineState } from './LessonEngine';
 import { Lesson, LessonStep, HitFeedback, LessonScore, PracticeModeSettings } from '../../types/lesson';
 import { MidiEvent, DeviceMapping } from '../../types/electron';
-import { NoteHighway, HighwayMode, JamNote } from './NoteHighway';
+import { NoteHighway, HighwayMode, JamNote, JamShip } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
 import { JAM_TRACKS, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
@@ -126,6 +126,22 @@ function validTrackMixes(saved: unknown): Record<string, JamTrackMix> {
   );
 }
 const JAM_SETTINGS_KEY = 'melodics.jamSettings.v1';
+// The player's name in jam rooms, remembered in this browser
+const JAM_NAME_KEY = 'melodics.jamName.v1';
+function loadJamName(): string {
+  try {
+    return localStorage.getItem(JAM_NAME_KEY) ?? '';
+  } catch {
+    return ''; // storage unavailable: the room gives a numbered name
+  }
+}
+
+// A field that takes typed text
+function isTextEntry(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable || target instanceof HTMLTextAreaElement) return true;
+  return target instanceof HTMLInputElement && !['checkbox', 'radio', 'range', 'button', 'submit'].includes(target.type);
+}
 
 // The page's own AudioContext under Tone's wrapper, which lacks output timestamps
 function rawAudioContext(): AudioContext {
@@ -259,6 +275,15 @@ export function LessonPlayer({
   const jamRoomStateRef = useRef<JamRoomState | null>(null);
   jamRoomStateRef.current = jamRoomState;
   const jamRoomStartAt = jamRoomState ? jamRoomState.startAt : null;
+  // This player's name on their ship; empty for the room's numbered name
+  const [jamName, setJamName] = useState<string>(loadJamName);
+  useEffect(() => {
+    try {
+      localStorage.setItem(JAM_NAME_KEY, jamName);
+    } catch {
+      // storage unavailable: the name lasts until the page closes
+    }
+  }, [jamName]);
 
   // Switching songs swaps the lesson in place, so volumes and the sidebar stay as they are
   const jamSongId = jamRoomState?.songId ?? jamSettings?.songId;
@@ -1475,7 +1500,7 @@ export function LessonPlayer({
       console.warn('[LessonPlayer] A jam room player\'s sound is still being prepared; their note was not played.', { from });
     }
     const color = jamRoomPlayersRef.current.find((player) => player.id === from)?.color ?? '#ffffff';
-    addJamNote({ note: note.note, timeMs: slot * sixteenth * 1000, color }, (audioTimeAt(context) - start) * 1000);
+    addJamNote({ note: note.note, timeMs: slot * sixteenth * 1000, color, peer: from }, (audioTimeAt(context) - start) * 1000);
   }, [lesson.id, lesson.bpm, jamNotesVolume, addJamNote]);
   const playRemoteJamNoteRef = useRef(playRemoteJamNote);
   playRemoteJamNoteRef.current = playRemoteJamNote;
@@ -1526,6 +1551,7 @@ export function LessonPlayer({
       code,
       jamRoomServer,
       {
+        name: jamName,
         state: { songId: lessonProp.id, startAt: null, position: jamHeardPosition(), tracks: jamSettings.tracks },
         sound: jamRoomSound,
         need: jamRoomNeed(),
@@ -1567,10 +1593,25 @@ export function LessonPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A changed name goes out once typing pauses
   useEffect(() => {
-    jamRoom?.setPeer(jamRoomSound, jamRoomNeed());
+    if (!jamRoom) return;
+    const timer = setTimeout(() => jamRoom.setPeer(jamName, jamRoomSound, jamRoomNeed()), 300);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jamRoom, jamRoomSound]);
+  }, [jamRoom, jamRoomSound, jamName]);
+
+  // The other players' ships, and this player's going out to them
+  const jamShips = useMemo<JamShip[]>(
+    () =>
+      jamRoomPlayers.flatMap((player) =>
+        !player.you && player.row !== null
+          ? [{ id: player.id, name: player.name, color: player.color, row: player.row }]
+          : []
+      ),
+    [jamRoomPlayers]
+  );
+  const handleJamCursorMove = useCallback((row: number) => jamRoomRef.current?.setCursor(row), []);
 
   // The other players' sounds, rendered here
   useEffect(() => {
@@ -1920,6 +1961,8 @@ export function LessonPlayer({
   // Set up keyboard event listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Keys typed into a field (a name, a room code) are text, not notes
+      if (isTextEntry(e.target)) return;
       // ESC key to stop lesson and exit game mode
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -2586,6 +2629,8 @@ export function LessonPlayer({
             jamNotes={jamNotes}
             onJamPointer={currentMode === 'jam' ? handleJamPointer : undefined}
             onJamCursorNote={currentMode === 'jam' ? handleJamCursorNote : undefined}
+            onJamCursorMove={jamRoom ? handleJamCursorMove : undefined}
+            jamShips={jamShips}
             holdNotes={!!lesson.holdNotes}
             holdingSteps={holdingSteps}
             onNoteReached={isGameMode ? handleNoteReached : undefined}
@@ -2626,6 +2671,8 @@ export function LessonPlayer({
                 ? { code: jamRoom?.code ?? null, joined: !!jamRoomState, players: jamRoomPlayers, ended: jamRoomEnded }
                 : undefined
             }
+            roomName={jamName}
+            onRoomNameChange={setJamName}
             onRoomStart={() => joinJamRoom(newJamRoomCode())}
             onRoomJoin={joinJamRoom}
             onRoomLeave={() => leaveJamRoom()}

@@ -23,6 +23,8 @@ const CLOCK_BURST_MS = 60;
 const PING_MS = 1000;
 const ROUND_TRIPS_KEPT = 20;
 const SEEN_NOTES_KEPT = 512;
+// The ship's position goes out at most this often while it moves
+const CURSOR_MS = 40;
 // A hit never waits longer than this for the slowest player; notes that reach
 // a slower player late are handled there like late hits
 export const JAM_ROOM_MAX_LEAD_S = 0.15;
@@ -69,13 +71,18 @@ export class JamRoom {
   private links = new Map<string, Link>();
   private seen = new Map<string, { set: Set<number>; order: number[] }>();
   private seq = 0;
+  private cursorSeq = 0;
+  private cursorSeen = new Map<string, number>();
+  private cursorTimer: ReturnType<typeof setTimeout> | null = null;
+  private cursorPending: number | null = null;
+  private cursorLast: number | null = null;
   private timers: ReturnType<typeof setInterval | typeof setTimeout>[] = [];
   private closed = false;
 
   constructor(
     readonly code: string,
     url: string,
-    join: { state: JamRoomState; sound: JamRoomSound | null; need: number },
+    join: { name: string; state: JamRoomState; sound: JamRoomSound | null; need: number },
     private events: JamRoomEvents
   ) {
     this.socket = new WebSocket(url);
@@ -132,10 +139,32 @@ export class JamRoom {
     this.send({ t: 'track', file, edit });
   }
 
-  setPeer(sound: JamRoomSound | null, need: number): void {
+  setPeer(name: string, sound: JamRoomSound | null, need: number): void {
     const you = this.id ? this.peers.get(this.id) : undefined;
     if (you) this.peers.set(you.id, { ...you, sound, need });
-    this.send({ t: 'peer', sound, need });
+    this.send({ t: 'peer', name, sound, need });
+  }
+
+  // Where this player's ship is, in rows from the top; sent right away, then
+  // at most every CURSOR_MS while it keeps moving
+  setCursor(row: number): void {
+    this.cursorLast = row;
+    this.cursorPending = row;
+    if (this.cursorTimer) return;
+    const flush = () => {
+      this.cursorTimer = null;
+      const pending = this.cursorPending;
+      if (pending === null) return;
+      this.cursorPending = null;
+      const seq = ++this.cursorSeq;
+      const direct = JSON.stringify({ t: 'cursor', seq, row: pending } satisfies JamDirectMessage);
+      for (const link of this.links.values()) {
+        if (link.channel?.readyState === 'open') link.channel.send(direct);
+      }
+      this.send({ t: 'cursor', seq, row: pending });
+      this.cursorTimer = setTimeout(flush, CURSOR_MS);
+    };
+    flush();
   }
 
   sendNote(note: Omit<JamRoomNote, 'seq'>): void {
@@ -155,6 +184,7 @@ export class JamRoom {
 
   private shutDown() {
     this.closed = true;
+    if (this.cursorTimer) clearTimeout(this.cursorTimer);
     this.timers.forEach((timer) => clearTimeout(timer));
     this.timers = [];
     for (const link of this.links.values()) link.pc.close();
@@ -194,6 +224,8 @@ export class JamRoom {
         }
         this.emitPlayers();
         this.emitStateWhenReady();
+        // A ship placed before the room answered goes out now
+        if (this.cursorLast !== null) this.setCursor(this.cursorLast);
         break;
       case 'full':
         this.shutDown();
@@ -219,6 +251,7 @@ export class JamRoom {
         this.links.get(message.id)?.pc.close();
         this.links.delete(message.id);
         this.seen.delete(message.id);
+        this.cursorSeen.delete(message.id);
         this.emitPlayers();
         break;
       case 'signal':
@@ -226,6 +259,9 @@ export class JamRoom {
         break;
       case 'note':
         this.deliver(message.from, message.note);
+        break;
+      case 'cursor':
+        this.moveCursor(message.from, message.seq, message.row);
         break;
       case 'probe':
         if (!message.back) this.send({ t: 'probe', to: message.from, c: message.c, back: true });
@@ -247,6 +283,15 @@ export class JamRoom {
     seen.order.push(note.seq);
     if (seen.order.length > SEEN_NOTES_KEPT) seen.set.delete(seen.order.shift()!);
     this.events.onNote(from, note);
+  }
+
+  // A player's ship moved: the latest position wins, whichever way it came
+  private moveCursor(from: string, seq: number, row: number) {
+    const peer = this.peers.get(from);
+    if (!peer || seq <= (this.cursorSeen.get(from) ?? 0)) return;
+    this.cursorSeen.set(from, seq);
+    this.peers.set(from, { ...peer, row });
+    this.emitPlayers();
   }
 
   private link(id: string, calling: boolean): Link {
@@ -296,6 +341,7 @@ export class JamRoom {
     channel.onmessage = (event) => {
       const message = JSON.parse(event.data) as JamDirectMessage;
       if (message.t === 'note') this.deliver(id, message.note);
+      else if (message.t === 'cursor') this.moveCursor(id, message.seq, message.row);
       else if (message.t === 'ping') channel.send(JSON.stringify({ t: 'pong', c: message.c } satisfies JamDirectMessage));
       else {
         pushKept(link.direct, performance.now() - message.c);

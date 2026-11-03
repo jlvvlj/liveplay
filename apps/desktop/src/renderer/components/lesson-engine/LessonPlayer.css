@@ -1968,6 +1968,34 @@
   font-variant-numeric: tabular-nums;
 }
 
+.jam-room-you {
+  flex-basis: 100%;
+}
+
+.jam-room-name {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.3);
+  font: inherit;
+  outline: none;
+}
+
+.jam-room-name:focus {
+  border-bottom-color: rgba(255, 255, 255, 0.8);
+}
+
+.jam-room-name::placeholder {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.jam-room-latency {
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .jam-room-dot {
   width: 0.6rem;
   height: 0.6rem;

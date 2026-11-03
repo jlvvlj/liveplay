@@ -13,7 +13,7 @@ import {
 } from './jamSynth';
 import type { Lesson } from '../../types/lesson';
 import type { JamRoomPlayer } from './jamRoom';
-import { JAM_ROOM_CODE } from './jamRoomProtocol';
+import { JAM_ROOM_CODE, JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
 
 interface JamSettingsPanelProps {
   songs: Lesson[];
@@ -26,6 +26,9 @@ interface JamSettingsPanelProps {
   onRoomStart?: () => void;
   onRoomJoin?: (code: string) => void;
   onRoomLeave?: () => void;
+  // This player's name on their ship in rooms; empty for the room's numbered name
+  roomName?: string;
+  onRoomNameChange?: (name: string) => void;
   view: 'highway' | 'grid';
   // Switches between the highway and the backing track's grid; none when the
   // song's backing track has no grid
@@ -129,6 +132,8 @@ export function JamSettingsPanel({
   onRoomStart,
   onRoomJoin,
   onRoomLeave,
+  roomName = '',
+  onRoomNameChange,
   view,
   onViewChange,
   sounds,
@@ -262,16 +267,34 @@ export function JamSettingsPanel({
                 </div>
                 {room.joined && (
                   <div className="jam-room-players">
-                    {room.players.map((player) => (
-                      <span
-                        key={player.id}
-                        className="jam-room-player"
-                        title={player.you ? undefined : player.direct ? 'Direct' : 'Through the server'}
-                      >
-                        <span className="jam-room-dot" style={{ background: player.color }} />
-                        {player.you ? 'You' : player.latency === null ? '…' : `${Math.round(player.latency * 1000)} ms`}
-                      </span>
-                    ))}
+                    {room.players.map((player) =>
+                      player.you ? (
+                        <label key={player.id} className="jam-room-player jam-room-you">
+                          <span className="jam-room-dot" style={{ background: player.color }} />
+                          <input
+                            className="jam-room-name"
+                            value={roomName}
+                            placeholder={player.name}
+                            maxLength={JAM_ROOM_NAME_MAX}
+                            autoComplete="off"
+                            spellCheck={false}
+                            onChange={(event) => onRoomNameChange?.(event.target.value)}
+                          />
+                        </label>
+                      ) : (
+                        <span
+                          key={player.id}
+                          className="jam-room-player"
+                          title={player.direct ? 'Direct' : 'Through the server'}
+                        >
+                          <span className="jam-room-dot" style={{ background: player.color }} />
+                          {player.name}
+                          <span className="jam-room-latency">
+                            {player.latency === null ? '…' : `${Math.round(player.latency * 1000)} ms`}
+                          </span>
+                        </span>
+                      )
+                    )}
                   </div>
                 )}
               </>
