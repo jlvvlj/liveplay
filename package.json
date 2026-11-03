@@ -12,7 +12,7 @@
     "build": "npm run build:renderer && npm run build:electron && npm run build:app",
     "build:renderer": "cd apps/desktop && vite build",
     "dev:jam": "cd apps/jam && vite",
-    "build:jam": "cd apps/jam && vite build && node ../../scripts/make-pentatonic-jam-audio.mjs dist/audio",
+    "build:jam": "cd apps/jam && vite build && tsx ../../scripts/make-pentatonic-jam-audio.mjs dist/audio",
     "build:electron": "tsc -p apps/desktop/tsconfig.main.json",
     "build:app": "electron-builder",
     "test": "jest",

@@ -16,6 +16,10 @@ interface JamSettingsPanelProps {
   songs: Lesson[];
   songId: string;
   onSongChange: (id: string) => void;
+  view: 'highway' | 'grid';
+  // Switches between the highway and the backing track's grid; none when the
+  // song's backing track has no grid
+  onViewChange?: (view: 'highway' | 'grid') => void;
   sounds: JamSoundPreset[];
   referenceSounds: JamSampleSound[];
   soundId: string;
@@ -111,6 +115,8 @@ export function JamSettingsPanel({
   songs,
   songId,
   onSongChange,
+  view,
+  onViewChange,
   sounds,
   referenceSounds,
   soundId,
@@ -174,23 +180,38 @@ export function JamSettingsPanel({
       </div>
 
       <div className="game-settings-content">
-        {songs.length > 1 && (
+        {(songs.length > 1 || onViewChange) && (
           <div className="setting-group">
             <label className="setting-label">
               <span className="setting-icon">&#127926;</span>
               Track
+              {onViewChange && (
+                <span className="jam-feel-switch">
+                  {(['highway', 'grid'] as const).map((option) => (
+                    <button
+                      key={option}
+                      className={option === view ? 'active' : ''}
+                      onClick={() => onViewChange(option)}
+                    >
+                      {option === 'highway' ? 'Highway' : 'Grid'}
+                    </button>
+                  ))}
+                </span>
+              )}
             </label>
-            <div className="jam-sound-grid">
-              {songs.map((song) => (
-                <button
-                  key={song.id}
-                  className={`jam-sound-option ${song.id === songId ? 'active' : ''}`}
-                  onClick={() => onSongChange(song.id)}
-                >
-                  {song.title}
-                </button>
-              ))}
-            </div>
+            {songs.length > 1 && (
+              <div className="jam-sound-grid">
+                {songs.map((song) => (
+                  <button
+                    key={song.id}
+                    className={`jam-sound-option ${song.id === songId ? 'active' : ''}`}
+                    onClick={() => onSongChange(song.id)}
+                  >
+                    {song.title}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

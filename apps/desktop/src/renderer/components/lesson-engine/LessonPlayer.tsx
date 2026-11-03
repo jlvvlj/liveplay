@@ -5,6 +5,8 @@ import { Lesson, LessonStep, HitFeedback, LessonScore, PracticeModeSettings } fr
 import { MidiEvent, DeviceMapping } from '../../types/electron';
 import { NoteHighway, HighwayMode, JamNote } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
+import { JamTrackGrid } from './JamTrackGrid';
+import { jamTrackFor } from './jamTracks';
 import { renderJamSound } from './jamRenderer';
 import {
   loadJamReferenceSounds,
@@ -296,6 +298,8 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
   const [jamHoldTriplet, setJamHoldTriplet] = useState<boolean>(false);
   const jamHoldTripletRef = useRef<boolean>(false);
   jamHoldTripletRef.current = jamHoldTriplet;
+  // Jam tab: the highway, or the backing track drawn as a step grid
+  const [jamView, setJamView] = useState<'highway' | 'grid'>('highway');
   // Rates of the number keys held down, latest last; the latest one is used
   const [jamKeyDivisions, setJamKeyDivisions] = useState<number[]>([]);
   const jamKeyDivisionsRef = useRef<number[]>([]);
@@ -1230,6 +1234,13 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
     updateJamHold();
   }, [updateJamHold]);
 
+  // The backing track's data, for the grid view, and how far it has played (16ths)
+  const jamTrack = jamOnly ? jamTrackFor(lesson.backingTrack) : undefined;
+  const getJamStep = useCallback(
+    () => (jamStartRef.current === null ? null : (Tone.now() - jamStartRef.current) / (60 / lesson.bpm / 4)),
+    [lesson.bpm]
+  );
+
   // Shared function to handle note input from both MIDI and keyboard
   const handleNoteInput = useCallback((hardwareNote: number, timestamp: number) => {
     // Translate note
@@ -2023,23 +2034,27 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
             )}
           </div>
         )}
-        <NoteHighway
-          steps={lesson.steps}
-          currentTime={currentTime}
-          bpm={lesson.bpm}
-          activePads={activePads}
-          hitFeedback={recentFeedback}
-          mode={currentMode}
-          currentStepIndex={waitModeStepIndex}
-          playedSteps={playedNotes}
-          isCollapsed={isCollapsed && !isGameMode && currentMode !== 'jam'}
-          noteToKeyMap={noteToKeyMap}
-          labelMode={labelMode}
-          jamNotes={jamNotes}
-          onJamPointer={currentMode === 'jam' ? handleJamPointer : undefined}
-          onJamCursorNote={currentMode === 'jam' ? handleJamCursorNote : undefined}
-          onNoteReached={isGameMode ? handleNoteReached : undefined}
-        />
+        {jamTrack && jamView === 'grid' ? (
+          <JamTrackGrid track={jamTrack} getStep={getJamStep} />
+        ) : (
+          <NoteHighway
+            steps={lesson.steps}
+            currentTime={currentTime}
+            bpm={lesson.bpm}
+            activePads={activePads}
+            hitFeedback={recentFeedback}
+            mode={currentMode}
+            currentStepIndex={waitModeStepIndex}
+            playedSteps={playedNotes}
+            isCollapsed={isCollapsed && !isGameMode && currentMode !== 'jam'}
+            noteToKeyMap={noteToKeyMap}
+            labelMode={labelMode}
+            jamNotes={jamNotes}
+            onJamPointer={currentMode === 'jam' ? handleJamPointer : undefined}
+            onJamCursorNote={currentMode === 'jam' ? handleJamCursorNote : undefined}
+            onNoteReached={isGameMode ? handleNoteReached : undefined}
+          />
+        )}
 
         {/* Play button - bottom right of highway (the Jam tab is always running) */}
         {!isGameMode && !jamOnly && (
@@ -2066,6 +2081,8 @@ export function LessonPlayer({ lesson: lessonArg, onComplete, jamOnly = false, j
             songs={jamSongs ?? [lessonArg]}
             songId={lessonProp.id}
             onSongChange={(songId) => setJamSettings({ ...jamSettings, songId })}
+            view={jamView}
+            onViewChange={jamTrack ? setJamView : undefined}
             sounds={jamSounds}
             referenceSounds={jamReferenceSounds ?? []}
             soundId={jamSettings.soundId}
