@@ -11,10 +11,54 @@
   color: #fff;
 }
 
+.jam-grid-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .jam-grid-title {
   font-size: 1.4rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.jam-grid-sections {
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.jam-grid-sections button,
+.jam-grid-reset {
+  padding: 0.3rem 0.65rem;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.jam-grid-sections button:hover,
+.jam-grid-reset:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.jam-grid-sections button.playing {
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.5);
+}
+
+.jam-grid-sections button.active {
+  background: rgba(74, 222, 128, 0.18);
+  color: #fff;
+}
+
+.jam-grid-reset {
+  margin-left: auto;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
 }
 
 /* Clear of the Jam tab's corner buttons (one or two, 36px each) */
@@ -51,13 +95,28 @@
 .jam-grid-name {
   flex: 0 0 var(--jam-grid-name);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.1rem;
+  padding: 0;
+  border: none;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
   font-size: 0.8rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+}
+
+button.jam-grid-name:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.jam-grid-division {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .jam-grid-beats .jam-grid-name {
@@ -84,9 +143,16 @@
 }
 
 .jam-grid-cell {
+  min-width: 0;
+  padding: 0;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+.jam-grid-cell:hover {
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .jam-grid-cells.narrow .jam-grid-cell {
@@ -105,14 +171,19 @@
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
+  cursor: pointer;
 }
 
-.jam-grid-roll-beat {
+.jam-grid-roll-line {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.jam-grid-roll-line.on-beat {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .jam-grid-note {

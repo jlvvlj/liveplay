@@ -20,3 +20,8 @@ export interface DrumAsset {
 
 export const DRUM_PARAMS: Record<DrumParam, [number, number]>;
 export function prepareDrum(data: DrumPatchData, asset: DrumAsset, sampleRate?: number): Float32Array[];
+export function renderDrums(
+  parts: { id: string; patch: DrumPatchData; asset: DrumAsset; notes: { start: number; velocity: number }[] }[],
+  duration: number,
+  sampleRate?: number,
+): Float32Array[];

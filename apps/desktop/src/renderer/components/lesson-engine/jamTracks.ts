@@ -1,9 +1,10 @@
 import type { SynthPatch } from '../../../../../../instrument-lab/engine/synth.mjs';
 import type { DrumPatchData } from '../../../../../../instrument-lab/engine/drums.mjs';
 
-// The Jam tab's backing tracks as data: 8 bars in A minor each, rendered to
-// audio by scripts/make-pentatonic-jam-audio.mjs and drawn as a step grid in
-// the Jam tab. Each track's BPM must match its song in jamSongs.ts.
+// The Jam tab's backing tracks as data: 8 bars in A minor each, rendered live
+// by jamTrackRender.ts (as edited in the Jam tab's step grid) and exported as
+// WAVs by scripts/make-pentatonic-jam-audio.mjs. Each track's BPM must match
+// its song in jamSongs.ts.
 
 export const JAM_TRACK_BARS = 8;
 

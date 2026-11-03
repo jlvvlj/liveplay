@@ -1,9 +1,8 @@
 import { Lesson } from '../../types/lesson';
 
 // Songs for the Jam tab, picked in its sidebar. Their notes are played with
-// the Jam tab's synth sounds (jamSynth.ts); the backing tracks (jamTracks.ts) are rendered by
-// scripts/make-pentatonic-jam-audio.mjs into audio/samples/pentatonic_jam/,
-// whose BPMs must match these songs.
+// the Jam tab's synth sounds (jamSynth.ts). A song's `backingTrack` names its
+// track in jamTracks.ts, which the Jam tab renders live; its BPM must match.
 
 export const PENTATONIC_GROOVE_JAM: Lesson = {
   id: 'pentatonic-groove-jam',

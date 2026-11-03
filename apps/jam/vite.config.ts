@@ -4,8 +4,9 @@ import path from 'path';
 import fs from 'fs';
 
 // The jam app (npm run dev:jam / build:jam): the Jam tab as a standalone static
-// site. Its backing tracks are rendered into dist/audio/ by the build script;
-// in development they are served from the project's audio/ folder.
+// site. Its sounds and backing tracks are rendered in the browser; in
+// development the project's audio/ folder is served too, for the reference
+// sounds on this machine.
 const projectRoot = path.resolve(__dirname, '../..');
 
 function serveAudioPlugin() {
