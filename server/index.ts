@@ -3,6 +3,7 @@ import express from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SeparationManager } from './separation-manager';
+import { analyzeAudio } from './analyze-audio';
 import { createMergedStem, getOrCreateStemLesson, listMergedStems, updateStemLesson, resetStemLesson } from './stem-lesson';
 import { StemName } from './songs';
 import { createSong, deleteSong, getSong, listSongs, resetInterruptedJobs, updateSong } from './songs';
@@ -37,6 +38,20 @@ app.post('/api/songs', express.raw({ type: () => true, limit: '300mb' }), async 
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: String(err) });
+  }
+});
+
+// Hit detection for one audio file (e.g. an Ableton audio track's export).
+// Body: the WAV; query: bpm. Lives under /api/songs so the dev proxy reaches it.
+app.post('/api/songs/analyze-audio', express.raw({ type: () => true, limit: '300mb' }), async (req, res) => {
+  try {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: 'No audio received.' });
+      return;
+    }
+    res.json(await analyzeAudio(repoRoot, req.body, Number(req.query.bpm)));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
