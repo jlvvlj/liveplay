@@ -1,6 +1,6 @@
 /* Jam tab: the backing track as a step grid */
 .jam-grid {
-  --jam-grid-name: 4.5rem;
+  --jam-grid-name: 13rem; /* the lane column: name, solo, mute, level */
   --jam-grid-gap: 0.75rem;
   --jam-grid-cell-gap: 4px;
   flex: 1;
@@ -17,6 +17,26 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.jam-grid-play {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(74, 222, 128, 0.18);
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.jam-grid-play.playing {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.jam-grid-play:hover {
+  border-color: rgba(255, 255, 255, 0.6);
 }
 
 .jam-grid-title {
@@ -63,11 +83,11 @@
 }
 
 /* Clear of the Jam tab's corner buttons (one or two, 36px each) */
-.highway-container:has(.jam-corner-btn) .jam-grid-title {
+.highway-container:has(.jam-corner-btn) .jam-grid-head {
   padding-left: 2.75rem;
 }
 
-.highway-container:has(.jam-corner-btn + .jam-corner-btn) .jam-grid-title {
+.highway-container:has(.jam-corner-btn + .jam-corner-btn) .jam-grid-head {
   padding-left: 5.25rem;
 }
 
@@ -101,18 +121,27 @@
   height: 1.5rem;
 }
 
-.jam-grid-name {
+.jam-grid-lane {
   flex: 0 0 var(--jam-grid-name);
   display: flex;
-  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  min-width: 0;
+}
+
+.jam-grid-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.1rem;
-  padding: 0;
+  justify-content: space-between;
+  gap: 0.3rem;
+  padding: 0 0.5rem;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
   font-size: 0.8rem;
+  white-space: nowrap;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
@@ -129,8 +158,43 @@ button.jam-grid-name:hover {
   color: rgba(255, 255, 255, 0.45);
 }
 
-.jam-grid-beats .jam-grid-name {
-  background: none;
+.jam-grid-toggle {
+  flex: 0 0 1.6rem;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.jam-grid-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.jam-grid-toggle.solo.on {
+  background: #e8b33f;
+  color: #1a1a1a;
+}
+
+.jam-grid-toggle.mute.on {
+  background: #d9534f;
+  color: #fff;
+}
+
+.jam-grid-level {
+  flex: 0 0 4rem;
+  min-width: 0;
+  align-self: center;
+  accent-color: #4ade80;
+}
+
+/* A muted lane, or one left out by a solo, is drawn faded */
+.jam-grid-row.silent .jam-grid-cells,
+.jam-grid-row.silent .jam-grid-roll {
+  opacity: 0.35;
 }
 
 .jam-grid-cells {
@@ -224,7 +288,7 @@ button.jam-grid-name:hover {
 
 @media (max-width: 700px), (max-height: 500px) {
   .jam-grid {
-    --jam-grid-name: 3rem;
+    --jam-grid-name: 6.5rem;
     --jam-grid-gap: 0.4rem;
     --jam-grid-cell-gap: 2px;
     padding: 0.75rem;
@@ -243,6 +307,29 @@ button.jam-grid-name:hover {
     border-radius: 4px;
   }
 
+  .jam-grid-name {
+    padding: 0 0.3rem;
+  }
+
+  .jam-grid-toggle {
+    flex-basis: 1.3rem;
+    font-size: 0.6rem;
+  }
+
+  .jam-grid-level {
+    display: none;
+  }
+}
+
+/* Upright phones: only the lane names fit beside the cells */
+@media (max-width: 480px) {
+  .jam-grid {
+    --jam-grid-name: 3rem;
+  }
+
+  .jam-grid-toggle {
+    display: none;
+  }
   .jam-grid-beat,
   .jam-grid-and {
     font-size: 0.7rem;
@@ -251,7 +338,7 @@ button.jam-grid-name:hover {
 
 /* Rows too short for two lines keep only the row's name; beats too narrow
    for "+" keep only their numbers */
-@container (max-width: 900px) {
+@container (max-width: 700px) {
   .jam-grid-division,
   .jam-grid-and {
     visibility: hidden;

@@ -14,26 +14,28 @@ import { JAM_TRACKS, jamTrackParts } from "../apps/desktop/src/renderer/componen
 import {
   JAM_TRACK_TARGET_RMS_DB,
   jamLoopScale,
-  renderJamTrackLoop,
+  jamLoopSeconds,
+  renderJamPartLoop,
 } from "../apps/desktop/src/renderer/components/lesson-engine/jamTrackRender.ts";
 
 const SAMPLE_RATE = 44100;
 const MAX_PEAK_DB = -1;
 
 function renderTrack(track) {
-  const { loop, loopSeconds } = renderJamTrackLoop(
-    track,
-    jamTrackParts(track).map((part) => part.notes),
-    SAMPLE_RATE,
-  );
-  const scale = jamLoopScale(loop);
+  const parts = jamTrackParts(track).map((part, p) => renderJamPartLoop(track, p, part.notes, SAMPLE_RATE));
+  const scale = jamLoopScale(parts);
+  const loop = [0, 1].map((c) => {
+    const channel = new Float32Array(parts[0][c].length);
+    for (const part of parts) for (let i = 0; i < channel.length; i++) channel[i] += part[c][i];
+    return channel;
+  });
   let peak = 0;
   for (const ch of loop) for (let i = 0; i < ch.length; i++) peak = Math.max(peak, Math.abs((ch[i] *= scale)));
   const peakDb = 20 * Math.log10(peak);
   if (peakDb > MAX_PEAK_DB) {
     throw new Error(`${track.file}: peak ${peakDb.toFixed(1)} dBFS at ${JAM_TRACK_TARGET_RMS_DB} dB RMS; lower its loudest layer`);
   }
-  return { loop, loopSeconds, peakDb };
+  return { loop, loopSeconds: jamLoopSeconds(track), peakDb };
 }
 
 // 16-bit stereo PCM: half the size of float, so phones load tracks twice as fast
