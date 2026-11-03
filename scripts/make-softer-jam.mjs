@@ -158,7 +158,7 @@ for (const [index, name] of order.entries()) {
     fs.writeFileSync(path.join(outDir, sound.file), encodeWav16(audio));
     sounds.push({ ...sound, uses: pool.filter((s) => s.note === note).length });
   }
-  if (index < LANES) preset.push(sounds.reduce((most, s) => (s.uses > most.uses ? s : most)).file);
+  if (index < LANES) preset.push({ file: sounds.reduce((most, s) => (s.uses > most.uses ? s : most)).file, name });
   if (playing.length) {
     const kind = lanes.length === 1 ? "drum" : "notes";
     const notes = playing.map((step) => ({
@@ -172,7 +172,7 @@ for (const [index, name] of order.entries()) {
   console.log(`${name.padEnd(18)} ${String(lanes.length).padStart(2)} lanes  ${String(sounds.length).padStart(2)} sounds  ${String(playing.length).padStart(3)} notes`);
 }
 // Lanes no part or the Softer sound uses are not kept
-const used = new Set([...preset, ...parts.flatMap((part) => part.sounds.map((s) => s.file))]);
+const used = new Set([...preset.map((sound) => sound.file), ...parts.flatMap((part) => part.sounds.map((s) => s.file))]);
 for (const file of fs.readdirSync(outDir)) if (!used.has(file)) fs.rmSync(path.join(outDir, file));
 
 const json = (value) => JSON.stringify(value).replace(/"/g, "'");
@@ -204,6 +204,6 @@ ${parts
 };
 
 // One sound per track, in the song's track order, as many as the highway has rows
-export const SOFTER_SOUNDS: string[] = ${json(preset)};
+export const SOFTER_SOUNDS: { file: string; name: string }[] = ${json(preset)};
 `
 );

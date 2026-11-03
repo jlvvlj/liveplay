@@ -50,7 +50,7 @@ export type JamSoundPreset =
   // A kit plays one drum per row, from the lowest row up
   | { id: string; label: string; kit: JamDrum[] }
   // One recorded sound (a file in softer/) per row, from the lowest row up
-  | { id: string; label: string; sounds: string[] };
+  | { id: string; label: string; sounds: { file: string; name: string }[] };
 
 const SAMPLE_RATE = 44100;
 const VELOCITY = 110;

@@ -588,6 +588,63 @@
   filter: blur(1px);
 }
 
+/* Jam mode row controls (JamLaneStrip) on each row's left, and their fold
+   bar; the ship and its notes stay right of them (--jam-inset) */
+.note-highway.jam-strips {
+  --jam-lane-width: 13rem;
+  --jam-lanes-top: 1rem;
+  --jam-lanes-bottom: calc(1rem + 50px);
+}
+
+/* Folded away: only the fold bar is left */
+.note-highway.jam-strips.strips-closed {
+  --jam-lane-width: 0px;
+}
+
+.note-highway.jam::before {
+  left: var(--jam-inset, 0px);
+}
+
+.jam-lane-box {
+  position: absolute;
+  left: 0.5rem;
+  top: 1px;
+  bottom: 1px;
+  width: var(--jam-lane-width);
+  z-index: 22;
+}
+
+.jam-lanes-fold {
+  position: absolute;
+  top: var(--jam-lanes-top);
+  bottom: var(--jam-lanes-bottom);
+  left: calc(0.5rem + var(--jam-lane-width) + 4px);
+  width: 12px;
+  display: flex;
+  z-index: 22;
+}
+
+.jam-lanes-fold .jam-lanes-handle {
+  flex: 1;
+}
+
+/* A muted row, or one left out by a solo */
+.jam-lanes .lane.silent .notes-scroll-container {
+  opacity: 0.35;
+}
+
+@media (max-width: 700px), (max-height: 500px) {
+  .note-highway.jam-strips {
+    --jam-lane-width: 6.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .note-highway.jam-strips {
+    --jam-lane-width: 3rem;
+  }
+}
+
 /* Jam on a sideways phone: sixteen rows in little height, so a slimmer clock
    bar, tighter padding and smaller row labels */
 @media (max-height: 500px) {
@@ -608,6 +665,11 @@
   .note-highway.jam .jam-lanes {
     gap: 0;
     padding: 0.25rem 0 calc(0.25rem + 28px);
+  }
+
+  .note-highway.jam-strips {
+    --jam-lanes-top: 0.25rem;
+    --jam-lanes-bottom: calc(0.25rem + 28px);
   }
 
   .note-highway.jam .lane-label {
@@ -649,4 +711,14 @@
 @keyframes holdFill {
   from { width: 0; }
   to { width: 100%; }
+}
+
+/* Jam row controls clear of the Jam tab's corner buttons (36px high, 0.75rem
+   from the top) when the settings are folded away */
+.highway-container:has(.jam-corner-btn) .note-highway.jam-strips {
+  --jam-lanes-top: calc(0.75rem + 36px + 0.4rem);
+}
+
+.note-highway.jam-strips .jam-lanes {
+  padding-top: var(--jam-lanes-top);
 }

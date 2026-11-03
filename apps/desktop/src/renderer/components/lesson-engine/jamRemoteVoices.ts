@@ -43,7 +43,7 @@ export class JamRemoteVoices {
     if (preset && 'sounds' in preset) {
       // Recorded sounds play on the rows from the lowest up
       const rows = [...notes].sort((a, b) => a - b);
-      samples = Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(preset.sounds[row % preset.sounds.length])]));
+      samples = Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(preset.sounds[row % preset.sounds.length].file)]));
     } else if (preset) {
       samples = await renderJamSound('kit' in preset ? { kit: preset.kit } : { patch: sound?.patch ?? preset.patch }, notes);
       blobs = Object.values(samples);
@@ -70,17 +70,18 @@ export class JamRemoteVoices {
     this.voices.set(id, { key, players, next: new Map(), blobs });
   }
 
-  // Plays player `id`'s row `note` at audio time `time`; false when its sound
-  // is still being prepared
-  play(id: string, note: number, time: number, volume: number): boolean {
+  // Plays player `id`'s row `note` at audio time `time`, scaled by the row's
+  // `level` (0 for a muted row); false when its sound is still being prepared
+  play(id: string, note: number, time: number, volume: number, level = 1): boolean {
     const voice = this.voices.get(id);
     const pool = voice?.players.get(note);
     if (!voice || !pool) return false;
+    if (level <= 0) return true;
     const index = voice.next.get(note) ?? 0;
     voice.next.set(note, index + 1);
     const player = pool.find((candidate) => candidate.state !== 'started') ?? pool[index % pool.length];
     if (player.state === 'started') player.stop(time);
-    player.volume.value = volume === 0 ? -Infinity : -6 + (volume - 1) * 20;
+    player.volume.value = volume === 0 ? -Infinity : -6 + (volume - 1) * 20 + (level < 1 ? 20 * Math.log10(level) : 0);
     player.start(time);
     return true;
   }
