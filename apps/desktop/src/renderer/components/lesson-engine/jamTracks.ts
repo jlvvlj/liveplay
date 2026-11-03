@@ -1,10 +1,12 @@
 import type { SynthPatch } from '../../../../../../instrument-lab/engine/synth.mjs';
 import type { DrumPatchData } from '../../../../../../instrument-lab/engine/drums.mjs';
+import { SOFTER_TRACK } from './jamSofter';
 
-// The Jam tab's backing tracks as data: 8 bars in A minor each, rendered live
-// by jamTrackRender.ts (as edited in the Jam tab's step grid) and exported as
-// WAVs by scripts/make-pentatonic-jam-audio.mjs. Each track's BPM must match
-// its song in jamSongs.ts.
+// The Jam tab's backing tracks as data, 8 bars each, rendered live by
+// jamTrackRender.ts (as edited in the Jam tab's step grid). The synthesized ones
+// are in A minor and exported as WAVs by scripts/make-pentatonic-jam-audio.mjs;
+// Softer (jamSofter.ts) plays sounds cut from its own song. Each track's BPM
+// must match its song in jamSongs.ts.
 
 export const JAM_TRACK_BARS = 8;
 
@@ -40,12 +42,32 @@ export interface JamTrackDrum {
   hits: [number, number][];
 }
 
+// A recorded sound (a file in softer/): `root` held for `held` 16ths at `velocity`
+export interface JamTrackSound {
+  file: string;
+  root: number;
+  velocity: number;
+  held: number;
+}
+
+// A part playing recorded sounds, with its notes over the whole loop. A drum
+// part plays its sound whole on each hit, until the next hit; a notes part
+// plays the sound recorded nearest each note's pitch, re-pitched, for the
+// note's length and then the sound's own tail.
+export interface JamSampledPart {
+  name: string;
+  kind: 'drum' | 'notes';
+  sounds: JamTrackSound[];
+  notes: JamTrackNote[];
+}
+
 export interface JamTrack {
   file: string;
   bpm: number;
   chords: JamChord[];
   layers: JamTrackLayer[];
   drums: JamTrackDrum[];
+  sampled?: JamSampledPart[];
 }
 
 const layer = (
@@ -176,6 +198,7 @@ export const JAM_TRACKS: JamTrack[] = [
         [[3, 90], [14, 70]]),
     ],
   },
+  SOFTER_TRACK,
 ];
 
 // A track's backing track file name, as in a song's `backingTrack` path
@@ -189,7 +212,7 @@ export interface JamTrackPart {
   notes: JamTrackNote[];
 }
 
-// Drums first, then the layers, as they are drawn
+// Drums first, then the layers, then the recorded parts, as they are drawn
 export function jamTrackParts(track: JamTrack): JamTrackPart[] {
   const bars = Array.from({ length: JAM_TRACK_BARS }, (_, bar) => bar);
   return [
@@ -205,5 +228,6 @@ export function jamTrackParts(track: JamTrack): JamTrackPart[] {
         l.notesForBar(track.chords[bar % track.chords.length], bar).map((note) => ({ ...note, step: bar * 16 + note.step }))
       ),
     })),
+    ...(track.sampled ?? []).map((part): JamTrackPart => ({ name: part.name, kind: part.kind, notes: part.notes })),
   ];
 }

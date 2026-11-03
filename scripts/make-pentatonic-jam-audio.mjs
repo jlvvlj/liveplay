@@ -64,9 +64,11 @@ const audioDir = path.resolve(process.argv[2] || "audio");
 const outDir = path.join(audioDir, "samples", "pentatonic_jam");
 fs.mkdirSync(outDir, { recursive: true });
 
-for (const track of JAM_TRACKS) {
+// Softer plays sounds recorded from its own song (softer/); only the synthesized tracks are exported
+const SYNTHESIZED = JAM_TRACKS.filter((track) => !track.sampled);
+for (const track of SYNTHESIZED) {
   const { loop, loopSeconds, peakDb } = renderTrack(track);
   fs.writeFileSync(path.join(outDir, track.file), encodeWav16(loop));
   console.log(`${track.file}: ${track.bpm} BPM, ${loopSeconds.toFixed(2)} s loop, peak ${peakDb.toFixed(1)} dBFS`);
 }
-console.log(`Wrote ${JAM_TRACKS.length} tracks to ${outDir}`);
+console.log(`Wrote ${SYNTHESIZED.length} tracks to ${outDir}`);
