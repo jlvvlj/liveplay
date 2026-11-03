@@ -50,6 +50,9 @@ export interface Lesson {
   // these beats and accents the downbeats instead of counting from time 0
   beatGrid?: { beats: number[]; downbeats: number[] };
   laneLabels?: { [note: number]: string };  // display name per lane, e.g. "Kick" or "E1"
+  // Notes whose sound lasts long (see HOLD_MIN_MS) must be held for their
+  // whole duration; `dur` is then the length of the note's sound
+  holdNotes?: boolean;
 }
 
 /**

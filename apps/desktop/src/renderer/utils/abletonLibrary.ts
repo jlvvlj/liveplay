@@ -1,4 +1,4 @@
-import { ProjectFile } from './abletonImport';
+import { AbletonProject, AbletonTrack, ProjectFile, audioTrackFromAnalysis } from './abletonImport';
 
 /**
  * Remembers Ableton project folders across reloads. The browser keeps a
@@ -34,21 +34,30 @@ export const canRememberFolders = () => typeof window !== 'undefined' && typeof 
 
 const DB_NAME = 'melodics';
 const STORE = 'ableton-projects';
+const ANALYSES = 'audio-analyses'; // detected hits per exported audio track
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: 'id' });
+    const request = indexedDB.open(DB_NAME, 2);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(ANALYSES)) db.createObjectStore(ANALYSES);
+    };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
 
-async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+async function withStore<T>(
+  mode: IDBTransactionMode,
+  run: (store: IDBObjectStore) => IDBRequest<T>,
+  storeName = STORE
+): Promise<T> {
   const db = await openDb();
   try {
     return await new Promise<T>((resolve, reject) => {
-      const request = run(db.transaction(STORE, mode).objectStore(STORE));
+      const request = run(db.transaction(storeName, mode).objectStore(storeName));
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -108,4 +117,31 @@ export async function readFolder(handle: FileSystemDirectoryHandle, prefix = '')
     }
   }
   return files;
+}
+
+type AudioAnalysis = Parameters<typeof audioTrackFromAnalysis>[2];
+
+/**
+ * Hits detected in an audio track's export, as a playable track. The server
+ * analyses the export once; the result is kept in the browser, keyed by the
+ * exact file, so a re-export is analysed again.
+ */
+export async function detectAudioTrack(project: AbletonProject, name: string): Promise<AbletonTrack> {
+  const file = project.exports.get(name);
+  if (!file) throw new Error(`${name} has no exported audio in this folder.`);
+  const key = [project.name, name, file.size, file.lastModified, project.tempo].join('|');
+  let analysis = await withStore<AudioAnalysis | undefined>('readonly', (store) => store.get(key), ANALYSES);
+  if (!analysis) {
+    const response = await fetch(`/api/songs/analyze-audio?bpm=${project.tempo}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'audio/wav' },
+      body: file,
+    });
+    const body = await response.json();
+    if (!response.ok || body.error) throw new Error(body.error ?? `Analysis failed (${response.status})`);
+    analysis = body as AudioAnalysis;
+    await withStore('readwrite', (store) => store.put(analysis, key), ANALYSES);
+  }
+  if (analysis.events.length === 0) throw new Error(`No hits were found in ${name}.`);
+  return audioTrackFromAnalysis(project, name, analysis);
 }
