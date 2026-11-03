@@ -28,6 +28,7 @@ interface NoteHighwayProps {
   labelMode?: 'letters' | 'numbers'; // Display key letters or note order numbers
   jamNotes?: JamNote[]; // Notes played in jam mode
   onJamPointer?: (note: number | null) => void; // Jam mode: pitch under a held pointer, null on release
+  onJamCursorNote?: (note: number) => void; // Jam mode: the row the ship moved to
 }
 
 interface NoteHitState {
@@ -77,6 +78,7 @@ export function NoteHighway({
   labelMode = 'letters',
   jamNotes = [],
   onJamPointer,
+  onJamCursorNote,
 }: NoteHighwayProps) {
   const [noteHitStates, setNoteHitStates] = useState<Map<number, NoteHitState>>(new Map());
   const [timingPopups, setTimingPopups] = useState<TimingPopup[]>([]);
@@ -734,6 +736,11 @@ export function NoteHighway({
     const y = Math.min(bottom.top + bottom.height / 2, Math.max(top.top + top.height / 2, clientY));
     setJamCursorY((prev) => ({ y: y - container.getBoundingClientRect().top, note: note ?? prev?.note ?? null }));
   };
+
+  const jamCursorNote = jamCursorY?.note ?? null;
+  useEffect(() => {
+    if (jamCursorNote !== null) onJamCursorNote?.(jamCursorNote);
+  }, [jamCursorNote, onJamCursorNote]);
 
   // Start the cursor on the middle row
   useEffect(() => {

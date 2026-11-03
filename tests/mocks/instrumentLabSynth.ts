@@ -31,3 +31,7 @@ export const FAMILIES = ['sine', 'triangle', 'saw', 'square', 'pulse', 'fm'];
 export const renderNotes = (_patch: unknown, _notes: unknown, duration: number, sampleRate = 22050) =>
   new Float32Array(Math.ceil(duration * sampleRate));
 export const encodeWav = (audio: Float32Array) => new ArrayBuffer(44 + audio.length * 2);
+export const hz = (pitch: number) => 440 * 2 ** ((pitch - 69) / 12);
+export const patchData = (input = {}) => ({ ...DEFAULT_PATCH, ...input });
+export const makeTable = () => new Float32Array(2049);
+export const envelope = () => 0;

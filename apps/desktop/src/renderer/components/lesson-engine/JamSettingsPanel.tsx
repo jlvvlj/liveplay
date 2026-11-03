@@ -1,4 +1,5 @@
 import {
+  JAM_FILTER_OPEN,
   JAM_SYNTH_CONTROLS,
   JAM_ECHO_BEATS,
   SYNTH_FAMILIES,
@@ -26,6 +27,8 @@ interface JamSettingsPanelProps {
   holdDivisions: number[];
   holdDivision: number;
   onHoldDivisionChange: (division: number) => void;
+  holdTriplet: boolean;
+  onHoldTripletChange: (triplet: boolean) => void;
   notesVolume: number;
   onNotesVolumeChange: (volume: number) => void;
   backingVolume: number;
@@ -54,10 +57,13 @@ const FAMILY_LABELS: Record<string, string> = {
   fm: 'FM',
 };
 
-const SECONDS = new Set(['attack', 'decay', 'hold', 'release']);
+const SECONDS = new Set(['attack', 'decay', 'hold', 'release', 'sweepTime']);
 
 function formatControl(control: JamSynthControl, value: number): string {
   if (SECONDS.has(control.key)) return value < 0.1 ? `${Math.round(value * 1000)} ms` : `${value.toFixed(2)} s`;
+  if (control.key === 'octave') return value > 0 ? `+${value}` : `${value}`;
+  if (control.key === 'cutoff' || control.key === 'cutoffEnd') return value >= JAM_FILTER_OPEN ? 'Open' : `×${value.toFixed(1)}`;
+  if (control.key === 'vibrato') return `${value} ct`;
   if (control.key === 'ratio') return `×${value}`;
   if (control.key === 'detune') return `${value} ct`;
   if (control.key === 'odd') return `${Math.round((0.12 + 0.32 * value) * 100)}%`; // pulse duty cycle
@@ -115,6 +121,8 @@ export function JamSettingsPanel({
   holdDivisions,
   holdDivision,
   onHoldDivisionChange,
+  holdTriplet,
+  onHoldTripletChange,
   notesVolume,
   onNotesVolumeChange,
   backingVolume,
@@ -134,6 +142,19 @@ export function JamSettingsPanel({
 }: JamSettingsPanelProps) {
   const setEffect = <K extends keyof JamEffects>(key: K, value: JamEffects[K]) =>
     onEffectsChange({ ...effects, [key]: value });
+  const soundGrid = (choices: { id: string; label: string }[]) => (
+    <div className="jam-sound-grid">
+      {choices.map((sound) => (
+        <button
+          key={sound.id}
+          className={`jam-sound-option ${sound.id === soundId ? 'active' : ''}`}
+          onClick={() => onSoundChange(sound.id)}
+        >
+          {sound.label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div className="game-settings-sidebar">
@@ -208,31 +229,13 @@ export function JamSettingsPanel({
             <span className="setting-icon">&#127927;</span>
             Sound
           </label>
-          <div className="jam-sound-grid">
-            {sounds.map((sound) => (
-              <button
-                key={sound.id}
-                className={`jam-sound-option ${sound.id === soundId ? 'active' : ''}`}
-                onClick={() => onSoundChange(sound.id)}
-              >
-                {sound.label}
-              </button>
-            ))}
-          </div>
+          {soundGrid(sounds.filter((sound) => 'patch' in sound))}
+          <div className="jam-subhead">Drums</div>
+          {soundGrid(sounds.filter((sound) => 'kit' in sound))}
           {referenceSounds.length > 0 && (
             <>
               <div className="jam-subhead">Reference</div>
-              <div className="jam-sound-grid">
-                {referenceSounds.map((sound) => (
-                  <button
-                    key={sound.id}
-                    className={`jam-sound-option ${sound.id === soundId ? 'active' : ''}`}
-                    onClick={() => onSoundChange(sound.id)}
-                  >
-                    {sound.label}
-                  </button>
-                ))}
-              </div>
+              {soundGrid(referenceSounds)}
             </>
           )}
         </div>
@@ -278,7 +281,17 @@ export function JamSettingsPanel({
           <label className="setting-label">
             <span className="setting-icon">&#128257;</span>
             Hold repeat
-            <span className="setting-value">1/{holdDivision}</span>
+            <span className="jam-feel-switch">
+              {[false, true].map((triplet) => (
+                <button
+                  key={String(triplet)}
+                  className={triplet === holdTriplet ? 'active' : ''}
+                  onClick={() => onHoldTripletChange(triplet)}
+                >
+                  {triplet ? 'Triplet' : 'Straight'}
+                </button>
+              ))}
+            </span>
           </label>
           <div className="jam-sound-options jam-hold-options">
             {holdDivisions.map((division) => (
@@ -288,6 +301,7 @@ export function JamSettingsPanel({
                 onClick={() => onHoldDivisionChange(division)}
               >
                 {division}
+                {holdTriplet ? 'T' : ''}
               </button>
             ))}
           </div>
