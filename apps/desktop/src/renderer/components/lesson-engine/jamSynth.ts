@@ -34,11 +34,14 @@ export interface JamSynthExtras {
 export type JamSynthPatch = SynthPatch & JamSynthExtras;
 export type JamSynthKey = SynthParam | keyof JamSynthExtras;
 
-// One drum: layers of the Instrument Lab drum engine, each `delay` seconds in,
-// scaled so the drum peaks at `level`
+// One drum: layers of the Instrument Lab drum engine, each `delay` seconds in
+// and narrowed to a band around `band` Hz (width set by `q`) if set, scaled so
+// the drum peaks at `level`, and stopped after `cut` seconds if set
+export type JamDrumLayer = DrumPatchData & { delay?: number; band?: number; q?: number };
 export interface JamDrum {
   level: number;
-  layers: (DrumPatchData & { delay?: number })[];
+  layers: JamDrumLayer[];
+  cut?: number;
 }
 
 export type JamSoundPreset =
@@ -82,11 +85,14 @@ const preset = (id: string, label: string, patch: Partial<JamSynthPatch>): JamSo
 });
 
 // Drum layer shorthand: engine model, then the patch's other settings
-const hit = (model: DrumPatchData['model'], extra: Omit<DrumPatchData, 'model'> & { delay?: number } = {}) => ({
+const hit = (model: DrumPatchData['model'], extra: Omit<JamDrumLayer, 'model'> = {}): JamDrumLayer => ({
   model,
   ...extra,
 });
 const drum = (level: number, ...layers: JamDrum['layers']): JamDrum => ({ level, layers });
+const gated = (cut: number, sound: JamDrum): JamDrum => ({ ...sound, cut });
+// A cut drum fades out over this long (seconds)
+const CUT_FADE = 0.005;
 
 export const JAM_SOUND_PRESETS: JamSoundPreset[] = [
   // Chiptune: plain square wave held flat, then cut short
@@ -184,6 +190,54 @@ export const JAM_SOUND_PRESETS: JamSoundPreset[] = [
       drum(0.38, hit({ frequency: 9000, toneLevel: 0, noiseLevel: 0.6, noiseDecay: 0.014 }, { brightness: 1.6, drive: 0.2 })),
       drum(0.36, hit({ frequency: 9000, toneLevel: 0, noiseLevel: 0.6, noiseDecay: 0.12 }, { brightness: 1.6, drive: 0.3 })),
       drum(0.38, hit({ frequency: 9000, toneLevel: 0, noiseLevel: 0.7, noiseDecay: 0.6 }, { brightness: 1.2, drive: 0.4 })),
+    ],
+  },
+  // Small electronic kit, lowest row to highest, at the levels of the reference
+  // drums it was measured from: kick, short snare, closed and open hats, a tick,
+  // a blip, a cymbal, a shaker, a ping, two bright hats, two falling toms, a
+  // snap, a driven low kick and a deep falling tom
+  {
+    id: 'arcade-kit',
+    label: 'Arcade kit',
+    kit: [
+      gated(0.35, drum(0.9, hit({ frequency: 70, sweep: 260, sweepDecay: 0.02, toneLevel: 1, toneDecay: 0.08, noiseLevel: 0.03, noiseDecay: 0.005 }, { drive: 0.5 }))),
+      drum(
+        0.7,
+        hit({ frequency: 230, toneLevel: 0.5, toneDecay: 0.01, noiseLevel: 0 }),
+        hit({ frequency: 230, toneLevel: 0, noiseLevel: 1, noiseDecay: 0.02 }, { band: 5500, q: 1.5 })
+      ),
+      drum(0.44, hit({ frequency: 9000, toneLevel: 0, noiseLevel: 1, noiseDecay: 0.02 }, { band: 8800, q: 3 })),
+      drum(0.48, hit({ frequency: 9000, toneLevel: 0, noiseLevel: 1, noiseDecay: 0.1 }, { band: 9000, q: 3 })),
+      drum(0.57, hit({ frequency: 2400, toneLevel: 1, toneDecay: 0.008, noiseLevel: 0 })),
+      gated(0.065, drum(0.69, hit({ frequency: 790, toneLevel: 1, toneDecay: 0.04, noiseLevel: 0 }))),
+      gated(0.76, drum(0.57, hit({ frequency: 9000, toneLevel: 0, noiseLevel: 1, noiseDecay: 0.2 }, { band: 5600, q: 4 }))),
+      gated(0.27, drum(0.59, hit({ frequency: 9000, toneLevel: 0, noiseLevel: 1, noiseDecay: 0.2 }, { band: 3900, q: 4 }))),
+      gated(0.07, drum(0.72, hit({ frequency: 5860, toneLevel: 1, toneDecay: 0.025, noiseLevel: 0 }))),
+      drum(
+        0.62,
+        hit({ frequency: 9000, toneLevel: 0, noiseLevel: 1, noiseDecay: 0.015 }, { band: 8300, q: 3 }),
+        hit({ frequency: 9000, toneLevel: 0, noiseLevel: 0.6, noiseDecay: 0.07 }, { band: 11000, q: 3 })
+      ),
+      drum(0.33, hit({ frequency: 9000, toneLevel: 0, noiseLevel: 1, noiseDecay: 0.08 }, { band: 12500, q: 3 })),
+      gated(0.06, drum(0.3, hit({ frequency: 700, sweep: 1200, sweepDecay: 0.025, toneLevel: 1, toneDecay: 0.05, noiseLevel: 0 }, { drive: 0.4 }))),
+      gated(0.13, drum(0.33, hit({ frequency: 300, sweep: 680, sweepDecay: 0.06, toneLevel: 1, toneDecay: 0.2, noiseLevel: 0 }, { drive: 0.4 }))),
+      gated(
+        0.065,
+        drum(
+          0.45,
+          hit({ frequency: 205, toneLevel: 0.25, toneDecay: 0.08, noiseLevel: 0 }),
+          hit({ frequency: 205, toneLevel: 0, noiseLevel: 1, noiseDecay: 0.08 }, { band: 3000, q: 1.5 })
+        )
+      ),
+      gated(
+        0.13,
+        drum(
+          0.36,
+          hit({ frequency: 80, sweep: 100, sweepDecay: 0.02, toneLevel: 1, toneDecay: 0.3, noiseLevel: 0 }, { drive: 0.8 }),
+          hit({ frequency: 80, toneLevel: 0, noiseLevel: 2, noiseDecay: 0.1 }, { band: 2000, q: 1 })
+        )
+      ),
+      gated(0.13, drum(0.25, hit({ frequency: 180, sweep: 620, sweepDecay: 0.018, toneLevel: 1, toneDecay: 0.3, noiseLevel: 0 }, { drive: 0.4 }))),
     ],
   },
 ];
@@ -330,13 +384,25 @@ const NO_RECORDING = { channels: [new Float32Array(1)], sampleRate: SAMPLE_RATE 
 
 // One drum: its layers mixed to mono and scaled to the drum's level
 export function renderJamDrum(drum: JamDrum): Float32Array {
-  const layers = drum.layers.map(({ delay = 0, ...data }) => {
+  const layers = drum.layers.map(({ delay = 0, band, q = 4, ...data }) => {
     const [left, right] = prepareDrum({ detail: 0, ...data }, NO_RECORDING, SAMPLE_RATE);
-    return { offset: Math.round(delay * SAMPLE_RATE), left, right };
+    const mono = left.map((x, i) => (x + right[i]) * 0.5);
+    if (band) {
+      const filter = new StateVariableFilter();
+      filter.tune(band, 1 / q);
+      for (let i = 0; i < mono.length; i++) {
+        filter.process(mono[i]);
+        mono[i] = filter.band / q;
+      }
+    }
+    return { offset: Math.round(delay * SAMPLE_RATE), mono };
   });
-  const audio = new Float32Array(Math.max(...layers.map((layer) => layer.offset + layer.left.length)));
-  for (const { offset, left, right } of layers)
-    for (let i = 0; i < left.length; i++) audio[offset + i] += (left[i] + right[i]) * 0.5;
+  const full = Math.max(...layers.map((layer) => layer.offset + layer.mono.length));
+  const audio = new Float32Array(drum.cut ? Math.min(full, Math.round(drum.cut * SAMPLE_RATE)) : full);
+  for (const { offset, mono } of layers)
+    for (let i = 0; i < mono.length && offset + i < audio.length; i++) audio[offset + i] += mono[i];
+  const fade = Math.round(CUT_FADE * SAMPLE_RATE);
+  if (drum.cut) for (let i = 0; i < fade && i < audio.length; i++) audio[audio.length - 1 - i] *= i / fade;
   const peak = audio.reduce((max, x) => Math.max(max, Math.abs(x)), 0);
   if (peak > 0) for (let i = 0; i < audio.length; i++) audio[i] *= drum.level / peak;
   return audio;
