@@ -99,8 +99,8 @@ const JAM_PIXELS_PER_MS = 0.6; // Jam dots scroll twice as fast as play-mode not
 // engine burst, and it drifts slowly back home (fractions of the highway width)
 const JAM_CURSOR_HOME_PERCENT = 0.2;
 const JAM_CURSOR_MAX_PERCENT = 0.85;
-const JAM_CURSOR_PUSH = 0.016; // Distance one note moves it
-const JAM_CURSOR_DRIFT = 0.07; // Speed back home, per second
+const JAM_CURSOR_PUSH = 0.024; // Distance one note moves it
+const JAM_CURSOR_DRIFT = 0.12; // Speed back home, per second
 const JAM_CURSOR_BURST_DECAY = 8; // 1/s: how fast one push eases out
 const JAM_CURSOR_FULL_THRUST = 6; // Notes per second that show the full engine flame
 const NO_JAM_SHIPS: JamShip[] = [];
@@ -982,8 +982,8 @@ export function NoteHighway({
     </div>
   );
 
-  // Jam cursor: a small ship whose engine flame grows with the push of recent
-  // notes, in the color of the row it is on. The other players' ships in a jam
+  // Jam cursor: a small ship whose engine flame, stretch and glow grow with
+  // the push of recent notes, in the color of the row it is on. The other players' ships in a jam
   // room carry their name, on a tag in their color.
   const renderJamShip = (ship: string, y: number, color: string | undefined, name?: string, tag?: string) => {
     const motion = shipMotion(ship);
@@ -995,8 +995,17 @@ export function NoteHighway({
         className={name === undefined ? 'jam-cursor' : 'jam-cursor jam-cursor-other'}
         style={{ transform: `translate(${hitZoneOffset + motion.x}px, ${y}px)`, color }}
       >
-        <div className="jam-cursor-flame" style={{ transform: `translateY(-50%) scaleX(${0.25 + thrust})`, opacity: 0.35 + thrust * 0.65 }} />
-        <div className="jam-cursor-ship" />
+        <div
+          className="jam-cursor-flame"
+          style={{ transform: `translateY(-50%) scale(${0.25 + thrust * 1.75}, ${1 + thrust})`, opacity: 0.35 + thrust * 0.65 }}
+        />
+        <div
+          className="jam-cursor-ship"
+          style={{
+            transform: `scale(${1 + thrust * 0.3}, ${1 - thrust * 0.15})`,
+            filter: `drop-shadow(0 0 6px currentColor) drop-shadow(0 0 14px currentColor) brightness(${1 + thrust * 0.8})`,
+          }}
+        />
         {name !== undefined && (
           <div className="jam-cursor-name" style={{ background: tag }}>
             {name}
