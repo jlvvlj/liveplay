@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { Lesson } from '../../types/lesson';
-import { JamLobbyConnection } from './jamLobbyConnection';
 import { newJamRoomCode, type JamRoomEnd } from './jamRoom';
 import {
   JAM_ROOM_CODE,
@@ -19,7 +18,11 @@ export interface JamRoomEntry {
 }
 
 interface JamLobbyProps {
-  server: string;
+  // The live rooms (null until the server first answers), whether the
+  // server cannot be reached right now, and a check of a private room's code
+  rooms: JamRoomSummary[] | null;
+  unreachable: boolean;
+  check: (id: string, code: string) => Promise<boolean | null>;
   songs: Lesson[];
   onEnter: (entry: JamRoomEntry) => void;
   // Why the player is back here, when the room ended by itself
@@ -39,20 +42,7 @@ const LockIcon = () => (
   </svg>
 );
 
-export function JamLobby({ server, songs, onEnter, ended }: JamLobbyProps) {
-  // The rooms; null until the server answers, or while it cannot be reached
-  const [rooms, setRooms] = useState<JamRoomSummary[] | null>(null);
-  const [unreachable, setUnreachable] = useState(false);
-  const lobbyRef = useRef<JamLobbyConnection | null>(null);
-  useEffect(() => {
-    const lobby = new JamLobbyConnection(server, (next) => {
-      setRooms(next);
-      setUnreachable(next === null);
-    });
-    lobbyRef.current = lobby;
-    return () => lobby.close();
-  }, [server]);
-
+export function JamLobby({ rooms, unreachable, check, songs, onEnter, ended }: JamLobbyProps) {
   return (
     <div className="jam-lobby">
       <header className="jam-lobby-header">
@@ -68,7 +58,7 @@ export function JamLobby({ server, songs, onEnter, ended }: JamLobbyProps) {
             room={room}
             song={songs.find((song) => song.id === room.songId)}
             onEnter={onEnter}
-            check={(code) => lobbyRef.current?.check(room.id, code) ?? Promise.resolve(null)}
+            check={(code) => check(room.id, code)}
           />
         ))}
       </div>

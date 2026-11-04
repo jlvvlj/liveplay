@@ -1580,11 +1580,12 @@ export function LessonPlayer({
       },
       {
         onState: (state) => {
-          // A room this player just opened takes over the jam where it is, still playing
+          // A room this player is alone in (just opened, or come back to while
+          // it waited, paused) plays on from where it is
           if (first) {
             first = false;
             if (wasPlaying && state.startAt === null && room.players().length === 1) {
-              const position = jamHeardPosition();
+              const { position } = state;
               room.setState({ songId: state.songId, startAt: room.clock.now() - position * 1000, position });
               return;
             }

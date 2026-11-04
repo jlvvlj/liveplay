@@ -44,7 +44,7 @@ describe('jam rooms', () => {
 
   beforeEach(async () => {
     server = http.createServer();
-    rooms = createJamRooms();
+    rooms = createJamRooms({ emptyRoomMs: 300 });
     rooms.attach(server);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/jam-room`;
@@ -163,13 +163,45 @@ describe('jam rooms', () => {
     expect((await c.next('welcome')).visibility).toBe('open');
 
     a.send({ t: 'state', state: { songId: 'softer-jam', startAt: 1000, position: 0 } });
-    b.socket.close();
     for (;;) {
       rooms = (await lobby.next('rooms')).rooms;
-      if (rooms.length === 1 && rooms[0].songId === 'softer-jam') break;
+      if (rooms.find((room) => room.id === 'OPEN1')?.songId === 'softer-jam') break;
     }
-    expect(rooms[0]).toMatchObject({ playing: true });
-    expect(rooms[0].players).toHaveLength(2);
-    [a, c, lobby].forEach((p) => p.socket.close());
+    expect(rooms.find((room) => room.id === 'OPEN1')).toMatchObject({ playing: true });
+    [a, b, c, lobby].forEach((p) => p.socket.close());
+  });
+
+  it('keeps a room nobody is in listed, paused, for a while', async () => {
+    const lobby = await player(url);
+    lobby.send({ t: 'lobby' });
+    await lobby.next('rooms');
+
+    const a = await player(url);
+    a.send({ t: 'join', room: 'STAY', create: 'open', name: 'Aiko', state: STATE, sound: null, need: 0 });
+    await a.next('welcome');
+    a.send({ t: 'state', state: { songId: 'chip-run-jam', startAt: 0, position: 0 } });
+    await a.next('state');
+    a.socket.close();
+
+    // Left empty: still listed, paused, with nobody in it
+    let rooms = (await lobby.next('rooms')).rooms;
+    while (rooms[0]?.players.length !== 0) rooms = (await lobby.next('rooms')).rooms;
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0]).toMatchObject({ id: 'STAY', playing: false });
+
+    // Coming back finds the jam paused where it was
+    const back = await player(url);
+    back.send({ t: 'join', room: 'STAY', name: 'Aiko', state: STATE, sound: null, need: 0 });
+    const welcome = await back.next('welcome');
+    expect(welcome.state.startAt).toBeNull();
+    expect(welcome.state.position).toBeGreaterThan(0);
+    back.socket.close();
+
+    // Empty past its time, the room closes
+    for (;;) {
+      rooms = (await lobby.next('rooms')).rooms;
+      if (rooms.length === 0) break;
+    }
+    lobby.socket.close();
   });
 });

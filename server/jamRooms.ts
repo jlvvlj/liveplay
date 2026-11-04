@@ -26,6 +26,8 @@ import {
 const PEER_COLORS = ['#38bdf8', '#f472b6', '#a3e635', '#fbbf24', '#c084fc', '#fb7185', '#2dd4bf', '#f97316'];
 // Lobby lists go out at most this often while rooms change
 const LOBBY_MS = 250;
+// A room nobody is in stays listed, paused, this long for players to come back to
+const EMPTY_ROOM_MS = 30 * 60 * 1000;
 
 // A player's chosen name, or a numbered one by seat
 const playerName = (name: string, seat: number): string =>
@@ -43,9 +45,11 @@ interface Room {
   visibility: JamRoomVisibility;
   state: JamRoomState;
   members: Map<string, Member>;
+  // Closes the room while nobody is in it
+  closing: ReturnType<typeof setTimeout> | null;
 }
 
-export function createJamRooms() {
+export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: number } = {}) {
   const rooms = new Map<string, Room>();
   const lobby = new Set<WebSocket>();
   let lobbyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -128,6 +132,7 @@ export function createJamRooms() {
             visibility,
             state: message.state,
             members: new Map(),
+            closing: null,
           };
         }
         if (joining.members.size >= JAM_ROOM_MAX_PLAYERS) {
@@ -137,6 +142,8 @@ export function createJamRooms() {
         }
         room = joining;
         rooms.set(room.key, room);
+        if (room.closing) clearTimeout(room.closing);
+        room.closing = null;
         const taken = new Set([...room.members.values()].map((member) => member.peer.color));
         const seat = Math.max(0, PEER_COLORS.findIndex((candidate) => !taken.has(candidate)));
         const peer: JamRoomPeer = {
@@ -212,8 +219,18 @@ export function createJamRooms() {
       lobby.delete(socket);
       if (!room) return;
       room.members.delete(id);
-      if (room.members.size === 0) rooms.delete(room.key);
-      else broadcast(room, { t: 'left', id });
+      if (room.members.size === 0) {
+        // The jam pauses where it was, and the room waits for players to come back
+        const { startAt } = room.state;
+        if (startAt !== null) room.state = { ...room.state, startAt: null, position: Math.max(0, (performance.now() - startAt) / 1000) };
+        const empty = room;
+        empty.closing = setTimeout(() => {
+          if (rooms.get(empty.key) === empty && empty.members.size === 0) rooms.delete(empty.key);
+          lobbyChanged();
+        }, emptyRoomMs);
+      } else {
+        broadcast(room, { t: 'left', id });
+      }
       lobbyChanged();
     });
   });
@@ -228,6 +245,7 @@ export function createJamRooms() {
     },
     close() {
       if (lobbyTimer) clearTimeout(lobbyTimer);
+      for (const room of rooms.values()) if (room.closing) clearTimeout(room.closing);
       for (const client of wss.clients) client.terminate();
       wss.close();
     },

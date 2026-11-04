@@ -17,7 +17,8 @@ export class JamLobbyConnection {
 
   constructor(
     private url: string,
-    // The rooms, or null while the server cannot be reached
+    // The rooms as they change; null when the connection is lost (the last
+    // rooms heard stay true until it is back)
     private onRooms: (rooms: JamRoomSummary[] | null) => void
   ) {
     this.connect();
