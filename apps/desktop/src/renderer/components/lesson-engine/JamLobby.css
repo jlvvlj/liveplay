@@ -1,0 +1,265 @@
+/* The jam app's lobby: a grid of room cards on the jam's dark backdrop */
+.jam-lobby {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.5rem;
+  background: radial-gradient(120% 80% at 50% 0%, #1e293b 0%, #0b1120 60%);
+  color: #fff;
+}
+
+.jam-lobby-header h1 {
+  margin: 0 0 1.25rem;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.jam-lobby-note {
+  margin-bottom: 1rem;
+  color: #fca5a5;
+  font-size: 0.9rem;
+}
+
+.jam-lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 1rem;
+}
+
+.jam-lobby-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 150px;
+  padding: 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+button.jam-lobby-card:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.jam-lobby-card:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.jam-lobby-asking {
+  cursor: default;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* New room: an empty dashed card */
+.jam-lobby-new {
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
+}
+
+.jam-lobby-plus {
+  font-size: 2.2rem;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.jam-lobby-choosing {
+  position: relative;
+  flex-direction: row;
+  gap: 0.6rem;
+  cursor: default;
+}
+
+.jam-lobby-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jam-lobby-choice:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.jam-lobby-cancel {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.jam-lobby-choosing .jam-lobby-cancel {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.6rem;
+}
+
+.jam-lobby-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.jam-lobby-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.jam-lobby-badge.open {
+  background: rgba(74, 222, 128, 0.15);
+  color: #86efac;
+}
+
+.jam-lobby-badge.private {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fcd34d;
+}
+
+.jam-lobby-count {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-lobby-song {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.jam-lobby-bpm {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* A room whose jam is playing */
+.jam-lobby-live {
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 8px #4ade80;
+  animation: jamLobbyLive 1.6s ease-in-out infinite;
+}
+
+@keyframes jamLobbyLive {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.jam-lobby-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: auto;
+}
+
+.jam-lobby-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 0.78rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jam-lobby-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: none;
+  border-radius: 50%;
+}
+
+/* A private room's code, asked on its card */
+.jam-lobby-code {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.jam-lobby-code input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95rem;
+  letter-spacing: 0.15em;
+}
+
+.jam-lobby-code input.wrong {
+  border-color: #f87171;
+}
+
+.jam-lobby-code button[type='submit'] {
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jam-lobby-code button[type='submit']:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.jam-lobby-problem {
+  color: #fca5a5;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 700px) {
+  .jam-lobby {
+    padding: 1rem;
+  }
+
+  .jam-lobby-grid {
+    grid-template-columns: 1fr;
+  }
+}

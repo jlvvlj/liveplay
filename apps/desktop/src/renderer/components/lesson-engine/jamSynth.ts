@@ -1,5 +1,5 @@
-import { SOFTER_SOUNDS } from './jamSofter';
-import { SOFTER_JAM_SOUNDS } from './jamSofterJam';
+import { SOFTER_DRUMS, SOFTER_INSTRUMENTS } from './jamSofter';
+import { SOFTER_JAM_DRUMS, SOFTER_JAM_INSTRUMENTS } from './jamSofterJam';
 import {
   DEFAULT_PATCH,
   PARAMS,
@@ -46,12 +46,37 @@ export interface JamDrum {
   cut?: number;
 }
 
+// A recorded instrument: one sound (a file in softer/ or softer-jam/) and the key it was played at
+export interface JamRecordedInstrument {
+  file: string;
+  root: number;
+}
+
+// Instruments play one sound at every row's pitch; drums a different sound per row
 export type JamSoundPreset =
   | { id: string; label: string; patch: JamSynthPatch }
   // A kit plays one drum per row, from the lowest row up
   | { id: string; label: string; kit: JamDrum[] }
-  // One recorded sound (a file in softer/ or softer-jam/) per row, from the lowest row up
-  | { id: string; label: string; sounds: { file: string; name: string }[] };
+  // A song's recorded sounds, listed under its name: a drum & FX pack, one
+  // sound per row from the lowest row up, or an instrument
+  | { id: string; label: string; song: string; sounds: { file: string; name: string }[] }
+  | { id: string; label: string; song: string; sample: JamRecordedInstrument };
+
+// A song's drum & FX pack, then its instruments
+const songSounds = (
+  song: string,
+  id: string,
+  drums: { file: string; name: string }[],
+  instruments: { name: string; file: string; root: number }[]
+): JamSoundPreset[] => [
+  { id, label: 'Drums & FX', song, sounds: drums },
+  ...instruments.map(({ name, file, root }) => ({
+    id: `${id}:${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    label: name,
+    song,
+    sample: { file, root },
+  })),
+];
 
 const SAMPLE_RATE = 44100;
 const VELOCITY = 110;
@@ -244,10 +269,9 @@ export const JAM_SOUND_PRESETS: JamSoundPreset[] = [
       gated(0.13, drum(0.25, hit({ frequency: 180, sweep: 620, sweepDecay: 0.018, toneLevel: 1, toneDecay: 0.3, noiseLevel: 0 }, { drive: 0.4 }))),
     ],
   },
-  // A sound from every track of the song Softer, in the song's order, cut
-  // two ways (see jamTracks.ts)
-  { id: 'softer-jam', label: 'Softer Jam', sounds: SOFTER_JAM_SOUNDS },
-  { id: 'softer', label: 'Softer Lesson', sounds: SOFTER_SOUNDS },
+  // The song Softer's sounds, cut two ways (see jamTracks.ts)
+  ...songSounds('Softer Jam', 'softer-jam', SOFTER_JAM_DRUMS, SOFTER_JAM_INSTRUMENTS),
+  ...songSounds('Softer Lesson', 'softer', SOFTER_DRUMS, SOFTER_INSTRUMENTS),
 ];
 
 export const SYNTH_FAMILIES: SynthFamily[] = FAMILIES;
@@ -416,12 +440,16 @@ export function renderJamDrum(drum: JamDrum): Float32Array {
   return audio;
 }
 
-// What a Jam sound is rendered from: a synth patch, or a kit
-export type JamSoundSource = { patch: JamSynthPatch } | { kit: JamDrum[] };
+// What a Jam sound is rendered from: a synth patch, a kit, or a recorded
+// instrument (rendered by renderJamSampleWavs, from its loaded sound)
+export type JamSoundSource = { patch: JamSynthPatch } | { kit: JamDrum[] } | { sample: JamRecordedInstrument };
 
 // One WAV clip per note, keyed by MIDI note. A kit plays its drums on the rows
 // from the lowest up, starting over after the last drum.
-export function renderJamWavs(source: JamSoundSource, notes: number[]): { [note: number]: ArrayBuffer } {
+export function renderJamWavs(
+  source: { patch: JamSynthPatch } | { kit: JamDrum[] },
+  notes: number[]
+): { [note: number]: ArrayBuffer } {
   const rows = [...notes].sort((a, b) => a - b);
   return Object.fromEntries(
     rows.map((pitch, row) => {

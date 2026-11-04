@@ -1,6 +1,6 @@
 import { renderJamWavs, type JamSoundSource } from './jamSynth';
 import { JAM_TRACKS, type JamTrackNote } from './jamTracks';
-import { decodeWav16, renderJamPartLoop, renderJamSampledLoop } from './jamTrackRender';
+import { decodeWav16, renderJamPartLoop, renderJamSampleWavs, renderJamSampledLoop } from './jamTrackRender';
 import { jamSoundUrl } from './jamSoundFiles';
 
 // Renders Jam sounds and pieces of backing-track parts off the main thread (see jamRenderer.ts)
@@ -33,7 +33,11 @@ self.onmessage = async (event: MessageEvent<Request>) => {
   const request = event.data;
   try {
     if ('source' in request) {
-      const clips = renderJamWavs(request.source, request.notes);
+      const { source } = request;
+      const clips =
+        'sample' in source
+          ? renderJamSampleWavs(await loadSound(source.sample.file), source.sample.root, request.notes, SAMPLE_RATE)
+          : renderJamWavs(source, request.notes);
       post({ id: request.id, clips }, Object.values(clips));
       return;
     }
