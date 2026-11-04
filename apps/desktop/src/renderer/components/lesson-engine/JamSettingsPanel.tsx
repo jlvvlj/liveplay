@@ -43,6 +43,9 @@ interface JamSettingsPanelProps {
   onHoldDivisionChange: (division: number) => void;
   holdTriplet: boolean;
   onHoldTripletChange: (triplet: boolean) => void;
+  // Played notes' swing: the share of each beat its first 8th takes
+  swing: number;
+  onSwingChange: (swing: number) => void;
   notesVolume: number;
   onNotesVolumeChange: (volume: number) => void;
   backingVolume: number;
@@ -142,6 +145,8 @@ export function JamSettingsPanel({
   onHoldDivisionChange,
   holdTriplet,
   onHoldTripletChange,
+  swing,
+  onSwingChange,
   notesVolume,
   onNotesVolumeChange,
   backingVolume,
@@ -403,6 +408,15 @@ export function JamSettingsPanel({
               </button>
             ))}
           </div>
+          <Slider
+            label="Swing"
+            value={swing}
+            display={swing <= 0.5 ? 'Straight' : `${Math.round(swing * 100)}%`}
+            min={0.5}
+            max={0.75}
+            step={0.01}
+            onChange={onSwingChange}
+          />
         </div>
 
         <div className="setting-group">
