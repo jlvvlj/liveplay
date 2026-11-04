@@ -11,15 +11,16 @@ import DemucsSeparation from "./DemucsSeparation.jsx";
 import Arrangement from "./Arrangement.jsx";
 import { audibleIds, clamp } from "./timeline.mjs";
 
+// Same per-sound palette as the sound editor.
 const COLORS = [
-  "#b3a3ff",
-  "#b9ee84",
-  "#ffb88a",
-  "#82d8e5",
-  "#e79edb",
-  "#ffe18b",
-  "#86a7ff",
-  "#e6b89c",
+  "#fb923c",
+  "#818cf8",
+  "#f472b6",
+  "#34d399",
+  "#fbbf24",
+  "#22d3ee",
+  "#a78bfa",
+  "#f87171",
 ];
 const noteName = (p) =>
   ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"][

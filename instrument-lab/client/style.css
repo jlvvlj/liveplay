@@ -1,8 +1,21 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+/* Same design system as the sound editor (StemSoundEditor.css): system font,
+   neutral studio blacks, orange accent. */
 .instrument-lab-ui {
-  font-family: "DM Sans", sans-serif;
-  color: #ececf1;
-  background: #111217;
+  --lab-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  --lab-bg: #0a0a0c;
+  --lab-panel: #131316;
+  --lab-panel-2: #1a1a1f;
+  --lab-text: #f4f4f5;
+  --lab-accent: #fb923c;
+  --lab-accent-hover: #fdac63;
+  --lab-on-accent: #1a1005;
+  --lab-danger: #f87171;
+  --lab-danger-text: #fca5a5;
+
+  font-family: var(--lab-font);
+  color: var(--lab-text);
+  background: var(--lab-bg);
   font-synthesis: none;
   font-weight: 400;
 }
@@ -50,21 +63,21 @@
   width: 236px;
   position: fixed;
   inset: 0 auto 0 0;
-  background: #16171d;
-  border-right: 1px solid #ffffff0c;
+  background: var(--lab-panel);
+  border-right: 1px solid rgba(255, 255, 255, 0.047);
   padding: 35px 20px 22px;
   display: flex;
   flex-direction: column;
 }
 .instrument-lab-ui .brand {
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--lab-font);
   font-size: 29px;
   font-weight: 700;
   letter-spacing: -1.5px;
   margin: 0 13px 48px;
 }
 .instrument-lab-ui .brand i {
-  color: #b9ee84;
+  color: var(--lab-accent);
   font-size: 10px;
   vertical-align: top;
   margin-left: 4px;
@@ -76,7 +89,7 @@
   font-size: 10px;
   font-weight: 650;
   letter-spacing: 1.7px;
-  color: #777a89;
+  color: #7a7a7b;
 }
 .instrument-lab-ui .workspace-label {
   margin: 0 13px 12px;
@@ -85,10 +98,10 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  background: #b3a3ff13;
-  border: 1px solid #b3a3ff25;
-  color: #c2b6ff;
-  border-radius: 8px;
+  background: rgba(251, 146, 60, 0.075);
+  border: 1px solid rgba(251, 146, 60, 0.145);
+  color: var(--lab-accent-hover);
+  border-radius: 999px;
   padding: 13px 11px;
   font-size: 12px;
 }
@@ -98,7 +111,7 @@
 .instrument-lab-ui .nav-current small {
   font-size: 8px;
   margin-left: auto;
-  color: #c0afff;
+  color: var(--lab-accent-hover);
   letter-spacing: 1px;
 }
 .instrument-lab-ui .library-title {
@@ -107,7 +120,7 @@
   margin: 38px 13px 17px;
 }
 .instrument-lab-ui .library-title span {
-  color: #acaeb9;
+  color: #aeaeaf;
 }
 .instrument-lab-ui .project-list {
   overflow: auto;
@@ -122,45 +135,45 @@
   border-radius: 8px;
   padding: 12px 10px;
   font-size: 12px;
-  color: #b2b3bf;
+  color: #b4b4b5;
 }
 .instrument-lab-ui .project-list .selected {
-  background: #ffffff07;
-  color: #f0eef8;
+  background: rgba(255, 255, 255, 0.027);
+  color: #efeff0;
 }
 .instrument-lab-ui .project-icon {
   font-size: 25px;
-  color: #8e85b7;
+  color: #8b8b8c;
 }
 .instrument-lab-ui .project-list small {
   display: block;
   margin-top: 5px;
   font-size: 10px;
-  color: #717482;
+  color: #747475;
 }
 .instrument-lab-ui .sidebar-upload {
-  border: 1px solid #ffffff18;
-  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.094);
+  border-radius: 999px;
   padding: 12px;
   font-size: 12px;
   margin-top: 25px;
 }
 .instrument-lab-ui .sidebar-footer {
   font-size: 11px;
-  color: #9699a6;
+  color: #99999a;
   padding: 25px 8px 0;
   line-height: 1.8;
 }
 .instrument-lab-ui .sidebar-footer small {
   font-size: 10px;
-  color: #656875;
+  color: #686869;
 }
 .instrument-lab-ui .status-dot {
   display: inline-block;
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #b9ee84;
+  background: var(--lab-accent);
   margin-right: 7px;
 }
 .instrument-lab-ui .main {
@@ -173,22 +186,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #ffffff0b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.043);
   padding: 0 44px;
   font-size: 10px;
   letter-spacing: 1.4px;
-  color: #a7a9b5;
+  color: #a9a9aa;
 }
 .instrument-lab-ui .topbar div span {
   margin: 0 15px;
-  color: #484b56;
+  color: #4b4b4c;
 }
 .instrument-lab-ui .topbar button {
   font-size: 11px;
   letter-spacing: 0;
-  background: #1b1d25;
-  border: 1px solid #ffffff12;
-  border-radius: 6px;
+  background: var(--lab-panel-2);
+  border: 1px solid rgba(255, 255, 255, 0.071);
+  border-radius: 999px;
   padding: 9px 14px;
 }
 .instrument-lab-ui .main main {
@@ -204,7 +217,7 @@
   margin-bottom: 27px;
 }
 .instrument-lab-ui .eyebrow {
-  color: #a397d0;
+  color: var(--lab-accent);
   margin-bottom: 12px;
   font-size: 9px;
 }
@@ -219,24 +232,24 @@
 }
 .instrument-lab-ui .page-heading p {
   font-size: 12px;
-  color: #808392;
+  color: #838384;
   margin: 0;
 }
 .instrument-lab-ui .primary {
-  background: #c7b7ff;
-  color: #242033;
-  border-radius: 6px;
+  background: var(--lab-text);
+  color: #111113;
+  border-radius: 999px;
   padding: 12px 18px;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 700;
   white-space: nowrap;
 }
 .instrument-lab-ui .error {
   padding: 14px;
-  border: 1px solid #d36c6570;
+  border: 1px solid rgba(248, 113, 113, 0.439);
   border-radius: 8px;
-  background: #d36c6515;
-  color: #ffb0a9;
+  background: rgba(248, 113, 113, 0.082);
+  color: var(--lab-danger-text);
   font-size: 12px;
   margin-bottom: 20px;
   display: flex;
@@ -247,12 +260,12 @@
   text-decoration: underline;
 }
 .instrument-lab-ui .welcome {
-  border: 1px solid #ffffff12;
+  border: 1px solid rgba(255, 255, 255, 0.071);
   border-radius: 14px;
   padding: 42px;
   text-align: center;
   background:
-    radial-gradient(ellipse at 50% 12%, #8e68cd15, transparent 65%), #18191f;
+    radial-gradient(ellipse at 50% 12%, rgba(251, 146, 60, 0.082), transparent 65%), var(--lab-panel);
 }
 .instrument-lab-ui .sound-art {
   height: 175px;
@@ -266,16 +279,16 @@
 .instrument-lab-ui .sound-art i {
   display: block;
   width: 4px;
-  background: linear-gradient(#c9b8ff, #8670bc55);
+  background: linear-gradient(var(--lab-accent-hover), rgba(251, 146, 60, 0.333));
   border-radius: 5px;
 }
 .instrument-lab-ui .pill {
   font-size: 8px;
   letter-spacing: 1.1px;
   padding: 6px 8px;
-  border: 1px solid #ffffff18;
-  border-radius: 4px;
-  color: #b2a8cc;
+  border: 1px solid rgba(255, 255, 255, 0.094);
+  border-radius: 999px;
+  color: #adadae;
 }
 .instrument-lab-ui .welcome h2 {
   font: 500 30px "Space Grotesk";
@@ -285,12 +298,12 @@
 .instrument-lab-ui .welcome p {
   font-size: 13px;
   line-height: 1.8;
-  color: #8e90a0;
+  color: #919192;
   margin: 0 0 23px;
 }
 .instrument-lab-ui .welcome > small {
   display: block;
-  color: #606371;
+  color: #636364;
   font-size: 10px;
   margin-top: 17px;
 }
@@ -300,16 +313,16 @@
   text-align: left;
   align-items: center;
   gap: 20px;
-  border: 1px solid #ffffff13;
+  border: 1px solid rgba(255, 255, 255, 0.075);
   border-radius: 10px;
   margin-top: 17px;
   padding: 22px;
-  background: #17181e;
+  background: var(--lab-panel);
 }
 .instrument-lab-ui .demo-icon {
-  background: #b9ee8410;
-  color: #b9ee84;
-  border: 1px solid #b9ee8422;
+  background: rgba(251, 146, 60, 0.063);
+  color: var(--lab-accent);
+  border: 1px solid rgba(251, 146, 60, 0.133);
   width: 45px;
   height: 45px;
   border-radius: 10px;
@@ -322,12 +335,12 @@
 }
 .instrument-lab-ui .demo-card p {
   font-size: 11px;
-  color: #797d8c;
+  color: #7d7d7e;
   margin: 6px 0 0;
 }
 .instrument-lab-ui .demo-card > span {
   margin-left: auto;
-  color: #b9ee84;
+  color: var(--lab-accent);
   font-size: 11px;
 }
 .instrument-lab-ui .review-notice {
@@ -335,11 +348,11 @@
   align-items: center;
   gap: 9px;
   font-size: 11px;
-  color: #8e91a2;
+  color: #929293;
   padding: 12px 0 22px;
 }
 .instrument-lab-ui .review-notice > span {
-  color: #b5a5ff;
+  color: var(--lab-accent);
 }
 .instrument-lab-ui .review-notice details {
   margin-left: auto;
@@ -348,19 +361,19 @@
 }
 .instrument-lab-ui .review-notice summary {
   cursor: pointer;
-  color: #a5a0b8;
+  color: #a3a3a4;
   white-space: nowrap;
 }
 .instrument-lab-ui .review-notice details[open] {
   padding: 10px;
-  background: #26232f;
+  background: #252527;
   border-radius: 7px;
 }
 .instrument-lab-ui .arrangement {
-  border: 1px solid #ffffff12;
+  border: 1px solid rgba(255, 255, 255, 0.071);
   border-radius: 10px;
   overflow: hidden;
-  background: #17181e;
+  background: var(--lab-panel);
   margin-bottom: 24px;
 }
 .instrument-lab-ui .section-top {
@@ -378,23 +391,23 @@
 .instrument-lab-ui .section-top h2 span {
   font-size: 10px;
   margin-left: 9px;
-  background: #ffffff08;
-  color: #a3a4b5;
+  background: rgba(255, 255, 255, 0.031);
+  color: #a5a5a6;
   padding: 3px 6px;
-  border-radius: 4px;
+  border-radius: 999px;
 }
 .instrument-lab-ui .section-top > span {
   font-size: 8px;
   letter-spacing: 1.3px;
-  color: #606474;
+  color: #646465;
 }
 .instrument-lab-ui .timeline-ruler {
   display: flex;
   padding: 8px 25px 12px;
   font-size: 8px;
   letter-spacing: 0.8px;
-  color: #666b7a;
-  border-bottom: 1px solid #ffffff09;
+  color: #6b6b6c;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
 }
 .instrument-lab-ui .timeline-ruler > span {
   width: 225px;
@@ -411,7 +424,7 @@
   align-items: center;
   width: 100%;
   height: 78px;
-  border-bottom: 1px solid #ffffff07;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.027);
   text-align: left;
   gap: 16px;
   padding: 0 24px;
@@ -447,7 +460,7 @@
   display: block;
   margin-top: 6px;
   font-size: 10px;
-  color: #7e8291;
+  color: #828283;
 }
 .instrument-lab-ui .instrument-row svg {
   flex: 1;
@@ -457,8 +470,8 @@
     90deg,
     transparent 0,
     transparent calc(25% - 1px),
-    #ffffff06 calc(25% - 1px),
-    #ffffff06 25%
+    rgba(255, 255, 255, 0.024) calc(25% - 1px),
+    rgba(255, 255, 255, 0.024) 25%
   );
 }
 .instrument-lab-ui .instrument-row rect {
@@ -471,9 +484,9 @@
   margin-left: 15px;
 }
 .instrument-lab-ui .instrument-detail {
-  border: 1px solid #ffffff12;
+  border: 1px solid rgba(255, 255, 255, 0.071);
   border-radius: 11px;
-  background: #17181e;
+  background: var(--lab-panel);
   overflow: hidden;
 }
 .instrument-lab-ui .detail-header {
@@ -482,7 +495,7 @@
   align-items: center;
   padding: 0 23px;
   height: 67px;
-  border-bottom: 1px solid #ffffff0c;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.047);
 }
 .instrument-lab-ui .detail-title {
   display: flex;
@@ -497,7 +510,7 @@
 }
 .instrument-lab-ui .detail-title .pill {
   font-size: 8px;
-  color: #9490a4;
+  color: #929293;
   padding: 4px 7px;
   letter-spacing: 0.4px;
 }
@@ -508,17 +521,17 @@
 }
 .instrument-lab-ui .tabs button {
   font-size: 11px;
-  color: #737889;
+  color: #787879;
   position: relative;
   padding: 0 0 2px;
 }
 .instrument-lab-ui .tabs button.active {
-  color: #d9d2ed;
+  color: #d5d5d6;
 }
 .instrument-lab-ui .tabs button.active:after {
   content: "";
   height: 2px;
-  background: #c0a9ff;
+  background: var(--lab-accent);
   position: absolute;
   bottom: 0;
   left: 0;
@@ -529,15 +542,15 @@
   align-items: center;
   gap: 16px;
   padding: 17px 23px;
-  border-bottom: 1px solid #ffffff09;
-  background: #14151a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+  background: var(--lab-panel);
 }
 .instrument-lab-ui .play {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #ece8f6;
-  color: #28232f;
+  background: #eaeaeb;
+  color: #252527;
   font-size: 11px;
   padding-left: 8px;
 }
@@ -547,36 +560,36 @@
   min-width: 94px;
 }
 .instrument-lab-ui .time-display small {
-  color: #676c7d;
+  color: #6c6c6d;
   font-size: 10px;
   margin-left: 3px;
 }
 .instrument-lab-ui .segmented {
   display: flex;
-  border: 1px solid #ffffff10;
-  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.063);
+  border-radius: 999px;
   padding: 3px;
   gap: 2px;
 }
 .instrument-lab-ui .segmented button {
   font-size: 9px;
   padding: 7px 11px;
-  color: #767b8c;
+  color: #7b7b7c;
   white-space: nowrap;
 }
 .instrument-lab-ui .segmented .active {
-  background: #2c2938;
-  color: #cec0ee;
-  border-radius: 3px;
+  background: #2b2b2d;
+  color: #c6c6c7;
+  border-radius: 999px;
 }
 .instrument-lab-ui .loop {
   margin-left: auto;
   font-size: 10px;
-  color: #747a8c;
+  color: #7a7a7b;
   white-space: nowrap;
 }
 .instrument-lab-ui .loop.active {
-  color: #b3a3ff;
+  color: var(--lab-accent);
 }
 .instrument-lab-ui .patch-panel {
   display: grid;
@@ -596,12 +609,12 @@
 .instrument-lab-ui .patch-intro p {
   font-size: 10px;
   line-height: 1.8;
-  color: #727789;
+  color: #777778;
   margin: 0 0 20px;
 }
 .instrument-lab-ui .family-label {
   font-size: 10px;
-  color: #9499aa;
+  color: #99999a;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -610,11 +623,11 @@
 .instrument-lab-ui .family-label input,
 .instrument-lab-ui .family-label select,
 .instrument-lab-ui select {
-  background: #20222b;
-  border: 1px solid #ffffff15;
-  color: #c1c4d1;
+  background: var(--lab-panel-2);
+  border: 1px solid rgba(255, 255, 255, 0.082);
+  color: #c4c4c5;
   font-size: 10px;
-  border-radius: 5px;
+  border-radius: 999px;
   padding: 7px 9px;
   text-transform: capitalize;
 }
@@ -633,11 +646,11 @@
   display: flex;
   justify-content: space-between;
   font-size: 10px;
-  color: #acaebe;
+  color: #afafb0;
 }
 .instrument-lab-ui .parameter output {
   font-size: 9px;
-  color: #6f7486;
+  color: #747475;
   font-variant-numeric: tabular-nums;
 }
 .instrument-lab-ui .parameter input {
@@ -648,7 +661,7 @@
 }
 .instrument-lab-ui .keyboard-panel {
   padding: 18px 25px 21px;
-  border-top: 1px solid #ffffff0a;
+  border-top: 1px solid rgba(255, 255, 255, 0.039);
 }
 .instrument-lab-ui .keyboard-caption {
   display: flex;
@@ -657,11 +670,11 @@
   margin-bottom: 14px;
   font-size: 8px;
   letter-spacing: 1.3px;
-  color: #8a8e9f;
+  color: #8e8e8f;
 }
 .instrument-lab-ui .keyboard-caption > span small {
   margin-left: 14px;
-  color: #656b7f;
+  color: #6b6b6c;
   letter-spacing: 0;
   font-size: 9px;
 }
@@ -674,7 +687,7 @@
 }
 .instrument-lab-ui .keyboard-caption button {
   font-size: 13px;
-  color: #babacb;
+  color: #bbbbbc;
 }
 .instrument-lab-ui .keyboard {
   height: 88px;
@@ -695,9 +708,9 @@
 }
 .instrument-lab-ui .keyboard .white {
   flex: 1;
-  background: #d4d4dd;
-  color: #858797;
-  border: 1px solid #17181e;
+  background: #d5d5d6;
+  color: #888889;
+  border: 1px solid var(--lab-panel);
   z-index: 1;
   height: 100%;
 }
@@ -707,9 +720,9 @@
   margin-right: -1.9%;
   z-index: 2;
   height: 62%;
-  background: #272934;
-  border: 1px solid #111217;
-  box-shadow: 0 3px 2px #0005;
+  background: #29292b;
+  border: 1px solid var(--lab-bg);
+  box-shadow: 0 3px 2px rgba(0, 0, 0, 0.333);
 }
 .instrument-lab-ui .keyboard .held {
   background: var(--track);
@@ -718,20 +731,20 @@
   display: block;
   margin-top: 11px;
   font-size: 9px;
-  color: #565d71;
+  color: #5d5d5e;
   text-align: center;
 }
 .instrument-lab-ui .detail-footer {
-  border-top: 1px solid #ffffff0a;
+  border-top: 1px solid rgba(255, 255, 255, 0.039);
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 15px 25px;
   font-size: 10px;
-  color: #818799;
+  color: #878788;
 }
 .instrument-lab-ui .detail-footer small {
-  color: #535c73;
+  color: #5c5c5d;
 }
 .instrument-lab-ui .detail-footer > div {
   display: flex;
@@ -752,28 +765,28 @@
   margin: auto;
   font-size: 8px;
   letter-spacing: 1.4px;
-  color: #565b6c;
+  color: #5b5b5c;
 }
 .instrument-lab-ui .page-footer span {
   letter-spacing: 0;
-  color: #707588;
+  color: #757576;
 }
 .instrument-lab-ui .page-footer small {
   margin-left: auto;
   letter-spacing: 0;
   font-size: 9px;
-  color: #494f62;
+  color: #4f4f50;
 }
 .instrument-lab-ui .progress-card {
   padding: 70px 40px;
-  background: #18191f;
-  border: 1px solid #ffffff12;
+  background: var(--lab-panel);
+  border: 1px solid rgba(255, 255, 255, 0.071);
   border-radius: 12px;
   text-align: center;
 }
 .instrument-lab-ui .spinner {
   font-size: 48px;
-  color: #b8a3fc;
+  color: var(--lab-accent);
   animation: instrument-lab-pulse 2s infinite;
 }
 .instrument-lab-ui .progress-card h2 {
@@ -782,7 +795,7 @@
 }
 .instrument-lab-ui .progress-card p {
   font-size: 12px;
-  color: #7f8497;
+  color: #848485;
 }
 .instrument-lab-ui .progress-card progress {
   appearance: none;
@@ -791,11 +804,11 @@
   margin-top: 25px;
 }
 .instrument-lab-ui .progress-card progress::-webkit-progress-bar {
-  background: #292632;
+  background: #28282a;
   border-radius: 10px;
 }
 .instrument-lab-ui .progress-card progress::-webkit-progress-value {
-  background: #bca7ff;
+  background: var(--lab-accent);
   border-radius: 10px;
   transition: width 0.3s;
 }
@@ -805,7 +818,7 @@
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: #8c879d;
+  color: #8a8a8b;
 }
 .instrument-lab-ui .progress-meta button {
   font-size: 10px;
@@ -817,7 +830,7 @@
   align-items: center;
   gap: 14px;
   font-size: 10px;
-  color: #808698;
+  color: #868687;
 }
 .instrument-lab-ui .roll-toolbar > span {
   margin-right: auto;
@@ -829,9 +842,9 @@
 }
 .instrument-lab-ui .roll-toolbar input,
 .instrument-lab-ui .note-editor input {
-  background: #22242d;
-  color: #c7cbd8;
-  border: 1px solid #ffffff12;
+  background: var(--lab-panel-2);
+  color: #cbcbcc;
+  border: 1px solid rgba(255, 255, 255, 0.071);
   border-radius: 4px;
   padding: 6px;
   font-size: 10px;
@@ -849,7 +862,7 @@
 .instrument-lab-ui .pitch-labels span {
   position: absolute;
   font-size: 8px;
-  color: #797f91;
+  color: #7f7f80;
   transform: translateY(-50%);
 }
 .instrument-lab-ui .note-grid {
@@ -861,17 +874,17 @@
       90deg,
       transparent 0,
       transparent calc(12.5% - 1px),
-      #ffffff08 calc(12.5% - 1px),
-      #ffffff08 12.5%
+      rgba(255, 255, 255, 0.031) calc(12.5% - 1px),
+      rgba(255, 255, 255, 0.031) 12.5%
     ),
     repeating-linear-gradient(
       0deg,
-      #ffffff02 0,
-      #ffffff02 11px,
+      rgba(255, 255, 255, 0.008) 0,
+      rgba(255, 255, 255, 0.008) 11px,
       transparent 11px,
       transparent 22px
     );
-  border: 1px solid #ffffff10;
+  border: 1px solid rgba(255, 255, 255, 0.063);
 }
 .instrument-lab-ui .note {
   position: absolute;
@@ -887,7 +900,7 @@
   opacity: 1;
 }
 .instrument-lab-ui .note.hit {
-  background: #b9ee84;
+  background: #34d399;
   opacity: 1;
 }
 .instrument-lab-ui .playhead {
@@ -895,7 +908,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: #fff8;
+  background: rgba(255, 255, 255, 0.533);
   pointer-events: none;
 }
 .instrument-lab-ui .playhead:before {
@@ -914,7 +927,7 @@
 }
 .instrument-lab-ui .note-editor label {
   font-size: 9px;
-  color: #8c92a4;
+  color: #929293;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -924,7 +937,7 @@
 }
 .instrument-lab-ui .note-editor button {
   font-size: 10px;
-  color: #ecaaaa;
+  color: var(--lab-danger-text);
   padding: 8px;
 }
 .instrument-lab-ui .scoreboard {
@@ -933,20 +946,20 @@
   align-items: center;
   padding: 0 25px 20px;
   font-size: 11px;
-  color: #8990a3;
+  color: #909091;
 }
 .instrument-lab-ui .scoreboard strong {
   font-weight: 500;
   margin-right: auto;
-  color: #b9ee84;
+  color: #34d399;
 }
 .instrument-lab-ui .scoreboard b {
   font-weight: 550;
-  color: #dddde8;
+  color: #dededf;
 }
 .instrument-lab-ui .practice-info {
   font-size: 10px;
-  color: #8a91a5;
+  color: #919192;
   flex: 1;
 }
 @keyframes instrument-lab-pulse {
@@ -1105,9 +1118,9 @@
 }
 .instrument-lab-ui .add-note-row button {
   font-size: 10px;
-  color: #baace6;
-  border: 1px solid #baace633;
-  border-radius: 5px;
+  color: var(--lab-accent);
+  border: 1px solid rgba(251, 146, 60, 0.2);
+  border-radius: 999px;
   padding: 8px 12px;
 }
 
@@ -1128,13 +1141,13 @@
 .instrument-lab-ui .assignment-editor {
   margin: 20px 25px;
   padding: 18px;
-  border: 1px solid #ffffff18;
+  border: 1px solid rgba(255, 255, 255, 0.094);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.025);
 }
 .instrument-lab-ui .assignment-editor p,
 .instrument-lab-ui .assignment-editor small {
-  color: #9b9baa;
+  color: #9c9c9d;
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1150,22 +1163,22 @@
   flex-direction: column;
   gap: 7px;
   font-size: 12px;
-  color: #9b9baa;
+  color: #9c9c9d;
 }
 .instrument-lab-ui .assignment-actions input,
 .instrument-lab-ui .assignment-actions select {
   min-width: 200px;
   max-width: 100%;
-  border: 1px solid #ffffff18;
-  border-radius: 7px;
-  background: #171721;
-  color: #f5f3ff;
+  border: 1px solid rgba(255, 255, 255, 0.094);
+  border-radius: 999px;
+  background: #18181a;
+  color: #f4f4f5;
   padding: 9px 10px;
 }
 .instrument-lab-ui .assignment-actions button {
   font-size: 12px;
-  border: 1px solid #ffffff18;
-  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.094);
+  border-radius: 999px;
   padding: 10px 12px;
 }
 
@@ -1176,7 +1189,7 @@
   z-index: 50;
   min-height: 0;
   overflow: auto;
-  background: #111217;
+  background: var(--lab-bg);
 }
 .instrument-lab-ui.native-editor .main {
   margin-left: 0;
@@ -1191,7 +1204,7 @@
   padding: 10px 18px;
   gap: 14px;
   justify-content: flex-start;
-  background: #111217;
+  background: var(--lab-bg);
   flex-wrap: wrap;
 }
 .instrument-lab-ui.native-editor .native-editor-title {
@@ -1203,18 +1216,18 @@
   letter-spacing: 0;
 }
 .instrument-lab-ui.native-editor .native-editor-title strong {
-  color: #ececf1;
+  color: var(--lab-text);
   font-size: 14px;
 }
 .instrument-lab-ui.native-editor .native-editor-title small {
   font-size: 11px;
-  color: #a7a9b5;
+  color: #a9a9aa;
 }
 .instrument-lab-ui.native-editor .topbar select {
-  background: #1b1d25;
-  border: 1px solid #ffffff14;
-  color: #ececf1;
-  border-radius: 6px;
+  background: var(--lab-panel-2);
+  border: 1px solid rgba(255, 255, 255, 0.078);
+  color: var(--lab-text);
+  border-radius: 999px;
   padding: 8px;
   max-width: 260px;
   font-size: 12px;
@@ -1239,13 +1252,13 @@
   margin: 0 0 20px;
 }
 .instrument-lab-ui .lab-analysis-modes .active {
-  background: #b3a3ff;
-  color: #181421;
+  background: rgba(251, 146, 60, 0.2);
+  color: var(--lab-accent);
   opacity: 1;
 }
 .instrument-lab-ui .drum-explanation {
   padding: 16px 0;
-  color: #b8b6c7;
+  color: #b8b8b9;
   line-height: 1.5;
 }
 .instrument-lab-ui .drum-explanation p {
@@ -1270,18 +1283,18 @@
 .instrument-lab-ui .drum-pad {
   min-width: 180px;
   min-height: 110px;
-  border: 1px solid #b3a3ff;
-  background: #302642;
+  border: 1px solid var(--lab-accent);
+  background: #2a2a2c;
   font-size: 16px;
 }
 .instrument-lab-ui .drum-pad small {
   display: block;
   margin-top: 12px;
-  color: #c6bfd5;
+  color: #c2c2c3;
   font-size: 12px;
 }
 .instrument-lab-ui .drum-pad.held {
-  background: #736294;
+  background: #69696a;
 }
 .instrument-lab-ui.drum-editor .patch-panel {
   grid-template-areas: "intro controls" "explanation controls";
@@ -1300,9 +1313,9 @@
   padding: 0;
 }
 .instrument-lab-ui.drum-editor .drum-explanation input {
-  background: #20222b;
-  border: 1px solid #ffffff20;
-  color: #d6d3e2;
+  background: var(--lab-panel-2);
+  border: 1px solid rgba(255, 255, 255, 0.125);
+  color: #d5d5d6;
   border-radius: 5px;
   padding: 7px 9px;
   max-width: 130px;
@@ -1329,7 +1342,7 @@
   overflow: auto;
 }
 .instrument-lab-ui .lab-analysis-modes > span {
-  color: #aaa8bb;
+  color: #aaaaab;
   font-size: 12px;
   margin-right: auto;
 }
@@ -1352,18 +1365,18 @@
 .instrument-lab-ui .mix-transport output {
   font-variant-numeric: tabular-nums;
   font-size: 12px;
-  color: #dddbea;
+  color: #ddddde;
 }
 .instrument-lab-ui .mix-caption {
   font-size: 10px;
-  color: #9f9bad;
+  color: #9d9d9e;
 }
 .instrument-lab-ui .mix-play {
   border-radius: 50%;
   width: 32px;
   height: 32px;
-  background: #e9e4fa;
-  color: #24202d;
+  background: #e7e7e8;
+  color: #222224;
 }
 .instrument-lab-ui .mix-zoom {
   margin-left: auto;
@@ -1371,12 +1384,12 @@
 }
 .instrument-lab-ui .mix-zoom input {
   width: 110px;
-  accent-color: #b3a3ff;
+  accent-color: var(--lab-accent);
 }
 .instrument-lab-ui .mix-zoom button {
   padding: 6px 10px;
-  border: 1px solid #ffffff1a;
-  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.102);
+  border-radius: 999px;
 }
 .instrument-lab-ui .mix-grid {
   display: grid;
@@ -1387,9 +1400,9 @@
 .instrument-lab-ui .mix-ruler {
   font-size: 9px;
   letter-spacing: 0.5px;
-  color: #aca8bb;
+  color: #aaaaab;
   align-items: center;
-  border-block: 1px solid #ffffff12;
+  border-block: 1px solid rgba(255, 255, 255, 0.071);
 }
 .instrument-lab-ui .mix-ticks {
   display: flex;
@@ -1407,7 +1420,7 @@
   scrollbar-gutter: stable;
 }
 .instrument-lab-ui .mix-track {
-  border-bottom: 1px solid #ffffff09;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
   min-height: 72px;
 }
 .instrument-lab-ui .mix-track.active {
@@ -1444,24 +1457,24 @@
   display: block;
   margin-top: 5px;
   font-size: 10px;
-  color: #9691a4;
+  color: #939394;
 }
 .instrument-lab-ui .mix-solo,
 .instrument-lab-ui .mix-mute {
   width: 26px;
   height: 26px;
-  border: 1px solid #ffffff20;
-  border-radius: 5px;
-  color: #b9b5c7;
+  border: 1px solid rgba(255, 255, 255, 0.125);
+  border-radius: 999px;
+  color: #b7b7b8;
   font-size: 11px;
 }
 .instrument-lab-ui .mix-solo[aria-pressed="true"] {
-  background: #e3c66e;
-  color: #30260a;
+  background: #fbbf24;
+  color: #262628;
 }
 .instrument-lab-ui .mix-mute[aria-pressed="true"] {
-  background: #e39191;
-  color: #330f0f;
+  background: var(--lab-danger);
+  color: #171719;
 }
 .instrument-lab-ui .mix-lane {
   position: relative;
@@ -1478,8 +1491,8 @@
     90deg,
     transparent 0,
     transparent calc(25% - 1px),
-    #ffffff09 calc(25% - 1px),
-    #ffffff09 25%
+    rgba(255, 255, 255, 0.035) calc(25% - 1px),
+    rgba(255, 255, 255, 0.035) 25%
   );
 }
 .instrument-lab-ui .mix-lane rect {
@@ -1493,7 +1506,7 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  background: #f6eefc;
+  background: #f1f1f2;
   pointer-events: none;
   transform: translateX(-1px);
 }
@@ -1503,7 +1516,7 @@
   top: 0;
   left: -4px;
   border: 5px solid transparent;
-  border-top-color: #f6eefc;
+  border-top-color: #f1f1f2;
 }
 .instrument-lab-ui .mix-footer {
   display: flex;
@@ -1512,7 +1525,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 24px;
-  color: #9b97a9;
+  color: #99999a;
   font-size: 10px;
 }
 .instrument-lab-ui .mix-footer label {
@@ -1522,10 +1535,10 @@
 }
 .instrument-lab-ui .mix-footer input {
   width: 160px;
-  accent-color: #b3a3ff;
+  accent-color: var(--lab-accent);
 }
 .instrument-lab-ui .mix-arrangement :focus-visible {
-  outline: 2px solid #b3a3ff;
+  outline: 2px solid var(--lab-accent);
   outline-offset: -2px;
 }
 @media (max-width: 700px) {
@@ -1553,10 +1566,10 @@
   width: 100px;
   min-width: 100px;
   padding: 5px;
-  border: 1px solid #ffffff20;
-  border-radius: 5px;
-  background: #202129;
-  color: #c8c3d8;
+  border: 1px solid rgba(255, 255, 255, 0.125);
+  border-radius: 999px;
+  background: var(--lab-panel-2);
+  color: #c6c6c7;
   font-size: 10px;
 }
 .instrument-lab-ui .mix-merge-review {
@@ -1565,19 +1578,19 @@
   align-items: center;
   gap: 12px;
   padding: 14px 24px;
-  background: #b3a3ff0d;
-  border-top: 1px solid #b3a3ff30;
+  background: rgba(251, 146, 60, 0.051);
+  border-top: 1px solid rgba(251, 146, 60, 0.188);
   font-size: 12px;
 }
 .instrument-lab-ui .mix-merge-review p {
   flex: 1 1 300px;
   margin: 0;
   line-height: 1.6;
-  color: #c8c3d8;
+  color: #c6c6c7;
 }
 .instrument-lab-ui .mix-merge-review button {
-  border: 1px solid #b3a3ff50;
-  border-radius: 5px;
+  border: 1px solid rgba(251, 146, 60, 0.314);
+  border-radius: 999px;
   padding: 8px 12px;
 }
 @media (max-width: 700px) {
@@ -1612,13 +1625,13 @@
   scrollbar-gutter: auto;
 }
 .instrument-lab-ui .expanded-lane {
-  border-bottom: 1px solid #ffffff20;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.125);
   box-shadow: inset 2px 0 var(--track);
 }
 .instrument-lab-ui .inline-instrument-detail {
   border: 0;
   border-radius: 0;
-  background: #17181e;
+  background: var(--lab-panel);
 }
 /* The note grid occupies the same timeline column and top edge as a compact lane. */
 .instrument-lab-ui .expanded-track-row {
@@ -1661,8 +1674,8 @@
   flex: 0 0 26px;
   height: 26px;
   border-radius: 50%;
-  background: #e9e4fa;
-  color: #24202d;
+  background: #e7e7e8;
+  color: #222224;
   font-size: 10px;
 }
 .instrument-lab-ui .mix-select[aria-expanded="true"] strong:before {
@@ -1694,7 +1707,7 @@
 .instrument-lab-ui .lane-tools > summary,
 .instrument-lab-ui .lane-audition > summary {
   cursor: pointer;
-  color: #bdb6d0;
+  color: #b9b9ba;
   font-size: 11px;
 }
 .instrument-lab-ui .lane-tools[open] > summary {
@@ -1723,7 +1736,7 @@
 }
 .instrument-lab-ui .merge-error {
   flex-basis: 100%;
-  color: #ffacac;
+  color: var(--lab-danger-text);
 }
 .instrument-lab-ui .patch-intro {
   display: flex;
@@ -1738,33 +1751,33 @@
 }
 .instrument-lab-ui .expanded-roll-viewport .pitch-labels span {
   right: 4px;
-  background: #17181eee;
+  background: rgba(19, 19, 22, 0.933);
   padding: 2px;
 }
 
 /* SAM separation is an analysis action within the existing Instrument Lab. */
-.sam-separation { margin: 0 0 18px; border: 1px solid var(--line, #292b36); border-radius: 10px; background: #17181f; padding: 14px 18px; }
+.sam-separation { margin: 0 0 18px; border: 1px solid var(--line, #2b2b2d); border-radius: 10px; background: var(--lab-panel); padding: 14px 18px; }
 .sam-toolbar, .sam-options, .sam-run { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
 .sam-toolbar label, .sam-options label { display: flex; align-items: center; gap: 8px; }
-.sam-toolbar small, .sam-run small { color: #a8a9b8; }
-.sam-toolbar a { color: #b3a3ff; margin-left: auto; }
+.sam-toolbar small, .sam-run small { color: #aaaaab; }
+.sam-toolbar a { color: var(--lab-accent); margin-left: auto; }
 .sam-form { margin-top: 16px; }
-.sam-form p { color: #b6b7c5; font-size: 13px; }
+.sam-form p { color: #b8b8b9; font-size: 13px; }
 .sam-targets { display: grid; gap: 8px; margin: 14px 0; max-height: 330px; overflow: auto; }
 .sam-target { display: grid; grid-template-columns: minmax(100px,1fr) minmax(200px,3fr) 100px 32px; gap: 8px; }
 .sam-target input { min-width: 0; width: 100%; }
 .sam-options { margin: 18px 0; }
 .sam-options input[type=number] { width: 90px; }
 .sam-options input[type=checkbox] { width: auto; }
-.stem-waveform-row { border-top: 1px solid #282a34; }
-.stem-waveform-name { padding: 22px 24px; font-size: 11px; color: #9395a7; }
+.stem-waveform-row { border-top: 1px solid #2a2a2c; }
+.stem-waveform-name { padding: 22px 24px; font-size: 11px; color: #969697; }
 .stem-waveform { position: relative; min-width: 0; height: 66px; overflow: hidden; color: var(--track); cursor: crosshair; touch-action: none; }
 .stem-waveform svg { width: 100%; height: 100%; display: block; }
-.stem-waveform-label { position: absolute; top: 3px; left: 6px; color: #9293a5; font-size: 9px; pointer-events: none; }
+.stem-waveform-label { position: absolute; top: 3px; left: 6px; color: #949495; font-size: 9px; pointer-events: none; }
 @media(max-width:700px) { .sam-target { grid-template-columns: 1fr 1fr 80px 28px; } }
 
 .sam-targets { padding-right: 18px; scrollbar-gutter: stable; }
 .sam-target { grid-template-columns: minmax(100px,1fr) minmax(160px,3fr) 100px 36px; align-items: center; }
-.sam-form input[type=text], .sam-form input[type=number] { box-sizing: border-box; border: 1px solid #343641; background: #22242e; color: #eeeeF6; border-radius: 5px; padding: 8px 10px; font: inherit; font-size: 12px; }
-.sam-target button { width: 32px; height: 32px; border: 1px solid #343641; background: #22242e; color: #ddd; border-radius: 5px; padding: 0; }
-.sam-toolbar > button { border: 1px solid #494356; border-radius: 6px; padding: 8px 12px; font-size: 12px; }
+.sam-form input[type=text], .sam-form input[type=number] { box-sizing: border-box; border: 1px solid #363638; background: var(--lab-panel-2); color: #efeff0; border-radius: 5px; padding: 8px 10px; font: inherit; font-size: 12px; }
+.sam-target button { width: 32px; height: 32px; border: 1px solid #363638; background: var(--lab-panel-2); color: #ddddde; border-radius: 999px; padding: 0; }
+.sam-toolbar > button { border: 1px solid #464647; border-radius: 999px; padding: 8px 12px; font-size: 12px; }
