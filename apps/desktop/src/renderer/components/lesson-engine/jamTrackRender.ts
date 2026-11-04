@@ -25,6 +25,7 @@ export function renderJamPartLoop(
   const sixteenth = 60 / track.bpm / 4;
   const loopLength = Math.round(jamLoopSeconds(track) * sampleRate);
   const loop: [Float32Array, Float32Array] = [new Float32Array(loopLength), new Float32Array(loopLength)];
+  const offsetOf = (step: number) => Math.round(swung(track, step) * sixteenth * sampleRate);
   const mixIn = (sound: Float32Array[], offset: number, gains: number[]) => {
     for (let c = 0; c < 2; c++) {
       const channel = sound[Math.min(c, sound.length - 1)];
@@ -34,11 +35,11 @@ export function renderJamPartLoop(
   };
 
   if (part < track.drums.length) {
-    const { model, extra } = track.drums[part];
-    const sound = prepareDrum({ detail: 0, ...extra, model }, { channels: [new Float32Array(1)], sampleRate }, sampleRate);
-    for (const { step, velocity } of notes)
-      mixIn(sound, Math.round(step * sixteenth * sampleRate), [velocity / 127, velocity / 127]);
-    return withEcho(track, loop, sampleRate);
+    const { model, extra, lowpass } = track.drums[part];
+    const prepared = prepareDrum({ detail: 0, ...extra, model }, { channels: [new Float32Array(1)], sampleRate }, sampleRate);
+    const sound = lowpass ? prepared.map((channel) => lowPass(lowPass(channel, lowpass, sampleRate), lowpass, sampleRate)) : prepared;
+    for (const { step, velocity } of notes) mixIn(sound, offsetOf(step), [velocity / 127, velocity / 127]);
+    return withRoom(track, withEcho(track, loop, sampleRate));
   }
 
   const { patch, gain, pan } = track.layers[part - track.drums.length];
@@ -53,9 +54,75 @@ export function renderJamPartLoop(
       sound = renderNotes(patch, [{ pitch, start: 0, end: seconds, velocity }], seconds + tail, sampleRate);
       rendered.set(key, sound);
     }
-    mixIn([sound], Math.round(step * sixteenth * sampleRate), sides);
+    mixIn([sound], offsetOf(step), sides);
   }
-  return withEcho(track, loop, sampleRate);
+  return withRoom(track, withEcho(track, loop, sampleRate));
+}
+
+// A 12 dB per octave low-pass (RBJ biquad, Q 0.707)
+function lowPass(input: Float32Array, cutoff: number, sampleRate: number): Float32Array {
+  const w = (2 * Math.PI * cutoff) / sampleRate;
+  const alpha = Math.sin(w) / (2 * Math.SQRT1_2);
+  const c = Math.cos(w);
+  const [b0, b1, b2, a0, a1, a2] = [(1 - c) / 2, 1 - c, (1 - c) / 2, 1 + alpha, -2 * c, 1 - alpha];
+  const out = new Float32Array(input.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < input.length; i++) {
+    const y = (b0 * input[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
+    x2 = x1;
+    x1 = input[i];
+    y2 = y1;
+    y1 = y;
+    out[i] = y;
+  }
+  return out;
+}
+
+// A step as played: an off-beat 8th comes late in a swung track
+function swung(track: JamTrack, step: number): number {
+  const inBeat = step - 4 * Math.floor(step / 4);
+  return track.swing && Math.abs(inBeat - 2) < 1e-6 ? step + (track.swing - 0.5) * 4 : step;
+}
+
+// A track's room, folded into its loop: a Freeverb (eight damped combs, then
+// four allpasses, per side) run over the loop twice, so the second pass's
+// tail wraps around its start
+const COMBS = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
+const ALLPASSES = [556, 441, 341, 225];
+const STEREO_SPREAD = 23;
+function withRoom(track: JamTrack, loop: [Float32Array, Float32Array]): [Float32Array, Float32Array] {
+  if (!track.room) return loop;
+  const { size, mix } = track.room;
+  const length = loop[0].length;
+  const feedback = 0.7 + 0.28 * size;
+  const damp = 0.4;
+  const input = loop[0].map((left, i) => (left + loop[1][i]) * 0.015);
+  const wet = [0, 1].map((side) => {
+    const combs = COMBS.map((delay) => ({ buffer: new Float32Array(delay + side * STEREO_SPREAD), at: 0, low: 0 }));
+    const allpasses = ALLPASSES.map((delay) => ({ buffer: new Float32Array(delay + side * STEREO_SPREAD), at: 0 }));
+    const out = new Float32Array(length);
+    for (let pass = 0; pass < 2; pass++)
+      for (let i = 0; i < length; i++) {
+        let sum = 0;
+        for (const comb of combs) {
+          const y = comb.buffer[comb.at];
+          comb.low = y * (1 - damp) + comb.low * damp;
+          comb.buffer[comb.at] = input[i] + comb.low * feedback;
+          comb.at = (comb.at + 1) % comb.buffer.length;
+          sum += y;
+        }
+        for (const allpass of allpasses) {
+          const y = allpass.buffer[allpass.at];
+          allpass.buffer[allpass.at] = sum + y * 0.5;
+          allpass.at = (allpass.at + 1) % allpass.buffer.length;
+          sum = y - sum;
+        }
+        if (pass === 1) out[i] = sum;
+      }
+    return out;
+  });
+  for (let side = 0; side < 2; side++) for (let i = 0; i < length; i++) loop[side][i] += wet[side][i] * mix * 3;
+  return loop;
 }
 
 // A track's ping-pong echo, folded into its loop: both channels summed, echoed

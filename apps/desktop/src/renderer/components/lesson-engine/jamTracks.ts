@@ -43,6 +43,8 @@ export interface JamTrackDrum {
   model: NonNullable<DrumPatchData['model']>;
   extra: Omit<DrumPatchData, 'model'>;
   hits: [number, number][];
+  // Darkened above this (Hz), 24 dB per octave: the engine's noise is bright
+  lowpass?: number;
 }
 
 // A recorded sound (a file in softer/ or softer-jam/): `root` held for `held` 16ths at `velocity`
@@ -74,6 +76,11 @@ export interface JamTrack {
   // A ping-pong echo on every part (Plink's): echoes every `beats`, the first
   // on the left, then alternating, each `feedback` quieter, added at `wet`
   echo?: { beats: number; feedback: number; wet: number };
+  // Off-beat 8ths played late: the share of the beat the first 8th takes
+  // (0.5 straight, 2/3 triplet swing). Notes stay on the grid's 8ths.
+  swing?: number;
+  // A room around every part: its reverb's size (0-1) and level (0-1)
+  room?: { size: number; mix: number };
 }
 
 const layer = (
@@ -88,8 +95,9 @@ const drum = (
   name: string,
   model: JamTrackDrum['model'],
   extra: JamTrackDrum['extra'],
-  hits: [number, number][]
-): JamTrackDrum => ({ id, name, model, extra, hits });
+  hits: [number, number][],
+  lowpass?: number
+): JamTrackDrum => ({ id, name, model, extra, hits, ...(lowpass ? { lowpass } : {}) });
 
 export const JAM_TRACKS: JamTrack[] = [
   {
@@ -202,6 +210,56 @@ export const JAM_TRACKS: JamTrack[] = [
         Array.from({ length: 16 }, (_, i): [number, number] => [i, i % 4 === 2 ? 115 : i % 2 === 0 ? 75 : 50])),
       drum('block', 'Block', { frequency: 880, sweep: 200, sweepDecay: 0.005, toneLevel: 0.8, toneDecay: 0.035, noiseLevel: 0.1, noiseDecay: 0.01, pan: 0.32 }, { gain: 0.35 },
         [[3, 90], [14, 70]]),
+    ],
+  },
+  {
+    // Night jazz, slow and swung: brushes and a ride, a walking upright bass,
+    // soft Rhodes comping and a low string pad, all in a warm room.
+    // Cmaj9 | Am9 | Dm9 | G13, rootless voicings that move a step at a time
+    file: 'night_jazz.wav',
+    bpm: 72,
+    swing: 0.62,
+    room: { size: 0.6, mix: 0.22 },
+    chords: [
+      { root: 36, tones: [52, 55, 59, 62] },
+      { root: 33, tones: [55, 59, 60, 64] },
+      { root: 38, tones: [53, 57, 60, 64] },
+      { root: 31, tones: [53, 57, 59, 64] },
+    ],
+    layers: [
+      // Walking quarters: root, chord tones, then a half step into the next root
+      layer('Bass', { family: 'saw', brightness: 0.2, body: 0.7, attack: 0.006, decay: 0.45, sustain: 0.25, release: 0.16, gain: 1.1 }, 0.62, 0.48,
+        (chord, bar) => {
+          const walks: Record<number, number[]> = { 36: [36, 40, 43, 44], 33: [33, 36, 40, 37], 38: [38, 41, 45, 44], 31: [43, 41, 38, 37] };
+          const line = bar === 7 ? [43, 45, 47, 37] : walks[chord.root];
+          return line.map((pitch, beat) => ({ pitch, step: beat * 4, length: 3.6, velocity: [104, 88, 94, 86][beat] }));
+        }),
+      // Rhodes: a warm body and a short bright tine, comping on swung off-beats
+      layer('Rhodes', { family: 'fm', fm: 2, ratio: 1, brightness: 0.48, body: 0.4, attack: 0.004, decay: 1.3, sustain: 0.22, release: 0.7, detune: 3, gain: 0.5 }, 0.75, 0.44,
+        (chord, bar) => (bar % 2 === 0 ? [[0, 5, 80], [6, 9, 66]] : [[2, 5, 72], [10, 6, 70]]).flatMap(([step, length, velocity]) =>
+          chord.tones.map((pitch, i) => ({ pitch, step, length, velocity: velocity - i * 3 })))),
+      layer('Tine', { family: 'fm', fm: 1.4, ratio: 4, brightness: 0.5, body: 0.2, attack: 0.002, decay: 0.28, sustain: 0.02, release: 0.3, gain: 0.35 }, 0.9, 0.4,
+        (chord, bar) => (bar % 2 === 0 ? [[0, 70], [6, 58]] : [[2, 64], [10, 62]]).flatMap(([step, velocity]) =>
+          chord.tones.slice(1).map((pitch) => ({ pitch: pitch + 12, step, length: 1, velocity })))),
+      // Strings under it all, entering slowly
+      layer('Strings', { family: 'saw', brightness: 0.13, body: 0.6, attack: 1.1, decay: 2, sustain: 0.85, release: 1.6, detune: 11, gain: 0.3 }, 0.24, 0.56,
+        (chord) => chord.tones.map((pitch) => ({ pitch: pitch - 12, step: 0, length: 16, velocity: 70 }))),
+    ],
+    drums: [
+      // Feathered kick on 1 and 3, barely there
+      drum('kick', 'Kick', { frequency: 52, sweep: 35, sweepDecay: 0.03, toneLevel: 1, toneDecay: 0.18, noiseLevel: 0.01, noiseDecay: 0.01 }, { gain: 0.22, brightness: 0.4 },
+        [[0, 70], [8, 58]]),
+      // Brushes: a swirl through every beat, a tap on 2 and 4
+      drum('swirl', 'Brush swirl', { frequency: 220, toneLevel: 0.02, toneDecay: 0.05, noiseLevel: 0.55, noiseDecay: 0.32, pan: 0.46 }, { gain: 1.8, brightness: 0.28 },
+        [[0, 60], [4, 48], [8, 58], [12, 48]], 2400),
+      drum('brush', 'Brush', { frequency: 190, toneLevel: 0.12, toneDecay: 0.05, noiseLevel: 0.7, noiseDecay: 0.11, pan: 0.44 }, { gain: 1.3, brightness: 0.5 },
+        [[4, 92], [12, 96], [14, 40]], 3600),
+      // Ride: ding, ding-da ding, ding-da, its off-beats swung
+      drum('ride', 'Ride', { frequency: 3400, toneLevel: 0.14, toneDecay: 0.45, noiseLevel: 0.45, noiseDecay: 0.6, pan: 0.64 }, { gain: 0.4, brightness: 1.1 },
+        [[0, 88], [4, 76], [6, 58], [8, 86], [12, 76], [14, 58]], 6500),
+      // Hi-hat closed by the foot on 2 and 4
+      drum('hat', 'Hi-hat', { frequency: 8000, toneLevel: 0, noiseLevel: 0.6, noiseDecay: 0.03, pan: 0.38 }, { gain: 1, brightness: 0.75 },
+        [[4, 74], [12, 74]], 6000),
     ],
   },
   {
