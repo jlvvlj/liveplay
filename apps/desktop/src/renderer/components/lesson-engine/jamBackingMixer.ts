@@ -24,7 +24,9 @@ const toDb = (level: number) => (level > 0 ? 20 * Math.log10(level) : -Infinity)
 // be muted, soloed, levelled and swapped for an edited render while the others
 // keep playing.
 export class JamBackingMixer implements BackingPlayer {
-  private readonly master = new Tone.Volume().toDestination();
+  // Raised well above the tracks' loudness, so their peaks are held under 0 dBFS
+  private readonly limiter = new Tone.Limiter(-1).toDestination();
+  private readonly master = new Tone.Volume().connect(this.limiter);
   private readonly trim: Tone.Gain;
   private readonly lanes: { level: Tone.Volume; player: Tone.Player }[];
   // Audio time of the loop's start while playing
@@ -90,6 +92,7 @@ export class JamBackingMixer implements BackingPlayer {
     }
     this.trim.dispose();
     this.master.dispose();
+    this.limiter.dispose();
   }
 }
 

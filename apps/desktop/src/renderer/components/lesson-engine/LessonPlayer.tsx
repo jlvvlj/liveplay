@@ -79,10 +79,10 @@ const JAM_ROOM_START_LEAD_MS = 400;
 const JAM_ROOM_RESYNC_S = 0.015;
 const JAM_ROOM_RESYNC_MS = 1000;
 
-// Jam tab volumes: the backing track tops out about 6 dB louder than in
-// lessons (x1.3 on -2 dB) and the played notes start below it, so the groove
-// stays clearly audible
-const JAM_BACKING_TOP_DB = -2 + 20 * Math.log10(1.3);
+// Jam tab volumes: the backing track tops out about 12 dB louder than in
+// lessons (x1.3 on +4 dB; its peaks are limited) and the played notes start
+// below it, so the groove stays clearly audible
+const JAM_BACKING_TOP_DB = 4 + 20 * Math.log10(1.3);
 const DEFAULT_JAM_NOTES_VOLUME = 0.75;
 // Phone screens, upright (narrow) or sideways (short), in px: match the media
 // query in LessonPlayer.css
