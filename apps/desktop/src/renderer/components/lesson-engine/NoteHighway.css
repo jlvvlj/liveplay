@@ -551,6 +551,7 @@
   height: 22px;
   background: currentColor;
   clip-path: polygon(0 0, 100% 50%, 0 100%, 26% 50%);
+  transform-origin: 0 50%; /* a push stretches it forward from its tail */
   filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 14px currentColor);
 }
 
@@ -562,7 +563,7 @@
 
 .jam-cursor-name {
   position: absolute;
-  left: 10px;
+  right: 16px;
   bottom: 12px;
   padding: 1px 7px;
   border-radius: 999px;
