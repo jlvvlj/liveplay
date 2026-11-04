@@ -71,6 +71,9 @@ export interface JamTrack {
   layers: JamTrackLayer[];
   drums: JamTrackDrum[];
   sampled?: JamSampledPart[];
+  // A ping-pong echo on every part (Plink's): echoes every `beats`, the first
+  // on the left, then alternating, each `feedback` quieter, added at `wet`
+  echo?: { beats: number; feedback: number; wet: number };
 }
 
 const layer = (
@@ -200,6 +203,19 @@ export const JAM_TRACKS: JamTrack[] = [
       drum('block', 'Block', { frequency: 880, sweep: 200, sweepDecay: 0.005, toneLevel: 0.8, toneDecay: 0.035, noiseLevel: 0.1, noiseDecay: 0.01, pan: 0.32 }, { gain: 0.35 },
         [[3, 90], [14, 70]]),
     ],
+  },
+  {
+    // Plink's background: a deep kick on every beat, its echoes bouncing left
+    // and right, at Plink's tempo
+    file: 'plink.wav',
+    bpm: 90,
+    chords: [],
+    layers: [],
+    drums: [
+      drum('kick', 'Kick', { frequency: 50, sweep: 55, sweepDecay: 0.06, toneLevel: 1, toneDecay: 0.35, noiseLevel: 0 }, {},
+        [[0, 127], [4, 127], [8, 127], [12, 127]]),
+    ],
+    echo: { beats: 0.75, feedback: 0.5, wet: 0.25 },
   },
   SOFTER_JAM_TRACK,
   SOFTER_TRACK,

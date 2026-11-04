@@ -465,7 +465,7 @@ export type JamEchoTime = '1/16' | '1/8' | '1/8.' | '1/4';
 export interface JamEffects {
   reverbMix: number; // 0-1
   reverbSize: number; // decay, seconds
-  echoMix: number; // 0-1
+  echoMix: number; // 0-1, the ping-pong echoes' level next to the full dry sound
   echoTime: JamEchoTime; // synced to the song's tempo
   echoFeedback: number; // 0-0.9
 }
@@ -477,12 +477,14 @@ export const JAM_ECHO_BEATS: Record<JamEchoTime, number> = {
   '1/4': 1,
 };
 
+// As in Plink: no reverb, a dotted-8th ping-pong with echoes at -12 dB, each
+// half the last
 export const DEFAULT_JAM_EFFECTS: JamEffects = {
-  reverbMix: 0.25,
+  reverbMix: 0,
   reverbSize: 2.5,
-  echoMix: 0.2,
+  echoMix: 0.25,
   echoTime: '1/8.',
-  echoFeedback: 0.35,
+  echoFeedback: 0.5,
 };
 
 // Recorded sample sets kept on this machine only (git-ignored audio folder),

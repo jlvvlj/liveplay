@@ -37,7 +37,7 @@ export function renderJamPartLoop(
     const sound = prepareDrum({ detail: 0, ...extra, model }, { channels: [new Float32Array(1)], sampleRate }, sampleRate);
     for (const { step, velocity } of notes)
       mixIn(sound, Math.round(step * sixteenth * sampleRate), [velocity / 127, velocity / 127]);
-    return loop;
+    return withEcho(track, loop, sampleRate);
   }
 
   const { patch, gain, pan } = track.layers[part - track.drums.length];
@@ -53,6 +53,22 @@ export function renderJamPartLoop(
       rendered.set(key, sound);
     }
     mixIn([sound], Math.round(step * sixteenth * sampleRate), sides);
+  }
+  return withEcho(track, loop, sampleRate);
+}
+
+// A track's ping-pong echo, folded into its loop: both channels summed, echoed
+// every `beats` on alternate sides, starting on the left
+function withEcho(track: JamTrack, loop: [Float32Array, Float32Array], sampleRate: number): [Float32Array, Float32Array] {
+  if (!track.echo) return loop;
+  const { beats, feedback, wet } = track.echo;
+  const length = loop[0].length;
+  const delay = Math.round(((beats * 60) / track.bpm) * sampleRate);
+  const mono = loop[0].map((left, i) => left + loop[1][i]);
+  for (let echo = 1, gain = wet; gain > 1e-4; echo++, gain *= feedback) {
+    const side = loop[(echo - 1) % 2];
+    const shift = (echo * delay) % length;
+    for (let i = 0; i < length; i++) side[(i + shift) % length] += mono[i] * gain;
   }
   return loop;
 }

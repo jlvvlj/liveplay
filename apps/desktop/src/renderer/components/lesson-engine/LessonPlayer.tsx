@@ -28,6 +28,7 @@ import {
   type JamEffects,
 } from './jamSynth';
 import { audioTimeAt, hitSlot, remoteNoteSlot } from './jamClock';
+import { JamPingPong } from './jamPingPong';
 import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
 import type { JamRoomNote, JamRoomSound, JamRoomState, JamRoomVisibility } from './jamRoomProtocol';
 import { JamRemoteVoices } from './jamRemoteVoices';
@@ -741,14 +742,15 @@ export function LessonPlayer({
 
   // Jam tab: played notes run through an echo and a reverb before the output
   const jamNotesBusRef = useRef<Tone.Gain | null>(null);
-  const jamEchoRef = useRef<Tone.FeedbackDelay | null>(null);
+  const jamEchoRef = useRef<JamPingPong | null>(null);
   const jamReverbRef = useRef<Tone.Reverb | null>(null);
   useEffect(() => {
     if (!jamOnly) return;
     const bus = new Tone.Gain(1);
-    const echo = new Tone.FeedbackDelay();
+    const echo = new JamPingPong();
     const reverb = new Tone.Reverb();
-    bus.chain(echo, reverb, Tone.getDestination());
+    bus.connect(echo.input);
+    echo.output.chain(reverb, Tone.getDestination());
     jamNotesBusRef.current = bus;
     jamEchoRef.current = echo;
     jamReverbRef.current = reverb;
@@ -767,9 +769,9 @@ export function LessonPlayer({
     const echo = jamEchoRef.current;
     const reverb = jamReverbRef.current;
     if (!echo || !reverb || !jamEffects) return;
-    echo.wet.value = jamEffects.echoMix;
-    echo.feedback.value = jamEffects.echoFeedback;
-    echo.delayTime.value = (JAM_ECHO_BEATS[jamEffects.echoTime] * 60) / lessonProp.bpm;
+    echo.wet = jamEffects.echoMix;
+    echo.feedback = jamEffects.echoFeedback;
+    echo.delayTime = (JAM_ECHO_BEATS[jamEffects.echoTime] * 60) / lessonProp.bpm;
     reverb.wet.value = jamEffects.reverbMix;
     if (reverb.decay !== jamEffects.reverbSize) reverb.decay = jamEffects.reverbSize;
   }, [jamEffects, lessonProp.bpm, jamOnly]);
