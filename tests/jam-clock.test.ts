@@ -4,6 +4,7 @@ import {
   hitSlot,
   remoteNoteSlot,
   roundTripP90,
+  swungPosition,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamClock';
 
 describe('ServerClock', () => {
@@ -87,5 +88,22 @@ describe('roundTripP90', () => {
   it('skips the occasional spike', () => {
     expect(roundTripP90([])).toBeNull();
     expect(roundTripP90([10, 12, 11, 13, 10, 12, 11, 10, 12, 11, 90])).toBe(13);
+  });
+});
+
+describe('swungPosition', () => {
+  it('leaves straight time as it is', () => {
+    for (const position of [0, 1, 2, 3, 4, 6.5, 13]) expect(swungPosition(position, 0.5)).toBeCloseTo(position);
+  });
+
+  it('plays the second 8th of each beat late and keeps the beats', () => {
+    expect(swungPosition(2, 2 / 3)).toBeCloseTo(8 / 3);
+    expect(swungPosition(6, 0.62)).toBeCloseTo(6.48);
+    for (const beat of [0, 4, 8, 12]) expect(swungPosition(beat, 0.62)).toBeCloseTo(beat);
+  });
+
+  it('spreads the 16ths in between in proportion', () => {
+    expect(swungPosition(1, 0.62)).toBeCloseTo(1.24);
+    expect(swungPosition(3, 0.62)).toBeCloseTo(3.24);
   });
 });

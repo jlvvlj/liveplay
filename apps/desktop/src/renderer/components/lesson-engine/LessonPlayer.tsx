@@ -27,7 +27,7 @@ import {
   type JamSynthPatch,
   type JamEffects,
 } from './jamSynth';
-import { audioTimeAt, hitSlot, remoteNoteSlot } from './jamClock';
+import { audioTimeAt, hitSlot, remoteNoteSlot, swungPosition } from './jamClock';
 import { JamPingPong } from './jamPingPong';
 import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
 import type { JamRoomNote, JamRoomSound, JamRoomState, JamRoomVisibility } from './jamRoomProtocol';
@@ -104,6 +104,8 @@ interface JamSettings {
   // lane controls (grid and highway) are shown
   rowMixes: Record<string, JamTrackMix>;
   lanesOpen: boolean;
+  // How swung the played notes are, by song (0.5 straight); unset follows the backing track
+  swings: Record<string, number>;
 }
 
 // An edited backing track: its notes, one list per part, and the grid
@@ -191,6 +193,7 @@ function loadJamSettings(sounds: JamSoundPreset[], songIds: string[]): JamSettin
     mixes: {},
     rowMixes: {},
     lanesOpen: true,
+    swings: {},
   };
   try {
     const saved = JSON.parse(localStorage.getItem(JAM_SETTINGS_KEY) ?? 'null') as Partial<JamSettings> | null;
@@ -207,6 +210,10 @@ function loadJamSettings(sounds: JamSoundPreset[], songIds: string[]): JamSettin
       mixes: validTrackMixes(saved.mixes),
       rowMixes: saved.rowMixes && typeof saved.rowMixes === 'object' ? saved.rowMixes : {},
       lanesOpen: typeof saved.lanesOpen === 'boolean' ? saved.lanesOpen : defaults.lanesOpen,
+      swings:
+        saved.swings && typeof saved.swings === 'object'
+          ? Object.fromEntries(Object.entries(saved.swings).filter(([, swing]) => typeof swing === 'number'))
+          : {},
     };
   } catch {
     return defaults; // storage unavailable: start from the presets
@@ -958,6 +965,9 @@ export function LessonPlayer({
   // Jam: the backing track's data and its notes as edited in the grid. The
   // track is rendered live from them, and again after every edit.
   const jamTrack = jamOnly ? jamTrackFor(lesson.backingTrack) : undefined;
+  const jamSwing = jamSettings?.swings[lesson.id] ?? jamTrack?.swing ?? 0.5;
+  const jamSwingRef = useRef(jamSwing);
+  jamSwingRef.current = jamSwing;
   const jamTrackEdit = jamTrack ? (jamRoomState ?? jamSettings)?.tracks[jamTrack.file] : undefined;
   const jamTrackOriginal = useMemo(() => (jamTrack ? jamTrackParts(jamTrack).map((part) => part.notes) : null), [jamTrack]);
   const jamTrackNotes = jamTrackEdit?.parts ?? jamTrackOriginal;
@@ -1526,14 +1536,15 @@ export function LessonPlayer({
     const room = jamRoomRef.current?.ready ? jamRoomRef.current : null;
     const lead = room?.lead ?? 0;
     const slot = atSlot ?? hitSlot(heard / sixteenth, JAM_LATE_GRACE_S / sixteenth, lead / sixteenth, grid);
-    const timeMs = slot * sixteenth * 1000;
+    const sounds = swungPosition(slot, jamSwingRef.current) * sixteenth;
+    const timeMs = sounds * 1000;
 
     // The same pitch twice on one 16th sounds once
     if (jamNotesRef.current.some((n) => !n.peer && n.note === row && n.timeMs === timeMs)) return slot;
     // A muted row (or one left out by a solo) still draws its note, silently
     const level = jamOnly ? jamRowLevelsRef.current[allLaneNotes.indexOf(row)] ?? 1 : 1;
     if (level > 0) {
-      const at = Math.max(start + slot * sixteenth, context.currentTime + JAM_SCHEDULE_MARGIN_S);
+      const at = Math.max(start + sounds, context.currentTime + JAM_SCHEDULE_MARGIN_S);
       const player = playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, at, step?.semitones);
       if (player && level < 1) player.volume.value += 20 * Math.log10(level);
     }
@@ -1553,10 +1564,11 @@ export function LessonPlayer({
     const slot = remoteNoteSlot(note.slot, earliest, JAM_LATE_GRACE_S / sixteenth);
     // This player's row levels (mutes, solos) apply to everyone's notes
     const level = jamRowLevelsRef.current[allLaneNotes.indexOf(note.note)] ?? 1;
-    if (!remoteVoicesRef.current?.play(from, note.note, start + slot * sixteenth, jamNotesVolume, level)) {
+    const sounds = swungPosition(slot, jamSwingRef.current) * sixteenth;
+    if (!remoteVoicesRef.current?.play(from, note.note, start + sounds, jamNotesVolume, level)) {
       console.warn('[LessonPlayer] A jam room player\'s sound is still being prepared; their note was not played.', { from });
     }
-    addJamNote({ note: note.note, timeMs: slot * sixteenth * 1000, peer: from }, (audioTimeAt(context) - start) * 1000);
+    addJamNote({ note: note.note, timeMs: sounds * 1000, peer: from }, (audioTimeAt(context) - start) * 1000);
   }, [lesson.id, lesson.bpm, jamNotesVolume, allLaneNotes, addJamNote]);
   const playRemoteJamNoteRef = useRef(playRemoteJamNote);
   playRemoteJamNoteRef.current = playRemoteJamNote;
@@ -1685,7 +1697,9 @@ export function LessonPlayer({
       return;
     }
     const step = jamHoldStep();
-    const slot = playJamNote(note, undefined, jamHoldTripletRef.current ? Math.min(step, 2 / 3) : 1);
+    // Swung, 8ths and slower start on an 8th: from an odd 16th they would not swing
+    const grid = jamHoldTripletRef.current ? Math.min(step, 2 / 3) : jamSwingRef.current > 0.5 && step >= 2 ? 2 : 1;
+    const slot = playJamNote(note, undefined, grid);
     if (slot === null) return;
     jamHoldRef.current = { note, step, nextSlot: slot + step };
     jamHoldTimerRef.current = setInterval(() => {
@@ -2752,6 +2766,8 @@ export function LessonPlayer({
             onHoldDivisionChange={setJamHoldDivision}
             holdTriplet={jamHoldTriplet}
             onHoldTripletChange={setJamHoldTriplet}
+            swing={jamSwing}
+            onSwingChange={(swing) => setJamSettings({ ...jamSettings, swings: { ...jamSettings.swings, [lessonProp.id]: swing } })}
             notesVolume={jamNotesVolume}
             onNotesVolumeChange={setJamNotesVolume}
             backingVolume={backingTrackVolume}

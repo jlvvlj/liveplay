@@ -88,3 +88,13 @@ export function roundTripP90(roundTrips: number[]): number | null {
   const sorted = [...roundTrips].sort((a, b) => a - b);
   return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))];
 }
+
+// Where a position (in 16ths) sounds with swing: each beat's first 8th takes
+// `swing` of the beat (0.5 straight, 2/3 triplet swing) and its second 8th the
+// rest; the 16ths in between move in proportion
+export function swungPosition(position: number, swing: number): number {
+  const beat = Math.floor(position / 4);
+  const inBeat = position - beat * 4;
+  const split = swing * 4;
+  return beat * 4 + (inBeat < 2 ? (inBeat * split) / 2 : split + ((inBeat - 2) * (4 - split)) / 2);
+}
