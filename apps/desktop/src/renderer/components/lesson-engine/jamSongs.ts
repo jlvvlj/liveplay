@@ -93,5 +93,6 @@ export const JAM_SONGS: Lesson[] = [
   jamSong('night-drift-jam', 'Night Drift', 76, 'night_drift.wav', 'Slow warm pad, sine sub, soft bells, rim and shaker'),
   jamSong('wood-steps-jam', 'Wood Steps', 100, 'wood_steps.wav', 'Woody bass, electric piano stabs, clap, shaker and woodblock'),
   // In B-flat minor: the rows a semitone up
-  jamSong('softer-jam', 'Softer', 122, 'softer.wav', 'The last 8 bars of Softer, with its own sounds', 1),
+  jamSong('softer-script-jam', 'Softer Jam', 122, 'softer-jam.wav', 'The last 8 bars of Softer, cut by its own script', 1),
+  jamSong('softer-jam', 'Softer Lesson', 122, 'softer.wav', "The last 8 bars of Softer, read by the Lessons tab's Ableton import", 1),
 ];
