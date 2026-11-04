@@ -195,6 +195,11 @@ describe('jam rooms', () => {
     const welcome = await back.next('welcome');
     expect(welcome.state.startAt).toBeNull();
     expect(welcome.state.position).toBeGreaterThan(0);
+
+    // Leaving says so: the room is empty again before the connection closes
+    back.send({ t: 'leave' });
+    rooms = (await lobby.next('rooms')).rooms;
+    while (rooms[0]?.players.length !== 0) rooms = (await lobby.next('rooms')).rooms;
     back.socket.close();
 
     // Empty past its time, the room closes

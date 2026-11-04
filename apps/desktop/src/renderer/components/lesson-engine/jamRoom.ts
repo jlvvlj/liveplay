@@ -184,6 +184,7 @@ export class JamRoom {
 
   leave(): void {
     if (this.closed) return;
+    this.send({ t: 'leave' });
     this.shutDown();
     this.socket.close();
   }

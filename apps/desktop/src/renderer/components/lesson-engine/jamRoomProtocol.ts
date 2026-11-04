@@ -71,6 +71,8 @@ export type JamClientMessage =
       sound: JamRoomSound | null;
       need: number;
     }
+  // Leaving the room, so the others and the lobby hear of it at once
+  | { t: 'leave' }
   // The lobby: the rooms list, now and whenever it changes
   | { t: 'lobby' }
   // Whether `code` opens the private room listed as `id`

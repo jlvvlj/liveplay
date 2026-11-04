@@ -87,6 +87,26 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
     let room: Room | null = null;
     const id = String(nextId++);
 
+    // Out of the room: the others hear of it; the last one out leaves the
+    // room waiting, paused where it was, until it closes
+    const leaveRoom = () => {
+      if (!room) return;
+      const left = room;
+      room = null;
+      left.members.delete(id);
+      if (left.members.size === 0) {
+        const { startAt } = left.state;
+        if (startAt !== null) left.state = { ...left.state, startAt: null, position: Math.max(0, (performance.now() - startAt) / 1000) };
+        left.closing = setTimeout(() => {
+          if (rooms.get(left.key) === left && left.members.size === 0) rooms.delete(left.key);
+          lobbyChanged();
+        }, emptyRoomMs);
+      } else {
+        broadcast(left, { t: 'left', id });
+      }
+      lobbyChanged();
+    };
+
     socket.on('message', (raw) => {
       let message: JamClientMessage;
       try {
@@ -169,6 +189,9 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
 
       if (!room) return;
       switch (message.t) {
+        case 'leave':
+          leaveRoom();
+          break;
         case 'state':
           if (message.state.songId !== room.state.songId || (message.state.startAt === null) !== (room.state.startAt === null)) {
             lobbyChanged();
@@ -217,21 +240,7 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
 
     socket.on('close', () => {
       lobby.delete(socket);
-      if (!room) return;
-      room.members.delete(id);
-      if (room.members.size === 0) {
-        // The jam pauses where it was, and the room waits for players to come back
-        const { startAt } = room.state;
-        if (startAt !== null) room.state = { ...room.state, startAt: null, position: Math.max(0, (performance.now() - startAt) / 1000) };
-        const empty = room;
-        empty.closing = setTimeout(() => {
-          if (rooms.get(empty.key) === empty && empty.members.size === 0) rooms.delete(empty.key);
-          lobbyChanged();
-        }, emptyRoomMs);
-      } else {
-        broadcast(room, { t: 'left', id });
-      }
-      lobbyChanged();
+      leaveRoom();
     });
   });
 
