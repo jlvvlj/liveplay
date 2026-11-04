@@ -6,6 +6,7 @@ import { MidiEvent, DeviceMapping } from '../../types/electron';
 import { NoteHighway, HighwayMode, JamNote, JamShip } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
+import { BackIcon, SidebarIcon } from './JamIcons';
 import { JAM_TRACKS, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
 import { renderJamBackingPart, renderJamSound } from './jamRenderer';
 import { jamSoundUrl } from './jamSoundFiles';
@@ -2305,6 +2306,22 @@ export function LessonPlayer({
     }
   };
 
+  // Jam tab, with the sidebar hidden: back and the sidebar's button lead the
+  // highway's or the grid's toolbar, where the sidebar's own header has them
+  const jamToolbar =
+    jamOnly && !showJamSettings ? (
+      <>
+        {onComplete && (
+          <button className="jam-corner-btn" onClick={onComplete} title="Back">
+            <BackIcon />
+          </button>
+        )}
+        <button className="jam-corner-btn" onClick={() => setShowJamSettings(true)} title="Show sidebar">
+          <SidebarIcon />
+        </button>
+      </>
+    ) : null;
+
   return (
     <div className={`lesson-player ${jamOnly ? 'jam-only' : ''}`}>
       {/* Countdown Overlay */}
@@ -2614,6 +2631,7 @@ export function LessonPlayer({
         )}
         {jamTrack && jamTrackNotes && jamSettings && jamView === 'grid' ? (
           <JamTrackGrid
+            toolbar={jamToolbar}
             track={jamTrack}
             notes={jamTrackNotes}
             divisions={jamTrackEdit?.divisions ?? jamTrackNotes.map(() => null)}
@@ -2671,6 +2689,7 @@ export function LessonPlayer({
             holdNotes={!!lesson.holdNotes}
             holdingSteps={holdingSteps}
             onNoteReached={isGameMode ? handleNoteReached : undefined}
+            jamToolbar={jamToolbar}
             jamLanes={
               currentMode === 'jam' && jamSettings
                 ? {
@@ -2694,19 +2713,6 @@ export function LessonPlayer({
           </button>
         )}
 
-        {/* Jam tab: full-page highway; collapsed sidebar leaves only back and expand */}
-        {jamOnly && !showJamSettings && (
-          <div className="jam-corner-buttons">
-            {onComplete && (
-              <button className="jam-corner-btn" onClick={onComplete} title="Back">
-                &#8592;
-              </button>
-            )}
-            <button className="jam-corner-btn" onClick={() => setShowJamSettings(true)} title="Show settings">
-              &#187;
-            </button>
-          </div>
-        )}
         {jamOnly && showJamSettings && jamSettings && jamSounds && (
           <JamSettingsPanel
             songs={jamSongs ?? [lessonArg]}

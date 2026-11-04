@@ -7,11 +7,13 @@ import {
   useMemo,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from 'react';
 import { LessonStep, HitFeedback } from '../../types/lesson';
 import { HOLD_MIN_MS, stepDurationMs } from './holdNotes';
 import { jamTrackLevels, type JamTrackMix } from './jamBackingMixer';
-import { JamLanesHandle, JamLaneStrip } from './JamLaneStrip';
+import { JamLaneStrip } from './JamLaneStrip';
+import { LanesIcon } from './JamIcons';
 import './NoteHighway.css';
 
 export type HighwayMode = 'free' | 'wait' | 'play' | 'jam';
@@ -57,6 +59,7 @@ interface NoteHighwayProps {
   holdNotes?: boolean; // long sounds are drawn as long as they last and must be held
   holdingSteps?: Set<number>; // hold notes whose key is down right now
   jamLanes?: JamLanes; // Jam mode: each row's controls, on its left
+  jamToolbar?: ReactNode; // Jam mode: buttons shown first in the toolbar at the top
 }
 
 // Jam mode row controls: names by note, and solo / mute / level for `rows`
@@ -125,6 +128,7 @@ export function NoteHighway({
   holdNotes = false,
   holdingSteps,
   jamLanes,
+  jamToolbar,
 }: NoteHighwayProps) {
   const [noteHitStates, setNoteHitStates] = useState<Map<number, NoteHitState>>(new Map());
   const [timingPopups, setTimingPopups] = useState<TimingPopup[]>([]);
@@ -149,14 +153,13 @@ export function NoteHighway({
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
-  // Jam mode: the rows' controls take the left of the highway, up to the
-  // right edge of their fold bar; the ship and its notes move right of them
-  const jamFoldRef = useRef<HTMLButtonElement>(null);
+  // Jam mode: the rows' controls take the left of the highway; the ship, its
+  // notes and the toolbar move right of them
   const [jamInset, setJamInset] = useState<number>(0);
   useLayoutEffect(() => {
-    const fold = jamFoldRef.current;
+    const box = containerRef.current?.querySelector('.jam-lane-box');
     const container = containerRef.current;
-    setJamInset(fold && container ? fold.getBoundingClientRect().right - container.getBoundingClientRect().left : 0);
+    setJamInset(box && container ? box.getBoundingClientRect().right - container.getBoundingClientRect().left + 8 : 0);
   }, [containerWidth, containerHeight, jamLanes?.open]);
   const jamWidth = containerWidth - jamInset;
 
@@ -1043,7 +1046,7 @@ export function NoteHighway({
   return (
     <div
       ref={containerRef}
-      className={`note-highway ${isCollapsed ? 'collapsed' : ''} ${mode === 'jam' ? 'jam' : ''} ${jamLanes ? `jam-strips ${jamLanes.open ? '' : 'strips-closed'}` : ''}`}
+      className={`note-highway ${isCollapsed ? 'collapsed' : ''} ${mode === 'jam' ? 'jam' : ''} ${jamLanes ? 'jam-strips' : ''}`}
       style={mode === 'jam' ? ({ '--jam-inset': `${jamInset}px` } as CSSProperties) : undefined}
     >
       {/* Hit zone indicator line - fixed position (for play mode) */}
@@ -1096,11 +1099,6 @@ export function NoteHighway({
               </div>
             );
           })}
-          {jamLanes && (
-            <div className="jam-lanes-fold">
-              <JamLanesHandle ref={jamFoldRef} open={jamLanes.open} onToggle={() => jamLanes.onOpenChange(!jamLanes.open)} />
-            </div>
-          )}
         </div>
       ) : isCollapsed ? (
         mode === 'play' ? (
@@ -1185,20 +1183,39 @@ export function NoteHighway({
         </div>
       )}
 
-      {/* Progress bar */}
-      <div className="highway-progress">
-        {mode !== 'jam' && (
+      {/* Jam mode: a toolbar at the top (the player's buttons, the lane
+          controls' toggle, the clock) instead of the progress bar */}
+      {mode === 'jam' ? (
+        <div className="jam-toolbar" onPointerDown={(event) => event.stopPropagation()}>
+          {jamToolbar}
+          {jamLanes && (
+            <button
+              className={`jam-corner-btn ${jamLanes.open ? 'on' : ''}`}
+              onClick={(event) => {
+                jamLanes.onOpenChange(!jamLanes.open);
+                event.currentTarget.blur();
+              }}
+              title={jamLanes.open ? 'Hide lane controls' : 'Show lane controls'}
+            >
+              <LanesIcon />
+            </button>
+          )}
+          <span className="jam-toolbar-clock">{getProgressLabel()}</span>
+        </div>
+      ) : (
+        /* Progress bar */
+        <div className="highway-progress">
           <div className="progress-bar-container">
             <div
               className="progress-bar-fill"
               style={{ width: `${getProgress()}%` }}
             />
           </div>
-        )}
-        <div className="progress-label">
-          {getProgressLabel()}
+          <div className="progress-label">
+            {getProgressLabel()}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

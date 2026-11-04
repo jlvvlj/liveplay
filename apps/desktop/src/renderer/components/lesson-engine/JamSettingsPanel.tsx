@@ -12,6 +12,7 @@ import {
   type JamEchoTime,
 } from './jamSynth';
 import type { Lesson } from '../../types/lesson';
+import { BackIcon, SidebarIcon } from './JamIcons';
 import type { JamRoomPlayer } from './jamRoom';
 import { JAM_ROOM_CODE, JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
 
@@ -188,15 +189,15 @@ export function JamSettingsPanel({
       <div className="game-settings-header jam-settings-header">
         {onBack && (
           <button className="jam-corner-btn" onClick={onBack} title="Back">
-            &#8592;
+            <BackIcon />
           </button>
         )}
         <div className="jam-song">
           <span className="jam-song-title">{title}</span>
           <span className="toolbar-badge">{bpm} BPM</span>
         </div>
-        <button className="jam-corner-btn" onClick={onClose} title="Hide settings">
-          &#171;
+        <button className="jam-corner-btn on" onClick={onClose} title="Hide sidebar">
+          <SidebarIcon />
         </button>
       </div>
 
