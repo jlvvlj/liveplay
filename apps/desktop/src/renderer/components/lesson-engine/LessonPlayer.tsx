@@ -301,6 +301,7 @@ export function LessonPlayer({
   const jamKitPreset = jamSounds?.find((sound) => sound.id === jamSettings?.soundId);
   const jamKit = jamKitPreset && 'kit' in jamKitPreset ? jamKitPreset.kit : undefined;
   const jamRecorded = jamKitPreset && 'sounds' in jamKitPreset ? jamKitPreset.sounds : undefined;
+  const jamInstrument = jamKitPreset && 'sample' in jamKitPreset ? jamKitPreset.sample : undefined;
 
   // Jam tab: recorded reference sounds on this machine, if any
   const [jamReferenceSounds, setJamReferenceSounds] = useState<JamSampleSound[] | null>(null);
@@ -323,10 +324,10 @@ export function LessonPlayer({
   // A remembered reference sound that is no longer on this machine: back to the first preset
   useEffect(() => {
     if (!jamSettings || !jamSounds?.length || jamReferenceSounds === null) return;
-    if (!jamSettings.patches[jamSettings.soundId] && !jamKit && !jamRecorded && !jamReference) {
+    if (!jamSettings.patches[jamSettings.soundId] && !jamKit && !jamRecorded && !jamInstrument && !jamReference) {
       setJamSettings({ ...jamSettings, soundId: jamSounds[0].id });
     }
-  }, [jamSettings, jamSounds, jamReferenceSounds, jamReference, jamKit, jamRecorded]);
+  }, [jamSettings, jamSounds, jamReferenceSounds, jamReference, jamKit, jamRecorded, jamInstrument]);
 
   // The chosen synth sound or kit is rendered into one clip per note,
   // re-rendered shortly after its settings stop changing
@@ -341,7 +342,13 @@ export function LessonPlayer({
     setJamSamples(Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(jamRecorded[row % jamRecorded.length].file)])));
   }, [jamRecorded, lessonProp.steps]);
   useEffect(() => {
-    const source = jamKit ? { kit: jamKit } : jamPatch ? { patch: jamPatch } : null;
+    const source = jamKit
+      ? { kit: jamKit }
+      : jamPatch
+        ? { patch: jamPatch }
+        : jamInstrument
+          ? { sample: jamInstrument }
+          : null;
     if (!source) return;
     const notes = Array.from(new Set(lessonProp.steps.map((s) => s.note)));
     let cancelled = false;
@@ -358,7 +365,7 @@ export function LessonPlayer({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [jamPatch, jamKit, lessonProp.steps]);
+  }, [jamPatch, jamKit, jamInstrument, lessonProp.steps]);
   // Free replaced clips once their players have been swapped out
   useEffect(
     () => () => {

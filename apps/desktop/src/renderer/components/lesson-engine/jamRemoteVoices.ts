@@ -45,7 +45,10 @@ export class JamRemoteVoices {
       const rows = [...notes].sort((a, b) => a - b);
       samples = Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(preset.sounds[row % preset.sounds.length].file)]));
     } else if (preset) {
-      samples = await renderJamSound('kit' in preset ? { kit: preset.kit } : { patch: sound?.patch ?? preset.patch }, notes);
+      samples = await renderJamSound(
+        'kit' in preset ? { kit: preset.kit } : 'sample' in preset ? { sample: preset.sample } : { patch: sound?.patch ?? preset.patch },
+        notes
+      );
       blobs = Object.values(samples);
     } else if (reference) {
       samples = reference.samples;
