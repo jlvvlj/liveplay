@@ -260,8 +260,7 @@
   border-radius: 14px;
   padding: 42px;
   text-align: center;
-  background:
-    radial-gradient(ellipse at 50% 12%, rgba(251, 146, 60, 0.082), transparent 65%), var(--lab-panel);
+  background: var(--lab-panel);
 }
 .instrument-lab-ui .sound-art {
   height: 175px;
