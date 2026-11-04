@@ -429,7 +429,7 @@ export function JamSettingsPanel({
             step={0.1}
             onChange={(value) => setEffect('reverbSize', value)}
           />
-          <div className="jam-subhead">Echo</div>
+          <div className="jam-subhead">Ping-pong echo</div>
           <Slider
             label="Mix"
             value={effects.echoMix}

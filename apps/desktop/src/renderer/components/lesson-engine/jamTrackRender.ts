@@ -1,6 +1,7 @@
 import { patchData, renderNotes } from '../../../../../../instrument-lab/engine/synth.mjs';
 import { prepareDrum } from '../../../../../../instrument-lab/engine/drums.mjs';
 import { JAM_TRACK_BARS, type JamTrack, type JamTrackNote } from './jamTracks';
+import { matchJamLoudness } from './jamLoudness';
 
 // Renders backing-track loops from their instruments and notes, one part (as
 // jamTrackParts orders them) at a time: the Jam tab plays each part through its
@@ -37,7 +38,7 @@ export function renderJamPartLoop(
     const sound = prepareDrum({ detail: 0, ...extra, model }, { channels: [new Float32Array(1)], sampleRate }, sampleRate);
     for (const { step, velocity } of notes)
       mixIn(sound, Math.round(step * sixteenth * sampleRate), [velocity / 127, velocity / 127]);
-    return loop;
+    return withEcho(track, loop, sampleRate);
   }
 
   const { patch, gain, pan } = track.layers[part - track.drums.length];
@@ -53,6 +54,22 @@ export function renderJamPartLoop(
       rendered.set(key, sound);
     }
     mixIn([sound], Math.round(step * sixteenth * sampleRate), sides);
+  }
+  return withEcho(track, loop, sampleRate);
+}
+
+// A track's ping-pong echo, folded into its loop: both channels summed, echoed
+// every `beats` on alternate sides, starting on the left
+function withEcho(track: JamTrack, loop: [Float32Array, Float32Array], sampleRate: number): [Float32Array, Float32Array] {
+  if (!track.echo) return loop;
+  const { beats, feedback, wet } = track.echo;
+  const length = loop[0].length;
+  const delay = Math.round(((beats * 60) / track.bpm) * sampleRate);
+  const mono = loop[0].map((left, i) => left + loop[1][i]);
+  for (let echo = 1, gain = wet; gain > 1e-4; echo++, gain *= feedback) {
+    const side = loop[(echo - 1) % 2];
+    const shift = (echo * delay) % length;
+    for (let i = 0; i < length; i++) side[(i + shift) % length] += mono[i] * gain;
   }
   return loop;
 }
@@ -113,7 +130,7 @@ export function renderJamSampledLoop(
 // A recorded instrument's clip per note, keyed by MIDI note: its one sound
 // re-pitched from `root`. The rows move by whole octaves to sit around the
 // root, so a bass stays low and a lead high, in the rows' key. All clips share
-// one gain, the sound's peak at 0.8 like the synth sounds.
+// one gain, as loud as the reference sounds.
 export function renderJamSampleWavs(
   sound: Float32Array[],
   root: number,
@@ -122,26 +139,22 @@ export function renderJamSampleWavs(
 ): { [note: number]: ArrayBuffer } {
   const rows = [...notes].sort((a, b) => a - b);
   const shift = 12 * Math.round((root - (rows[0] + rows[rows.length - 1]) / 2) / 12);
-  let peak = 0;
-  for (const channel of sound) for (let i = 0; i < channel.length; i++) peak = Math.max(peak, Math.abs(channel[i]));
-  const gain = peak > 0 ? 0.8 / peak : 1;
-  return Object.fromEntries(
-    rows.map((note) => {
-      const rate = 2 ** ((note + shift - root) / 12);
-      const length = Math.floor((sound[0].length - 1) / rate);
-      const channels = [0, 1].map((c) => {
-        const source = sound[Math.min(c, sound.length - 1)];
-        const out = new Float32Array(length);
-        for (let i = 0; i < length; i++) {
-          const at = i * rate;
-          const j = Math.floor(at);
-          out[i] = (source[j] + (source[j + 1] - source[j]) * (at - j)) * gain;
-        }
-        return out;
-      });
-      return [note, encodeWav16(channels, sampleRate)];
-    })
-  );
+  const clips = rows.map((note) => {
+    const rate = 2 ** ((note + shift - root) / 12);
+    const length = Math.floor((sound[0].length - 1) / rate);
+    return [0, 1].map((c) => {
+      const source = sound[Math.min(c, sound.length - 1)];
+      const out = new Float32Array(length);
+      for (let i = 0; i < length; i++) {
+        const at = i * rate;
+        const j = Math.floor(at);
+        out[i] = source[j] + (source[j + 1] - source[j]) * (at - j);
+      }
+      return out;
+    });
+  });
+  matchJamLoudness(clips, sampleRate);
+  return Object.fromEntries(rows.map((note, row) => [note, encodeWav16(clips[row], sampleRate)]));
 }
 
 // A 16-bit stereo PCM WAV file

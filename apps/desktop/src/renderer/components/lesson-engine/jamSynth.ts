@@ -1,3 +1,4 @@
+import { matchJamLoudness } from './jamLoudness';
 import { SOFTER_DRUMS, SOFTER_INSTRUMENTS } from './jamSofter';
 import { SOFTER_JAM_DRUMS, SOFTER_JAM_INSTRUMENTS } from './jamSofterJam';
 import {
@@ -80,8 +81,9 @@ const songSounds = (
 
 const SAMPLE_RATE = 44100;
 const VELOCITY = 110;
-// Fixed boost from the engine's level to the clip; presets set `gain` so their
-// loudest note peaks near 0.8
+// Fixed boost from the engine's level to the clip (clips are then brought to
+// the reference sounds' loudness; `gain`, the Level control, sets a sound
+// louder or quieter than that, 1 being as loud)
 const OUTPUT_GAIN = 2.6;
 // A cutoff this many harmonics up leaves the sound unfiltered
 export const JAM_FILTER_OPEN = 32;
@@ -125,37 +127,37 @@ const CUT_FADE = 0.005;
 
 export const JAM_SOUND_PRESETS: JamSoundPreset[] = [
   // Chiptune: plain square wave held flat, then cut short
-  preset('square-stab', '8-bit stab', { family: 'square', brightness: 1, body: 0, attack: 0.002, decay: 2, sustain: 1, release: 0.04, gain: 1.45, hold: 0.16 }),
+  preset('square-stab', '8-bit stab', { family: 'square', brightness: 1, body: 0, attack: 0.002, decay: 2, sustain: 1, release: 0.04, gain: 1, hold: 0.16 }),
   // Chiptune lead: held square wave
-  preset('chip', 'Chip lead', { family: 'square', brightness: 0.6, body: 0.1, attack: 0.005, decay: 0.3, sustain: 0.55, release: 0.1, detune: 6, gain: 1.5, hold: 0.25 }),
+  preset('chip', 'Chip lead', { family: 'square', brightness: 0.6, body: 0.1, attack: 0.005, decay: 0.3, sustain: 0.55, release: 0.1, detune: 6, gain: 1, hold: 0.25 }),
   // Two octaves down: a saturated square, its filter closing fast
-  preset('dist-bass', 'Dist bass', { family: 'square', octave: -2, brightness: 1, body: 0.3, attack: 0.003, decay: 2, sustain: 1, release: 0.22, gain: 1.03, hold: 0.22, drive: 0.8, cutoff: 32, cutoffEnd: 7, sweepTime: 0.2, resonance: 0.2 }),
+  preset('dist-bass', 'Dist bass', { family: 'square', octave: -2, brightness: 1, body: 0.3, attack: 0.003, decay: 2, sustain: 1, release: 0.22, gain: 1, hold: 0.22, drive: 0.8, cutoff: 32, cutoffEnd: 7, sweepTime: 0.2, resonance: 0.2 }),
   // An octave down: a long, buzzing insect drone
-  preset('bee-drone', 'Bee buzz', { family: 'saw', octave: -1, brightness: 0.8, body: 0.1, attack: 0.12, decay: 2, sustain: 1, release: 1.6, gain: 1.02, hold: 2.3 }),
+  preset('bee-drone', 'Bee buzz', { family: 'saw', octave: -1, brightness: 0.8, body: 0.1, attack: 0.12, decay: 2, sustain: 1, release: 1.6, gain: 1, hold: 2.3 }),
   // An octave down, a resonant filter closing slowly over a long note
-  preset('wah-sweep', 'Wah sweep', { family: 'saw', octave: -1, brightness: 1, body: 0, attack: 0.02, decay: 2, sustain: 1, release: 0.9, gain: 0.44, hold: 2.5, cutoff: 13, cutoffEnd: 2.5, sweepTime: 2.5, resonance: 0.97 }),
+  preset('wah-sweep', 'Wah sweep', { family: 'saw', octave: -1, brightness: 1, body: 0, attack: 0.02, decay: 2, sustain: 1, release: 0.9, gain: 1, hold: 2.5, cutoff: 13, cutoffEnd: 2.5, sweepTime: 2.5, resonance: 0.97 }),
   // Sung "ah" with a vibrato that grows in
-  preset('voice', 'Voice', { family: 'saw', brightness: 0.5, body: 0.3, attack: 0.05, decay: 2, sustain: 1, release: 0.75, gain: 0.85, hold: 2.6, vibrato: 30, vowel: 0.8 }),
+  preset('voice', 'Voice', { family: 'saw', brightness: 0.5, body: 0.3, attack: 0.05, decay: 2, sustain: 1, release: 0.75, gain: 1, hold: 2.6, vibrato: 30, vowel: 0.8 }),
   // FM bell: bright strike on the 4th harmonic that rings out
-  preset('bell', 'Synth bell', { family: 'fm', fm: 1.8, ratio: 4, brightness: 0.65, body: 0.35, attack: 0.002, decay: 0.7, sustain: 0.02, release: 0.9, detune: 3, gain: 1.12, hold: 0.12 }),
+  preset('bell', 'Synth bell', { family: 'fm', fm: 1.8, ratio: 4, brightness: 0.65, body: 0.35, attack: 0.002, decay: 0.7, sustain: 0.02, release: 0.9, detune: 3, gain: 1, hold: 0.12 }),
   // An octave up: hollow FM strike (odd harmonics) ringing with a slow beat
-  preset('bell-stab', 'Bell stab', { family: 'fm', octave: 1, fm: 1.3, ratio: 2, brightness: 0.9, body: 0, attack: 0.002, decay: 2, sustain: 1, release: 1.3, detune: 10, gain: 1.39, hold: 0.15 }),
+  preset('bell-stab', 'Bell stab', { family: 'fm', octave: 1, fm: 1.3, ratio: 2, brightness: 0.9, body: 0, attack: 0.002, decay: 2, sustain: 1, release: 1.3, detune: 10, gain: 1, hold: 0.15 }),
   // Tiny metal comb: deep FM on the 5th harmonic, no body
-  preset('musicbox', 'Music box', { family: 'fm', fm: 2.6, ratio: 5, brightness: 0.8, body: 0, attack: 0.002, decay: 0.45, sustain: 0.02, release: 0.7, gain: 0.82, hold: 0.05 }),
+  preset('musicbox', 'Music box', { family: 'fm', fm: 2.6, ratio: 5, brightness: 0.8, body: 0, attack: 0.002, decay: 0.45, sustain: 0.02, release: 0.7, gain: 1, hold: 0.05 }),
   // Thumb piano: round tine with a light 6th-harmonic shimmer
-  preset('kalimba', 'Kalimba', { family: 'fm', fm: 1.1, ratio: 6, brightness: 0.45, body: 0.5, attack: 0.002, decay: 0.35, sustain: 0.02, release: 0.5, gain: 1.12, hold: 0.05 }),
+  preset('kalimba', 'Kalimba', { family: 'fm', fm: 1.1, ratio: 6, brightness: 0.45, body: 0.5, attack: 0.002, decay: 0.35, sustain: 0.02, release: 0.5, gain: 1, hold: 0.05 }),
   // Mallet on wood: a pure tone knocked, low notes ringing longer than high ones
-  preset('sine-wood', 'Woody', { family: 'sine', attack: 0.008, decay: 0.33, sustain: 0.02, release: 0.5, gain: 1.19, hold: 0.05, keyDecay: 0.6 }),
+  preset('sine-wood', 'Woody', { family: 'sine', attack: 0.008, decay: 0.33, sustain: 0.02, release: 0.5, gain: 1, hold: 0.05, keyDecay: 0.6 }),
   // Electric piano: 1:1 FM tine that fades slowly
-  preset('epiano', 'Electric piano', { family: 'fm', fm: 1.3, ratio: 1, brightness: 0.45, body: 0.4, attack: 0.003, decay: 0.9, sustain: 0.25, release: 0.45, detune: 4, gain: 0.98, hold: 0.3 }),
+  preset('epiano', 'Electric piano', { family: 'fm', fm: 1.3, ratio: 1, brightness: 0.45, body: 0.4, attack: 0.003, decay: 0.9, sustain: 0.25, release: 0.45, detune: 4, gain: 1, hold: 0.3 }),
   // Synth pluck: detuned saw with a fast filter-like decay
-  preset('pluck', 'Synth pluck', { family: 'saw', brightness: 0.5, body: 0.2, attack: 0.002, decay: 0.22, sustain: 0.04, release: 0.25, detune: 10, gain: 1.13, hold: 0.08 }),
+  preset('pluck', 'Synth pluck', { family: 'saw', brightness: 0.5, body: 0.2, attack: 0.002, decay: 0.22, sustain: 0.04, release: 0.25, detune: 10, gain: 1, hold: 0.08 }),
   // Wide, buzzy detuned saw, bright and loud
-  preset('fatsaw', 'Fat saw', { family: 'saw', brightness: 0.85, body: 0.4, attack: 0.004, decay: 0.5, sustain: 0.6, release: 0.12, detune: 18, gain: 1.18, hold: 0.22 }),
+  preset('fatsaw', 'Fat saw', { family: 'saw', brightness: 0.85, body: 0.4, attack: 0.004, decay: 0.5, sustain: 0.6, release: 0.12, detune: 18, gain: 1, hold: 0.22 }),
   // Soft pad: dark detuned saw with slow attack and long release
-  preset('pad', 'Warm pad', { family: 'saw', brightness: 0.22, body: 0.5, attack: 0.3, decay: 1.2, sustain: 0.7, release: 1, detune: 14, gain: 1.25, hold: 0.5 }),
+  preset('pad', 'Warm pad', { family: 'saw', brightness: 0.22, body: 0.5, attack: 0.3, decay: 1.2, sustain: 0.7, release: 1, detune: 14, gain: 1, hold: 0.5 }),
   // Breathy flute: soft triangle that fades in
-  preset('flute', 'Soft flute', { family: 'triangle', brightness: 0.25, body: 0.3, attack: 0.07, decay: 0.5, sustain: 0.75, release: 0.2, detune: 2, gain: 1.1, hold: 0.3 }),
+  preset('flute', 'Soft flute', { family: 'triangle', brightness: 0.25, body: 0.3, attack: 0.07, decay: 0.5, sustain: 0.75, release: 0.2, detune: 2, gain: 1, hold: 0.3 }),
 
   // Room kit, lowest row to highest: kicks, toms, snares, clap, wood, cowbell, shaker, hats, crash
   {
@@ -444,19 +446,19 @@ export function renderJamDrum(drum: JamDrum): Float32Array {
 // instrument (rendered by renderJamSampleWavs, from its loaded sound)
 export type JamSoundSource = { patch: JamSynthPatch } | { kit: JamDrum[] } | { sample: JamRecordedInstrument };
 
-// One WAV clip per note, keyed by MIDI note. A kit plays its drums on the rows
-// from the lowest up, starting over after the last drum.
+// One WAV clip per note, keyed by MIDI note, as loud as the reference sounds.
+// A kit plays its drums on the rows from the lowest up, starting over after the
+// last drum.
 export function renderJamWavs(
   source: { patch: JamSynthPatch } | { kit: JamDrum[] },
   notes: number[]
 ): { [note: number]: ArrayBuffer } {
   const rows = [...notes].sort((a, b) => a - b);
-  return Object.fromEntries(
-    rows.map((pitch, row) => {
-      const audio = 'kit' in source ? renderJamDrum(source.kit[row % source.kit.length]) : renderJamClip(source.patch, pitch);
-      return [pitch, encodeWav(audio, SAMPLE_RATE)];
-    })
+  const clips = rows.map((pitch, row) =>
+    'kit' in source ? renderJamDrum(source.kit[row % source.kit.length]) : renderJamClip(source.patch, pitch)
   );
+  matchJamLoudness(clips.map((clip) => [clip]), SAMPLE_RATE, 'patch' in source ? 20 * Math.log10(source.patch.gain) : 0);
+  return Object.fromEntries(rows.map((pitch, row) => [pitch, encodeWav(clips[row], SAMPLE_RATE)]));
 }
 
 // Effects on the played notes (not the backing track)
@@ -465,7 +467,7 @@ export type JamEchoTime = '1/16' | '1/8' | '1/8.' | '1/4';
 export interface JamEffects {
   reverbMix: number; // 0-1
   reverbSize: number; // decay, seconds
-  echoMix: number; // 0-1
+  echoMix: number; // 0-1, the ping-pong echoes' level next to the full dry sound
   echoTime: JamEchoTime; // synced to the song's tempo
   echoFeedback: number; // 0-0.9
 }
@@ -477,12 +479,14 @@ export const JAM_ECHO_BEATS: Record<JamEchoTime, number> = {
   '1/4': 1,
 };
 
+// As in Plink: no reverb, a dotted-8th ping-pong with echoes at -12 dB, each
+// half the last
 export const DEFAULT_JAM_EFFECTS: JamEffects = {
-  reverbMix: 0.25,
+  reverbMix: 0,
   reverbSize: 2.5,
-  echoMix: 0.2,
+  echoMix: 0.25,
   echoTime: '1/8.',
-  echoFeedback: 0.35,
+  echoFeedback: 0.5,
 };
 
 // Recorded sample sets kept on this machine only (git-ignored audio folder),
