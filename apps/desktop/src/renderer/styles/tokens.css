@@ -19,8 +19,9 @@
 
   --ds-accent: #fb923c;
   --ds-accent-hover: #fdac63;
-  --ds-accent-soft: rgba(251, 146, 60, 0.18);
   --ds-on-accent: #1a1005;
+  /* Selected buttons are white with this text. */
+  --ds-on-light: #111113;
 
   --ds-success: #34d399;
   --ds-warning: #fbbf24;

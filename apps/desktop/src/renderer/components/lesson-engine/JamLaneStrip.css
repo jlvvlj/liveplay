@@ -21,7 +21,7 @@
   padding: 0 0.5rem;
   border: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ds-panel);
   font: inherit;
   font-size: 0.8rem;
   white-space: nowrap;
@@ -35,7 +35,7 @@ button.jam-lane-name {
 }
 
 button.jam-lane-name:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-panel-2);
 }
 
 .jam-lane-title {
@@ -56,7 +56,7 @@ button.jam-lane-name:hover {
   padding: 0;
   border: none;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ds-panel);
   color: rgba(255, 255, 255, 0.55);
   font-size: 0.7rem;
   font-weight: 700;
@@ -64,17 +64,17 @@ button.jam-lane-name:hover {
 }
 
 .jam-lane-toggle:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--ds-panel-2);
 }
 
 .jam-lane-toggle.solo.on {
-  background: var(--ds-warning);
-  color: var(--ds-on-accent);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .jam-lane-toggle.mute.on {
-  background: var(--ds-danger);
-  color: var(--ds-text);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .jam-lane-level {

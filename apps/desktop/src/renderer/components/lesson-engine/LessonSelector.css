@@ -32,8 +32,8 @@
 }
 
 .tab-button.active {
-  background: rgba(251, 146, 60, 0.2);
-  color: var(--ds-accent);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
   font-weight: 600;
   border-color: transparent;
 }
@@ -102,8 +102,9 @@
 }
 
 .lesson-card.selected {
-  border-color: var(--ds-accent);
-  background: rgba(251, 146, 60, 0.1);
+  border-color: var(--ds-text);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .lesson-card-header {
@@ -207,7 +208,7 @@
 
 .import-card:hover {
   border-color: var(--ds-accent);
-  background: rgba(251, 146, 60, 0.08);
+  background: var(--ds-panel-2);
 }
 
 .song-card.song-ready {
@@ -220,7 +221,7 @@
 }
 
 .song-card.song-error {
-  border-color: rgba(248, 113, 113, 0.5);
+  border-color: var(--ds-danger);
   cursor: default;
 }
 
@@ -231,8 +232,8 @@
 .songs-error {
   grid-column: 1 / -1;
   padding: 0.75rem 1rem;
-  background: rgba(248, 113, 113, 0.15);
-  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: var(--ds-panel);
+  border: 1px solid var(--ds-danger);
   border-radius: 8px;
   color: var(--ds-danger);
 }
@@ -279,12 +280,12 @@
 }
 
 .song-delete-button:hover {
-  background: rgba(248, 113, 113, 0.5);
+  background: var(--ds-panel-2);
 }
 
 .song-drum-lesson-button {
   background: var(--ds-text);
-  color: #111113;
+  color: var(--ds-on-light);
   font-weight: 600;
 }
 
@@ -298,13 +299,13 @@
 }
 
 .song-stem-lesson-button {
-  background: rgba(251, 146, 60, 0.25);
+  background: var(--ds-panel-2);
   color: var(--ds-accent);
   font-weight: 600;
 }
 
 .song-stem-lesson-button:hover {
-  background: rgba(251, 146, 60, 0.28);
+  background: var(--ds-panel-2);
   color: var(--ds-accent);
 }
 

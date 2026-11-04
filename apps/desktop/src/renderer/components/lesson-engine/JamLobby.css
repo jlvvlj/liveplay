@@ -4,7 +4,7 @@
   min-height: 0;
   overflow-y: auto;
   padding: 1.5rem;
-  background: radial-gradient(120% 80% at 50% 0%, #28282a 0%, #111113 60%);
+  background: radial-gradient(120% 80% at 50% 0%, #28282a 0%, var(--ds-on-light) 60%);
   color: var(--ds-text);
 }
 
@@ -134,12 +134,12 @@ button.jam-lobby-card:hover:not(:disabled) {
 }
 
 .jam-lobby-badge.open {
-  background: rgba(52, 211, 153, 0.15);
+  background: var(--ds-panel-2);
   color: var(--ds-success);
 }
 
 .jam-lobby-badge.private {
-  background: rgba(251, 191, 36, 0.15);
+  background: var(--ds-panel-2);
   color: var(--ds-warning);
 }
 

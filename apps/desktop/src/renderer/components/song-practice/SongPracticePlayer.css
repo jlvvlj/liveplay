@@ -75,8 +75,8 @@
 }
 
 .focus-button.active {
-  background: rgba(251, 146, 60, 0.2);
-  color: var(--ds-accent);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
   font-weight: 600;
   border-color: transparent;
 }
@@ -145,8 +145,8 @@
 }
 
 .stem-button.active-solo {
-  background: var(--ds-warning);
-  color: var(--ds-on-accent);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 /* Transport */
@@ -177,7 +177,7 @@
 
 .transport-play {
   background: var(--ds-text);
-  color: #111113;
+  color: var(--ds-on-light);
 }
 
 .transport-time {
