@@ -4,13 +4,13 @@
    sectioned right sidebar. Orange primary accent. */
 
 .lab-sound-editor {
-  --lab-se-bg: #0a0a0c;
-  --lab-se-panel: #131316;
-  --lab-se-panel-2: #1a1a1f;
-  --lab-se-border: rgba(255, 255, 255, 0.08);
-  --lab-se-text: #f4f4f5;
-  --lab-se-text-dim: rgba(244, 244, 245, 0.5);
-  --lab-se-accent: #fb923c;
+  --lab-se-bg: var(--ds-bg);
+  --lab-se-panel: var(--ds-panel);
+  --lab-se-panel-2: var(--ds-panel-2);
+  --lab-se-border: var(--ds-border);
+  --lab-se-text: var(--ds-text);
+  --lab-se-text-dim: var(--ds-text-dim);
+  --lab-se-accent: var(--ds-accent);
 
   position: relative;
   inset: auto;

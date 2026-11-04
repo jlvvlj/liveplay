@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Lesson } from '../../types/lesson';
 import { getStemLabel, MergedStem, Song, StemName, STEM_NAMES, STEM_LABELS } from '../../types/song';
 import { stemLessonFromSong, StemLessonData, StemSound, StemEvent } from '../../utils/stemLessonFromSong';
+import { SOUND_COLORS } from '../../styles/palette';
 import './SourceSoundEditor.css';
 
 interface SourceSoundEditorProps {
@@ -12,7 +13,6 @@ interface SourceSoundEditorProps {
   onStartLesson: (lesson: Lesson) => void;
 }
 
-const SOUND_COLORS = ['#fb923c', '#818cf8', '#f472b6', '#34d399', '#fbbf24', '#22d3ee', '#a78bfa', '#f87171'];
 const BRUSH_COLORS = ['#f8fafc', '#60a5fa', '#f472b6', '#34d399', '#fbbf24', '#22d3ee', '#a78bfa', '#f87171'];
 const STEM_COLOR = '#fb923c';
 const RULER_HEIGHT = 24;

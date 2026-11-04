@@ -1,17 +1,15 @@
-/* Same design system as the sound editor (StemSoundEditor.css): system font,
-   neutral studio blacks, orange accent. */
+/* Design system tokens come from apps/desktop/src/renderer/styles/tokens.css. */
 .instrument-lab-ui {
-  --lab-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-  --lab-bg: #0a0a0c;
-  --lab-panel: #131316;
-  --lab-panel-2: #1a1a1f;
-  --lab-text: #f4f4f5;
-  --lab-accent: #fb923c;
-  --lab-accent-hover: #fdac63;
-  --lab-on-accent: #1a1005;
-  --lab-danger: #f87171;
-  --lab-danger-text: #fca5a5;
+  --lab-font: var(--ds-font);
+  --lab-bg: var(--ds-bg);
+  --lab-panel: var(--ds-panel);
+  --lab-panel-2: var(--ds-panel-2);
+  --lab-text: var(--ds-text);
+  --lab-accent: var(--ds-accent);
+  --lab-accent-hover: var(--ds-accent-hover);
+  --lab-on-accent: var(--ds-on-accent);
+  --lab-danger: var(--ds-danger);
+  --lab-danger-text: var(--ds-danger-text);
 
   font-family: var(--lab-font);
   color: var(--lab-text);

@@ -4,13 +4,13 @@
    sectioned right sidebar. Orange primary accent. */
 
 .source-sound-editor {
-  --source-se-bg: #0a0a0c;
-  --source-se-panel: #131316;
-  --source-se-panel-2: #1a1a1f;
-  --source-se-border: rgba(255, 255, 255, 0.08);
-  --source-se-text: #f4f4f5;
-  --source-se-text-dim: rgba(244, 244, 245, 0.5);
-  --source-se-accent: #fb923c;
+  --source-se-bg: var(--ds-bg);
+  --source-se-panel: var(--ds-panel);
+  --source-se-panel-2: var(--ds-panel-2);
+  --source-se-border: var(--ds-border);
+  --source-se-text: var(--ds-text);
+  --source-se-text-dim: var(--ds-text-dim);
+  --source-se-accent: var(--ds-accent);
 
   position: relative;
   inset: auto;
