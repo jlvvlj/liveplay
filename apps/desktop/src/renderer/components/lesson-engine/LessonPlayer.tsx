@@ -110,11 +110,9 @@ interface JamSettings {
   swings: Record<string, number>;
 }
 
-// An edited backing track: its notes, one list per part, and the grid
-// resolution picked per row (cells per bar; null keeps the coarsest that fits)
+// An edited backing track: its notes, one list per part
 export interface JamTrackEdit {
   parts: JamTrackNote[][];
-  divisions: (number | null)[];
 }
 
 // Edits that no longer match their track's parts are left out
@@ -124,7 +122,7 @@ function validTrackEdits(saved: unknown): Record<string, JamTrackEdit> {
     Object.entries(saved as Record<string, JamTrackEdit>).filter(([file, edit]) => {
       const track = JAM_TRACKS.find((candidate) => candidate.file === file);
       const partCount = track ? jamTrackParts(track).length : -1;
-      return Array.isArray(edit?.parts) && edit.parts.length === partCount && Array.isArray(edit.divisions);
+      return Array.isArray(edit?.parts) && edit.parts.length === partCount;
     })
   );
 }
@@ -2657,16 +2655,13 @@ export function LessonPlayer({
             toolbar={jamToolbar}
             track={jamTrack}
             notes={jamTrackNotes}
-            divisions={jamTrackEdit?.divisions ?? jamTrackNotes.map(() => null)}
             edited={!!jamTrackEdit || !!jamSettings.mixes[jamTrack.file]}
             mix={jamTrackMix!}
-            lanesOpen={jamSettings.lanesOpen}
-            onLanesOpenChange={(lanesOpen) => setJamSettings({ ...jamSettings, lanesOpen })}
             onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamTrack.file]: mix } })}
             paused={jamIsPaused}
             onTogglePause={toggleJamPause}
-            onChange={(parts, divisions) => {
-              const edit = { parts, divisions };
+            onChange={(parts) => {
+              const edit = { parts };
               if (jamRoom && jamRoomState) {
                 setJamRoomState({ ...jamRoomState, tracks: { ...jamRoomState.tracks, [jamTrack.file]: edit } });
                 jamRoom.setTrack(jamTrack.file, edit);

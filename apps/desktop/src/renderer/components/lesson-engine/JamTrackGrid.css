@@ -1,74 +1,291 @@
-/* Jam tab: the backing track as a step grid */
+/* Jam tab: the backing track as tracks and clips, with the open clip's editor below */
 .jam-grid {
-  --jam-grid-name: 13rem; /* the lane column: name, solo, mute, level */
-  --jam-grid-gap: 0.75rem;
-  --jam-grid-cell-gap: 4px;
+  --jam-head: 13rem; /* the track and row headers: name, solo, mute, level */
+  --jam-cell-gap: 2px;
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 16px 1.5rem 1.25rem; /* the head's buttons level with the sidebar's */
-  overflow-y: auto;
+  gap: 0.75rem;
+  padding: 16px 1.5rem 1rem; /* the head's buttons level with the sidebar's */
   color: var(--ds-text);
+  font-family: var(--ds-font);
 }
 
 .jam-grid-head {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 0.75rem;
+  flex: none;
 }
 
 .jam-grid-play {
   width: 2.25rem;
   height: 2.25rem;
   flex: none;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--ds-radius-pill);
+  border: 1px solid var(--ds-border-strong);
   background: var(--ds-panel-2);
   color: var(--ds-text);
   font-size: 0.85rem;
   cursor: pointer;
 }
 
-.jam-grid-play.playing {
-  background: #1e1e20;
-}
-
 .jam-grid-play:hover {
-  border-color: rgba(255, 255, 255, 0.6);
+  background: var(--ds-raised);
 }
 
-.jam-grid-title {
-  font-size: 1.4rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.jam-grid-sections {
-  display: flex;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.jam-grid-sections button,
 .jam-grid-reset {
-  padding: 0.3rem 0.65rem;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.75);
+  margin-left: auto;
+  padding: 0.35rem 0.9rem;
+  border-radius: var(--ds-radius-pill);
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-panel-2);
+  color: var(--ds-text);
+  font: inherit;
   font-size: 0.8rem;
   cursor: pointer;
 }
 
-.jam-grid-sections button:hover,
 .jam-grid-reset:hover {
   background: var(--ds-raised);
 }
 
+/* Small uppercase labels: the rulers, the clips' names, the editor's rows */
+.jam-timeline-bars,
+.jam-editor-ruler,
+.jam-timeline-clip-name,
+.jam-editor-velocity-name,
+.jam-editor-key {
+  font-family: var(--ds-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-text-dim);
+}
+
+/* The timeline: a row per track, its header and its clip over the whole loop */
+.jam-timeline {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 7rem;
+  overflow-y: auto;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-panel);
+}
+
+.jam-timeline-row {
+  display: grid;
+  grid-template-columns: var(--jam-head) 1fr;
+  height: 3.4rem;
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.jam-timeline-row.jam-timeline-ruler {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 1.6rem;
+  background: var(--ds-panel);
+}
+
+.jam-timeline-head {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  padding: 0.45rem 0.5rem 0.45rem 0.75rem;
+  border-right: 1px solid var(--ds-border);
+  box-shadow: inset 3px 0 0 var(--track-color, transparent);
+}
+
+/* A track's name above its solo, mute and level */
+.jam-timeline-head .jam-lane-strip {
+  flex-wrap: wrap;
+  align-content: space-between;
+  row-gap: 3px;
+}
+
+.jam-timeline-head .jam-lane-name {
+  flex: 1 0 100%;
+  height: 1rem;
+  padding: 0;
+  background: none;
+  color: var(--ds-text);
+}
+
+.jam-timeline-head .jam-lane-toggle {
+  height: 1.15rem;
+}
+
+.jam-timeline-head .jam-lane-level {
+  flex: 1 1 auto;
+  margin-left: 0.25rem;
+}
+
+.jam-timeline-bars {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  align-items: center;
+}
+
+.jam-timeline-bars > span:not(.jam-timeline-page) {
+  position: relative;
+  padding-left: 0.35rem;
+  border-left: 1px solid var(--ds-border-strong);
+  line-height: 1.6rem;
+}
+
+/* The bars the editor shows */
+.jam-timeline-page {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 6px;
+  background: var(--ds-raised);
+}
+
+.jam-timeline-lane {
+  min-width: 0;
+  padding: 0.3rem 0;
+  background-image: repeating-linear-gradient(to right, var(--ds-border) 0 1px, transparent 1px calc(100% / 8));
+}
+
+.jam-timeline-clip {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--track-color);
+  color: var(--ds-on-light);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.jam-timeline-clip:hover {
+  filter: brightness(1.08);
+}
+
+.jam-timeline-clip.open {
+  box-shadow: 0 0 0 2px var(--ds-panel), 0 0 0 4px var(--ds-accent);
+}
+
+.jam-timeline-clip.silent {
+  filter: saturate(0.25) brightness(0.55);
+}
+
+.jam-timeline-clip-name {
+  position: absolute;
+  top: 3px;
+  left: 7px;
+  z-index: 1;
+  color: var(--ds-on-light);
+  font-weight: 600;
+}
+
+.jam-timeline-clip svg {
+  position: absolute;
+  inset: 16px 4px 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 20px);
+  fill: var(--ds-on-light);
+  opacity: 0.55;
+}
+
+/* The playhead spans every track, over the clips only */
+.jam-timeline-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--jam-head);
+  right: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.jam-timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ds-accent);
+}
+
+/* The open clip's editor */
+.jam-editor {
+  flex: 0 1 auto;
+  max-height: 62%;
+  min-width: 0;
+  min-height: 9rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-panel);
+  overflow: hidden;
+}
+
+.jam-editor-top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: none;
+  padding: 0.45rem 0.6rem 0.45rem 0.85rem;
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.jam-editor-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--track-color);
+}
+
+.jam-editor-name {
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--track-color);
+}
+
+.jam-grid-sections {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-panel-2);
+}
+
+.jam-grid-sections button {
+  padding: 0.25rem 0.7rem;
+  border: none;
+  border-radius: var(--ds-radius-pill);
+  background: transparent;
+  color: var(--ds-text-dim);
+  font: inherit;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.jam-grid-sections button:hover {
+  color: var(--ds-text);
+}
+
 .jam-grid-sections button.playing {
-  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.5);
+  color: var(--ds-text);
 }
 
 .jam-grid-sections button.active {
@@ -76,202 +293,289 @@
   color: var(--ds-on-light);
 }
 
-.jam-grid-reset {
-  margin-left: auto;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+.jam-editor-icon-btn {
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--ds-radius-pill);
+  background: transparent;
+  color: var(--ds-text-dim);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
 }
 
-/* Rows are as tall as a 1/8 cell is wide (32 per section), so 1/8 cells stay
-   square at any width and the others keep their shape: 1/4 twice as wide,
-   1/16 half as wide, 1/32 a quarter. With the same gap everywhere, every
-   resolution's cells line up with the 1/8 columns. */
-.jam-grid-body {
-  --jam-grid-eighth: calc(
-    (100cqw - var(--jam-grid-name) - var(--jam-grid-gap) - 31 * var(--jam-grid-cell-gap)) / 32
-  );
-  container-type: inline-size;
-  position: relative;
+.jam-editor-icon-btn:hover {
+  background: var(--ds-raised);
+  color: var(--ds-text);
+}
+
+/* Rows and cells scroll together; the headers stay on the left, the ruler on top */
+.jam-editor-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.jam-editor-content {
+  display: flex;
+  width: 100%;
+  min-width: calc(var(--jam-head) + 64 * 10px + 63 * var(--jam-cell-gap) + 0.75rem); /* MIN_CELL_PX */
+  padding: 0 0.75rem 0.75rem 0;
+}
+
+.jam-editor-heads {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  flex: 0 0 var(--jam-head);
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: var(--jam-cell-gap);
+  padding: 0 0.6rem 0 0.75rem;
+  background: var(--ds-panel);
 }
 
-.jam-grid-row {
+.jam-editor-corner {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: none;
+  height: 1.6rem;
+  background: var(--ds-panel);
+}
+
+.jam-editor-head {
+  flex: none;
+  height: var(--cell);
   display: flex;
-  align-items: stretch;
-  gap: var(--jam-grid-gap);
-  height: var(--jam-grid-eighth);
 }
 
-.jam-grid-row.tall {
-  height: calc(var(--jam-grid-eighth) * 1.5);
+.jam-grid .jam-lane-level {
+  flex-basis: 3rem;
 }
 
-.jam-grid-beats {
-  height: 1.5rem;
+.jam-editor-head .jam-lane-name {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.jam-grid-lane {
-  flex: 0 0 var(--jam-grid-name);
-  display: flex;
+.jam-editor-area {
+  position: relative;
+  flex: 1 1 0;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jam-cell-gap);
 }
 
-/* Folded away: the cells take the controls' place */
-.jam-grid.lanes-closed {
-  --jam-grid-name: 0px;
-}
-
-/* A muted lane, or one left out by a solo, is drawn faded */
-.jam-grid-row.silent .jam-grid-cells,
-.jam-grid-row.silent .jam-grid-roll {
-  opacity: 0.35;
-}
-
-.jam-grid-cells {
-  flex: 1;
+.jam-editor-ruler {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex: none;
   display: grid;
-  gap: var(--jam-grid-cell-gap);
-  min-width: 0;
+  grid-template-columns: repeat(16, calc(4 * var(--cell) + 3 * var(--jam-cell-gap)));
+  column-gap: var(--jam-cell-gap);
+  height: 1.6rem;
+  align-items: center;
+  background: var(--ds-panel);
 }
 
-.jam-grid-beat,
-.jam-grid-and {
-  align-self: center;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.85);
+.jam-editor-ruler span {
+  padding-left: 3px;
+  border-left: 1px solid var(--ds-border-strong);
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.jam-grid-and {
-  color: rgba(255, 255, 255, 0.45);
+.jam-editor-ruler span.bar {
+  color: var(--ds-text);
+  border-left-color: var(--ds-text-dim);
 }
 
-.jam-grid-cell {
+/* The step grid: square 16ths, every other beat shaded */
+.jam-editor-cells {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(64, var(--cell));
+  column-gap: var(--jam-cell-gap);
+  height: var(--cell);
+}
+
+.jam-editor-cell {
   min-width: 0;
   padding: 0;
-  border-radius: 8px;
-  background: var(--ds-panel);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: var(--ds-panel-2);
   cursor: pointer;
 }
 
-.jam-grid-cell:hover {
-  border-color: rgba(255, 255, 255, 0.35);
-}
-
-.jam-grid-cells.narrow .jam-grid-cell {
-  border-radius: 999px;
-}
-
-.jam-grid-cell.on-beat {
-  background: #202022;
-}
-
-.jam-grid-roll {
-  flex: 1;
-  position: relative;
-  min-width: 0;
-  border-radius: 10px;
-  background: var(--ds-panel);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  overflow: hidden;
-  cursor: pointer;
-}
-
-.jam-grid-roll-line {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--ds-panel);
-}
-
-.jam-grid-roll-line.on-beat {
+.jam-editor-cell.off-beat {
   background: var(--ds-raised);
 }
 
-.jam-grid-note {
-  position: absolute;
-  min-height: 3px;
-  border-radius: 3px;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+.jam-editor-cell:hover {
+  border-color: var(--ds-text-dim);
 }
 
-/* The playhead spans every row, over the cells only */
-.jam-grid-overlay {
+/* A muted row, or one left out by a solo, is drawn dimmed */
+.jam-editor-cells.silent,
+.jam-editor-roll.silent {
+  filter: saturate(0.25) brightness(0.55);
+}
+
+/* The piano roll: a key per row, the black keys' rows darker, each C's lighter */
+.jam-editor-keys {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jam-cell-gap);
+}
+
+.jam-editor-key {
+  flex: none;
+  height: var(--cell);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 0.4rem;
+  border: none;
+  border-radius: 3px;
+  background: var(--ds-text);
+  color: var(--ds-on-light);
+  font-size: 0.58rem;
+  cursor: pointer;
+}
+
+.jam-editor-key.black {
+  width: 62%;
+  background: var(--ds-raised-strong);
+  color: var(--ds-text);
+}
+
+.jam-editor-key:hover {
+  background: var(--ds-accent-hover);
+  color: var(--ds-on-accent);
+}
+
+.jam-editor-roll {
+  position: relative;
+  flex: none;
+  border-radius: 4px;
+  background-color: var(--ds-panel-2);
+  /* 16ths, beats and bars */
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent 0 calc(16 * (var(--cell) + var(--jam-cell-gap)) - var(--jam-cell-gap)),
+      var(--ds-text-dim) calc(16 * (var(--cell) + var(--jam-cell-gap)) - var(--jam-cell-gap))
+        calc(16 * (var(--cell) + var(--jam-cell-gap)))
+    ),
+    repeating-linear-gradient(
+      to right,
+      transparent 0 calc(4 * (var(--cell) + var(--jam-cell-gap)) - var(--jam-cell-gap)),
+      var(--ds-raised-strong) calc(4 * (var(--cell) + var(--jam-cell-gap)) - var(--jam-cell-gap))
+        calc(4 * (var(--cell) + var(--jam-cell-gap)))
+    ),
+    repeating-linear-gradient(
+      to right,
+      transparent 0 var(--cell),
+      var(--ds-panel) var(--cell) calc(var(--cell) + var(--jam-cell-gap))
+    );
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.jam-editor-roll-row {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(var(--jam-grid-name) + var(--jam-grid-gap));
+  left: 0;
   right: 0;
+  pointer-events: none;
+  background: var(--ds-panel);
+  opacity: 0.6;
+}
+
+.jam-editor-roll-row.c {
+  background: var(--ds-raised);
+}
+
+.jam-editor-note {
+  position: absolute;
+  border-radius: 3px;
   pointer-events: none;
 }
 
-.jam-grid-playhead {
+.jam-editor-note.selected {
+  box-shadow: 0 0 0 2px var(--ds-text);
+  z-index: 1;
+}
+
+/* Under the roll: each note's velocity as a bar */
+.jam-editor-velocity-name {
+  flex: none;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.jam-editor-velocities {
+  position: relative;
+  flex: none;
+  height: 3rem;
+  border-radius: 4px;
+  background: var(--ds-panel-2);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.jam-editor-velocity {
+  position: absolute;
+  bottom: 0;
+  border-radius: 2px 2px 0 0;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.jam-editor-velocity.selected {
+  opacity: 1;
+  box-shadow: 0 0 0 1px var(--ds-text);
+}
+
+.jam-editor-playhead {
   position: absolute;
   top: 0;
   bottom: 0;
-  border-radius: 6px;
-  background: #2c2c2e;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+  left: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ds-accent);
+  pointer-events: none;
+  z-index: 2;
 }
 
 @media (max-width: 700px), (max-height: 500px) {
   .jam-grid {
-    --jam-grid-name: 6.5rem;
-    --jam-grid-gap: 0.4rem;
-    --jam-grid-cell-gap: 2px;
+    --jam-head: 8rem;
     padding: 0.75rem;
-    gap: 0.6rem;
+    gap: 0.5rem;
   }
 
-  .jam-grid-title {
-    font-size: 1.05rem;
+  .jam-timeline-row {
+    height: 2.75rem;
   }
-
-  .jam-grid-cell {
-    border-radius: 4px;
-  }
-
 }
 
-/* Upright phones: only the lane names fit beside the cells */
+/* Upright phones: only the names fit beside the clips */
 @media (max-width: 480px) {
   .jam-grid {
-    --jam-grid-name: 3rem;
-  }
-
-  .jam-grid-beat,
-  .jam-grid-and {
-    font-size: 0.7rem;
-  }
-}
-
-/* Rows too short for two lines keep only the row's name; beats too narrow
-   for "+" keep only their numbers */
-@container (max-width: 700px) {
-  .jam-grid .jam-lane-tag,
-  .jam-grid-and {
-    visibility: hidden;
-  }
-}
-
-/* Upright phones: names spill out of their tiny chips, and only each bar's
-   first beat is numbered */
-@container (max-width: 520px) {
-  .jam-grid .jam-lane-name {
-    overflow: visible;
-    background: none;
-    font-size: 0.55rem;
-  }
-
-  .jam-grid-beat {
-    font-size: 0.6rem;
-  }
-
-  .jam-grid-beat:not(.bar-start) {
-    visibility: hidden;
+    --jam-head: 5.5rem;
   }
 }
