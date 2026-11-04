@@ -128,7 +128,7 @@ body {
 .btn-back {
   margin-bottom: 1rem;
   padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 1px solid var(--ds-border-strong);
   border-radius: 999px;
   color: var(--ds-text);
@@ -138,7 +138,7 @@ body {
 }
 
 .btn-back:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--ds-raised-strong);
   border-color: rgba(255, 255, 255, 0.4);
 }
 

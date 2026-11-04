@@ -12,6 +12,9 @@
   --ds-bg: #0a0a0c;
   --ds-panel: #131316;
   --ds-panel-2: #1a1a1f;
+  --ds-raised: #222224;
+  --ds-raised-hover: #2f2f31;
+  --ds-raised-strong: #3b3b3d;
   --ds-border: rgba(255, 255, 255, 0.08);
   --ds-border-strong: rgba(255, 255, 255, 0.12);
   --ds-text: #f4f4f5;

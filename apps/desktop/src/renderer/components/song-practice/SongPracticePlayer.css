@@ -23,7 +23,7 @@
 
 .song-practice-back {
   padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: none;
   border-radius: 8px;
   color: var(--ds-text);
@@ -32,7 +32,7 @@
 }
 
 .song-practice-back:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--ds-raised-strong);
 }
 
 .song-practice-loading,
@@ -61,7 +61,7 @@
 
 .focus-button {
   padding: 0.6rem 1.2rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 2px solid transparent;
   border-radius: 999px;
   color: var(--ds-text);
@@ -71,7 +71,7 @@
 }
 
 .focus-button:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--ds-raised-strong);
 }
 
 .focus-button.active {
@@ -90,7 +90,7 @@
 }
 
 .stem-strip {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--ds-panel-2);
   border: 2px solid transparent;
   border-radius: 12px;
   padding: 1rem;
@@ -128,7 +128,7 @@
   height: 2.2rem;
   border: none;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: #272729;
   color: var(--ds-text);
   font-weight: 700;
   cursor: pointer;
@@ -136,7 +136,7 @@
 }
 
 .stem-button:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: #474749;
 }
 
 .stem-button.active-mute {
@@ -154,7 +154,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--ds-panel-2);
   border-radius: 12px;
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
@@ -165,14 +165,14 @@
   height: 2.8rem;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
+  background: #272729;
   color: var(--ds-text);
   font-size: 1.1rem;
   cursor: pointer;
 }
 
 .transport-button:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: #474749;
 }
 
 .transport-play {
@@ -191,7 +191,7 @@
   flex: 1;
   height: 10px;
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.12);
+  background: #272729;
   cursor: pointer;
   overflow: hidden;
 }

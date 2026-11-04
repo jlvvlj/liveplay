@@ -35,7 +35,7 @@
   padding: 1rem;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ds-panel);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -44,7 +44,7 @@
 }
 
 button.jam-lobby-card:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.09);
+  background: #202022;
   border-color: rgba(255, 255, 255, 0.25);
   transform: translateY(-2px);
 }
@@ -90,7 +90,7 @@ button.jam-lobby-card:hover:not(:disabled) {
   padding: 0.6rem 1.1rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.08);
+  background: #1e1e20;
   color: var(--ds-text);
   font: inherit;
   font-weight: 600;
@@ -98,7 +98,7 @@ button.jam-lobby-card:hover:not(:disabled) {
 }
 
 .jam-lobby-choice:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: #313133;
 }
 
 .jam-lobby-cancel {
@@ -203,7 +203,7 @@ button.jam-lobby-card:hover:not(:disabled) {
   gap: 0.35rem;
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--ds-panel-2);
   font-size: 0.78rem;
   max-width: 100%;
   overflow: hidden;
@@ -231,7 +231,7 @@ button.jam-lobby-card:hover:not(:disabled) {
   padding: 0.5rem 0.7rem;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--ds-bg);
   color: var(--ds-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.95rem;
@@ -246,7 +246,7 @@ button.jam-lobby-card:hover:not(:disabled) {
   padding: 0.5rem 0.9rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.12);
+  background: #272729;
   color: var(--ds-text);
   font: inherit;
   font-weight: 600;

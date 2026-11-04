@@ -44,7 +44,7 @@
 .device-list button {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
   border: 1px solid var(--ds-border-strong);
   border-radius: 999px;
   color: var(--ds-text);
@@ -54,7 +54,7 @@
 }
 
 .device-list button:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: #474749;
   border-color: rgba(255, 255, 255, 0.5);
 }
 
@@ -93,7 +93,7 @@
 .event-list {
   max-height: 400px;
   overflow-y: auto;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--ds-bg);
   border-radius: 8px;
   padding: 1rem;
 }
@@ -148,7 +148,7 @@
 .instrument-btn {
   flex: 1;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 1px solid var(--ds-border-strong);
   border-radius: 999px;
   color: var(--ds-text);
@@ -159,7 +159,7 @@
 }
 
 .instrument-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
   border-color: rgba(255, 255, 255, 0.5);
   transform: translateY(-2px);
 }
@@ -192,7 +192,7 @@
 .btn-back-mapper {
   margin-bottom: 1rem;
   padding: 0.75rem 1.5rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 999px;
   color: var(--ds-text);
@@ -202,6 +202,6 @@
 }
 
 .btn-back-mapper:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
   transform: translateX(-3px);
 }

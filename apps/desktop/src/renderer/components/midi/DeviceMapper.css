@@ -87,7 +87,7 @@
   grid-template-columns: 2fr 2fr 1.5fr 1fr;
   gap: 1rem;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ds-panel);
   border-radius: 6px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -101,7 +101,7 @@
   grid-template-columns: 2fr 2fr 1.5fr 1fr;
   gap: 1rem;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--ds-panel);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   align-items: center;
@@ -130,7 +130,7 @@
 }
 
 .mapping-row:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--ds-panel-2);
 }
 
 .lesson-note, .hardware-note {
