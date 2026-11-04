@@ -78,8 +78,8 @@ body {
 }
 
 .app-nav button.active {
-  background: rgba(251, 146, 60, 0.2);
-  color: var(--ds-accent);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .app-main {
@@ -111,7 +111,7 @@ body {
 .btn-continue {
   padding: 1rem 2rem;
   background: var(--ds-text);
-  color: #111113;
+  color: var(--ds-on-light);
   border: none;
   border-radius: 999px;
   font-size: 1.1rem;

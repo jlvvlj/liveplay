@@ -81,7 +81,7 @@
   padding: 3rem;
   max-width: 600px;
   width: 90%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 100px rgba(52, 211, 153, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
   text-align: center;
   animation: slideUp 0.5s ease-out;
@@ -124,16 +124,16 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.4);
-  box-shadow: 0 0 40px rgba(52, 211, 153, 0.4);
+  box-shadow: none;
   animation: pulseGlow 2s ease-in-out infinite;
 }
 
 @keyframes pulseGlow {
   0%, 100% {
-    box-shadow: 0 0 40px rgba(52, 211, 153, 0.4);
+    box-shadow: none;
   }
   50% {
-    box-shadow: 0 0 60px rgba(52, 211, 153, 0.6);
+    box-shadow: none;
   }
 }
 
@@ -223,8 +223,8 @@
 
 .toolbar-btn {
   padding: 0.4rem 0.6rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--ds-panel);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 999px;
   color: var(--ds-text);
   font-size: 0.85rem;
@@ -239,9 +239,9 @@
 }
 
 .toolbar-btn.active {
-  background: rgba(251, 146, 60, 0.2);
-  border-color: var(--ds-accent);
-  color: var(--ds-accent);
+  background: var(--ds-text);
+  border-color: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .toolbar-btn.exit-btn {
@@ -292,8 +292,8 @@
 }
 
 .toolbar-mode-tab.active {
-  background: rgba(251, 146, 60, 0.25);
-  color: var(--ds-accent);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .toolbar-mode-tab:not(:last-child) {
@@ -304,7 +304,7 @@
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.7);
   padding: 0.2rem 0.5rem;
-  background: rgba(129, 140, 248, 0.15);
+  background: var(--ds-panel-2);
   border-radius: 4px;
 }
 
@@ -313,16 +313,17 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.3rem 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--ds-panel);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 12px;
   font-size: 0.75rem;
   transition: all 0.15s ease;
 }
 
 .toolbar-midi.active {
-  background: rgba(52, 211, 153, 0.15);
+  background: var(--ds-text);
   border-color: var(--ds-success);
+  color: var(--ds-on-light);
 }
 
 .toolbar-midi .midi-dot {
@@ -362,10 +363,10 @@
 
 .toolbar-label-tabs {
   display: flex;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--ds-panel);
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--ds-border-strong);
 }
 
 .toolbar-label-tab {
@@ -385,8 +386,8 @@
 }
 
 .toolbar-label-tab.active {
-  background: rgba(251, 146, 60, 0.25);
-  color: var(--ds-accent);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .toolbar-label-tab:first-child {
@@ -441,8 +442,8 @@
 }
 
 .label-tab.active {
-  background: rgba(251, 146, 60, 0.3);
-  color: var(--ds-accent);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .label-tab:first-child {
@@ -471,7 +472,7 @@
 }
 
 .collapse-toggle.collapsed {
-  background: rgba(251, 146, 60, 0.2);
+  background: var(--ds-panel-2);
   border-color: var(--ds-accent);
 }
 
@@ -498,8 +499,9 @@
 }
 
 .settings-toggle.active {
-  background: rgba(251, 146, 60, 0.2);
-  border-color: var(--ds-accent);
+  background: var(--ds-text);
+  border-color: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 /* Key settings panel */
@@ -588,7 +590,7 @@
 .key-input:focus {
   outline: none;
   border-color: var(--ds-accent);
-  background: rgba(251, 146, 60, 0.1);
+  background: var(--ds-panel-2);
 }
 
 .reset-keys {
@@ -722,12 +724,12 @@
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  color: #111113;
+  color: var(--ds-on-light);
 }
 
 .highway-play-btn:hover {
   transform: scale(1.1);
-  box-shadow: 0 6px 30px rgba(251, 146, 60, 0.5), 0 0 40px rgba(251, 146, 60, 0.3);
+  box-shadow: none;
 }
 
 .highway-play-btn:active {
@@ -891,7 +893,7 @@
 
 .btn-primary {
   background: var(--ds-text);
-  color: #111113;
+  color: var(--ds-on-light);
 }
 
 .btn-primary:hover {
@@ -1125,9 +1127,10 @@
 }
 
 .midi-indicator.active {
-  background: rgba(52, 211, 153, 0.2);
+  background: var(--ds-text);
   border-color: var(--ds-success);
-  box-shadow: 0 0 15px rgba(52, 211, 153, 0.3);
+  box-shadow: none;
+  color: var(--ds-on-light);
 }
 
 .midi-dot {
@@ -1258,9 +1261,9 @@
 }
 
 .mode-tab.active {
-  background: rgba(251, 146, 60, 0.15);
-  border-color: var(--ds-accent);
-  color: var(--ds-text);
+  background: var(--ds-text);
+  border-color: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .mode-tab .mode-icon {
@@ -1283,8 +1286,8 @@
   align-items: center;
   gap: 1rem;
   padding: 0.5rem 1rem;
-  background: rgba(129, 140, 248, 0.15);
-  border: 1px solid rgba(129, 140, 248, 0.3);
+  background: var(--ds-panel-2);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 12px;
 }
 
@@ -1349,8 +1352,8 @@
   left: 0;
   bottom: 0;
   width: 280px;
-  background: var(--ds-panel);
-  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--ds-bg);
+  border-right: 1px solid var(--ds-border);
   z-index: 205;
   display: flex;
   flex-direction: column;
@@ -1437,7 +1440,7 @@
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--ds-accent);
-  background: rgba(251, 146, 60, 0.15);
+  background: var(--ds-panel-2);
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
 }
@@ -1473,13 +1476,13 @@
   background: var(--ds-accent);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(251, 146, 60, 0.4);
+  box-shadow: none;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .volume-slider::-webkit-slider-thumb:hover {
   transform: scale(1.15);
-  box-shadow: 0 2px 12px rgba(251, 146, 60, 0.6);
+  box-shadow: none;
 }
 
 .volume-slider:disabled::-webkit-slider-thumb {
@@ -1495,7 +1498,7 @@
   border-radius: 50%;
   cursor: pointer;
   border: none;
-  box-shadow: 0 2px 8px rgba(251, 146, 60, 0.4);
+  box-shadow: none;
 }
 
 .slider-labels {
@@ -1555,8 +1558,8 @@
 
 /* Back button - subtle red on hover */
 .game-control-btn.back-btn:hover {
-  background: rgba(248, 113, 113, 0.15);
-  border-color: rgba(248, 113, 113, 0.4);
+  background: var(--ds-panel-2);
+  border-color: var(--ds-danger);
 }
 
 .game-control-btn.back-btn:hover .control-icon {
@@ -1565,8 +1568,8 @@
 
 /* Play/Pause button - green on hover */
 .game-control-btn.play-pause-btn:hover {
-  background: rgba(251, 146, 60, 0.15);
-  border-color: rgba(251, 146, 60, 0.4);
+  background: var(--ds-panel-2);
+  border-color: var(--ds-border-strong);
 }
 
 .game-control-btn.play-pause-btn:hover .control-icon {
@@ -1575,8 +1578,8 @@
 
 /* Restart button - yellow/amber on hover */
 .game-control-btn.restart-btn:hover {
-  background: rgba(251, 191, 36, 0.15);
-  border-color: rgba(251, 191, 36, 0.4);
+  background: var(--ds-panel-2);
+  border-color: var(--ds-border-strong);
 }
 
 .game-control-btn.restart-btn:hover .control-icon {
@@ -1623,8 +1626,8 @@
   gap: 0.6rem;
   width: 100%;
   padding: 0.45rem 0.6rem;
-  background: rgba(251, 146, 60, 0.12);
-  border: 1px solid rgba(251, 146, 60, 0.45);
+  background: var(--ds-panel-2);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 999px;
   color: var(--ds-text);
   font-size: 0.85rem;
@@ -1634,7 +1637,7 @@
 }
 
 .sound-toggle:hover:not(:disabled) {
-  background: rgba(251, 146, 60, 0.22);
+  background: var(--ds-panel-2);
 }
 
 .sound-toggle.off {
@@ -1709,8 +1712,8 @@
   justify-content: center;
   padding: 0;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-panel);
   color: var(--ds-text);
   font-size: 1.1rem;
   line-height: 1;
@@ -1733,8 +1736,9 @@
 
 /* A toggle that is on (e.g. the lane controls shown) */
 .jam-corner-btn.on {
-  border-color: rgba(251, 146, 60, 0.6);
-  color: var(--ds-accent);
+  border-color: var(--ds-text);
+  color: var(--ds-on-light);
+  background: var(--ds-text);
 }
 
 .jam-settings-header {
@@ -1793,8 +1797,8 @@
 .jam-sound-option {
   padding: 0.55rem 0.75rem;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-panel);
   color: rgba(255, 255, 255, 0.85);
   font-size: 0.9rem;
   text-align: left;
@@ -1803,13 +1807,13 @@
 }
 
 .jam-sound-option:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-panel-2);
 }
 
 .jam-sound-option.active {
-  border-color: var(--ds-accent);
-  background: rgba(251, 146, 60, 0.18);
-  color: var(--ds-text);
+  border-color: var(--ds-text);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .jam-hold-options {
@@ -1896,9 +1900,10 @@
 .jam-feel-switch {
   margin-left: auto;
   display: flex;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 999px;
   overflow: hidden;
+  background: var(--ds-panel);
 }
 
 .jam-feel-switch button {
@@ -1915,8 +1920,8 @@
 }
 
 .jam-feel-switch button.active {
-  background: rgba(251, 146, 60, 0.18);
-  color: var(--ds-text);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 

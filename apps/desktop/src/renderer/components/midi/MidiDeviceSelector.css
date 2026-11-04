@@ -15,8 +15,8 @@
 }
 
 .error-message {
-  background: rgba(248, 113, 113, 0.2);
-  border: 1px solid rgba(248, 113, 113, 0.5);
+  background: var(--ds-panel);
+  border: 1px solid var(--ds-danger);
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
@@ -59,20 +59,21 @@
 }
 
 .device-list li.selected button {
-  background: rgba(251, 146, 60, 0.4);
-  border-color: rgba(251, 146, 60, 0.8);
+  background: var(--ds-text);
+  border-color: var(--ds-text);
   font-weight: bold;
+  color: var(--ds-on-light);
 }
 
 .refresh-button {
-  background: rgba(251, 146, 60, 0.18) !important;
+  background: var(--ds-panel-2) !important;
   border-color: transparent;
   color: var(--ds-accent);
   font-weight: 700;
 }
 
 .refresh-button:hover {
-  background: rgba(251, 146, 60, 0.28) !important;
+  background: var(--ds-panel-2) !important;
 }
 
 .no-devices,
@@ -115,11 +116,11 @@
 }
 
 .event-list tbody tr.note-on {
-  background: rgba(52, 211, 153, 0.1);
+  background: var(--ds-panel-2);
 }
 
 .event-list tbody tr.note-off {
-  background: rgba(248, 113, 113, 0.1);
+  background: var(--ds-panel);
 }
 
 /* Mapping Section */
@@ -164,10 +165,10 @@
 }
 
 .instrument-btn.active {
-  background: rgba(251, 146, 60, 0.2);
+  background: var(--ds-text);
   border-color: transparent;
-  color: var(--ds-accent);
-  box-shadow: 0 5px 15px rgba(251, 146, 60, 0.4);
+  color: var(--ds-on-light);
+  box-shadow: none;
 }
 
 .btn-configure {
@@ -176,7 +177,7 @@
   background: var(--ds-text);
   border: none;
   border-radius: 999px;
-  color: #111113;
+  color: var(--ds-on-light);
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;

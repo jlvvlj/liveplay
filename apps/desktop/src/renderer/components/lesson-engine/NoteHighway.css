@@ -103,7 +103,7 @@
   bottom: 50px; /* Above progress bar */
   width: 4px;
   background: var(--ds-accent);
-  box-shadow: 0 0 20px rgba(251, 146, 60, 0.5), 0 0 40px rgba(251, 146, 60, 0.3);
+  box-shadow: none;
   z-index: 15;
   border-radius: 2px;
   transform: translateX(-50%); /* Center the line on the position */
@@ -111,7 +111,7 @@
 
 .timing-line.active {
   background: linear-gradient(180deg, #fff 0%, var(--ds-accent) 50%, #fff 100%);
-  box-shadow: 0 0 30px rgba(255, 255, 255, 0.8), 0 0 60px rgba(251, 146, 60, 0.6);
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
   animation: timingLinePulse 0.15s ease-out;
 }
 
@@ -165,16 +165,16 @@
   filter: none;
   opacity: 1;
   border-color: #22d3ee;
-  box-shadow: 0 0 25px rgba(34, 211, 238, 0.6), 0 4px 20px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   animation: currentNotePulse 1s ease-in-out infinite;
 }
 
 @keyframes currentNotePulse {
   0%, 100% {
-    box-shadow: 0 0 25px rgba(34, 211, 238, 0.6), 0 4px 20px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   }
   50% {
-    box-shadow: 0 0 40px rgba(34, 211, 238, 0.9), 0 4px 20px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -210,7 +210,7 @@
 .note.hit.on-time {
   background-color: var(--ds-success) !important;
   border-color: var(--ds-success);
-  box-shadow: 0 0 20px rgba(52, 211, 153, 0.6);
+  box-shadow: none;
   animation: hitPulseGreen 0.25s ease-out;
 }
 
@@ -219,14 +219,14 @@
 .note.hit.timing-late {
   background-color: #fb923c !important;
   border-color: #f97316;
-  box-shadow: 0 0 20px rgba(251, 146, 60, 0.6);
+  box-shadow: none;
 }
 
 /* Early - blue, ghost drawn to the left of the expected note. */
 .note.hit.timing-early {
   background-color: var(--ds-info) !important;
   border-color: var(--ds-info);
-  box-shadow: 0 0 20px rgba(129, 140, 248, 0.6);
+  box-shadow: none;
 }
 
 /* Ghost note - solid duplicate drawn where an early/late hit actually landed */
@@ -238,13 +238,13 @@
 .note.ghost-hit.timing-early {
   background-color: var(--ds-info) !important;
   border-color: var(--ds-info);
-  box-shadow: 0 0 24px rgba(129, 140, 248, 0.8);
+  box-shadow: none;
 }
 
 .note.ghost-hit.timing-late {
   background-color: #fb923c !important;
   border-color: #f97316;
-  box-shadow: 0 0 24px rgba(251, 146, 60, 0.8);
+  box-shadow: none;
 }
 
 @keyframes ghostHitPop {
@@ -263,7 +263,7 @@
 .note.miss {
   background-color: var(--ds-danger) !important;
   border-color: var(--ds-danger);
-  box-shadow: 0 0 15px rgba(248, 113, 113, 0.4);
+  box-shadow: none;
   opacity: 0.6;
 }
 
@@ -317,7 +317,7 @@
 
 .timing-popup.on-time .timing-popup-text {
   color: var(--ds-success);
-  text-shadow: 0 0 16px rgba(52, 211, 153, 0.8), 0 2px 8px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 .timing-popup.early .timing-popup-delta,
@@ -327,17 +327,17 @@
 
 .timing-popup.early .timing-popup-text {
   color: var(--ds-info);
-  text-shadow: 0 0 12px rgba(129, 140, 248, 0.6), 0 2px 8px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 .timing-popup.late .timing-popup-text {
   color: #fb923c;
-  text-shadow: 0 0 12px rgba(251, 146, 60, 0.6), 0 2px 8px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 .timing-popup.miss .timing-popup-text {
   color: var(--ds-danger);
-  text-shadow: 0 0 12px rgba(248, 113, 113, 0.5), 0 2px 8px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 @keyframes timingPopupFloat {
@@ -523,8 +523,7 @@
   inset: 0;
   background-repeat: repeat;
   background-image:
-    radial-gradient(circle, rgba(129, 140, 248, 0.35) 0 1px, transparent 1.5px),
-    radial-gradient(circle, rgba(255, 255, 255, 0.22) 0 1.5px, transparent 2px);
+    var(--ds-info);
   background-size: 173px 131px, 251px 197px;
   background-position-y: 17px, 83px;
 }
@@ -627,8 +626,9 @@
   --jam-lane-width: 13rem;
 }
 
+/* No fade beside the row controls in jam: the highway starts solid there */
 .note-highway.jam::before {
-  left: var(--jam-inset, 0px);
+  display: none;
 }
 
 .jam-lane-box {
