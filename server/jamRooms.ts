@@ -43,6 +43,10 @@ interface Room {
   id: string;
   key: string;
   visibility: JamRoomVisibility;
+  // The player who opened it (their id), by name, and when (in opening order)
+  opener: string;
+  host: string;
+  opened: number;
   state: JamRoomState;
   members: Map<string, Member>;
   // Closes the room while nobody is in it
@@ -54,6 +58,7 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
   const lobby = new Set<WebSocket>();
   let lobbyTimer: ReturnType<typeof setTimeout> | null = null;
   let nextId = 1;
+  let nextRoom = 1;
   const wss = new WebSocketServer({ noServer: true });
 
   const send = (socket: WebSocket, message: JamServerMessage) => {
@@ -63,16 +68,20 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
     for (const [id, member] of room.members) if (id !== except) send(member.socket, message);
   };
 
+  // Rooms with players first, then the empty ones; the newest first in each
   const summaries = (): JamRoomSummary[] =>
-    [...rooms.values()].map((room) => ({
-      id: room.id,
-      visibility: room.visibility,
-      key: room.visibility === 'open' ? room.key : null,
-      songId: room.state.songId,
-      playing: room.state.startAt !== null,
-      players: [...room.members.values()].map(({ peer }) => ({ name: peer.name, color: peer.color })),
-      full: room.members.size >= JAM_ROOM_MAX_PLAYERS,
-    }));
+    [...rooms.values()]
+      .sort((a, b) => Number(b.members.size > 0) - Number(a.members.size > 0) || b.opened - a.opened)
+      .map((room) => ({
+        id: room.id,
+        host: room.host,
+        visibility: room.visibility,
+        key: room.visibility === 'open' ? room.key : null,
+        songId: room.state.songId,
+        playing: room.state.startAt !== null,
+        players: [...room.members.values()].map(({ peer }) => ({ name: peer.name, color: peer.color })),
+        full: room.members.size >= JAM_ROOM_MAX_PLAYERS,
+      }));
   // The lobby hears of a change shortly after, once for a burst of changes
   const lobbyChanged = () => {
     if (lobbyTimer || lobby.size === 0) return;
@@ -150,6 +159,9 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
             id: visibility === 'open' ? message.room : randomBytes(6).toString('hex'),
             key: message.room,
             visibility,
+            opener: id,
+            host: '',
+            opened: nextRoom++,
             state: message.state,
             members: new Map(),
             closing: null,
@@ -174,6 +186,7 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
           need: message.need,
           row: null,
         };
+        if (room.opener === id) room.host = peer.name;
         send(socket, {
           t: 'welcome',
           id,
@@ -213,6 +226,7 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
           const name = playerName(message.name, PEER_COLORS.indexOf(member.peer.color));
           if (name !== member.peer.name) lobbyChanged();
           member.peer = { ...member.peer, name, sound: message.sound, need: message.need };
+          if (room.opener === id) room.host = name;
           broadcast(room, { t: 'peer', peer: member.peer }, id);
           break;
         }

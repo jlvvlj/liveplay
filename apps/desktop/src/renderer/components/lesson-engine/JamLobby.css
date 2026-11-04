@@ -149,12 +149,21 @@ button.jam-lobby-card:hover:not(:disabled) {
   font-variant-numeric: tabular-nums;
 }
 
+.jam-lobby-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .jam-lobby-song {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
-  font-size: 1.15rem;
-  font-weight: 600;
+  margin-top: -0.4rem;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.9rem;
 }
 
 .jam-lobby-bpm {

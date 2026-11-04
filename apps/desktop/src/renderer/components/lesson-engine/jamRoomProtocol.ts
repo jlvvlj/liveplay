@@ -11,6 +11,8 @@ export type JamRoomVisibility = 'open' | 'private';
 // A room as the lobby lists it
 export interface JamRoomSummary {
   id: string;
+  // The name of the player who opened the room
+  host: string;
   visibility: JamRoomVisibility;
   // The key to join with: an open room's; null for a private room
   key: string | null;
