@@ -18,12 +18,11 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: var(--ds-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(10px);
   animation: fadeIn 0.3s ease-out;
 }
 
@@ -66,12 +65,11 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
+  background: var(--ds-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(15px);
   animation: fadeIn 0.5s ease-out;
 }
 
@@ -123,7 +121,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--ds-bg);
   box-shadow: none;
   animation: pulseGlow 2s ease-in-out infinite;
 }
@@ -160,7 +158,7 @@
   display: flex;
   flex-direction: column;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ds-panel);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -196,8 +194,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 1rem;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(10px);
+  background: var(--ds-bg);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   gap: 1rem;
   flex-shrink: 0;
@@ -234,7 +231,7 @@
 }
 
 .toolbar-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--ds-raised-strong);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
@@ -260,7 +257,7 @@
 
 .toolbar-badge {
   padding: 0.2rem 0.5rem;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -269,7 +266,7 @@
 
 .toolbar-mode-tabs {
   display: flex;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--ds-bg);
   border-radius: 6px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -287,7 +284,7 @@
 }
 
 .toolbar-mode-tab:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   color: var(--ds-text);
 }
 
@@ -329,7 +326,7 @@
 .toolbar-midi .midi-dot {
   width: 6px;
   height: 6px;
-  background: rgba(255, 255, 255, 0.3);
+  background: #545456;
   border-radius: 50%;
   transition: all 0.15s ease;
 }
@@ -348,7 +345,7 @@
 
 .toolbar-keys kbd {
   padding: 0.15rem 0.35rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 3px;
   font-family: monospace;
@@ -381,7 +378,7 @@
 }
 
 .toolbar-label-tab:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   color: var(--ds-text);
 }
 
@@ -419,7 +416,7 @@
 /* Label mode tabs */
 .label-mode-tabs {
   display: flex;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--ds-bg);
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -437,7 +434,7 @@
 }
 
 .label-tab:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   color: var(--ds-text);
 }
 
@@ -454,7 +451,7 @@
 .collapse-toggle {
   width: 40px;
   height: 40px;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--ds-bg);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 999px;
   color: var(--ds-text);
@@ -467,7 +464,7 @@
 }
 
 .collapse-toggle:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
   border-color: rgba(255, 255, 255, 0.5);
 }
 
@@ -480,7 +477,7 @@
 .settings-toggle {
   padding: 0.5rem 0.75rem;
   height: 40px;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--ds-bg);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 999px;
   color: var(--ds-text);
@@ -494,7 +491,7 @@
 }
 
 .settings-toggle:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
   border-color: rgba(255, 255, 255, 0.5);
 }
 
@@ -515,7 +512,6 @@
   border-radius: 12px;
   padding: 1rem;
   min-width: 220px;
-  backdrop-filter: blur(10px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
@@ -577,7 +573,7 @@
 .key-input {
   width: 100%;
   padding: 0.4rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 6px;
   color: var(--ds-text);
@@ -632,7 +628,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.35rem 0.5rem;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--ds-bg);
   border-radius: 6px;
   border-left: 3px solid;
   font-size: 0.8rem;
@@ -767,7 +763,7 @@
 .bpm-badge,
 .difficulty-badge {
   padding: 0.25rem 0.75rem;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--ds-raised-strong);
   border-radius: 999px;
   font-size: 0.9rem;
 }
@@ -777,12 +773,12 @@
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: 2rem;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--ds-bg);
 }
 
 .exit-lesson-btn {
   padding: 0.75rem 1.5rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 999px;
   color: var(--ds-text);
@@ -796,7 +792,7 @@
 }
 
 .exit-lesson-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--ds-raised-strong);
   border-color: rgba(255, 255, 255, 0.5);
 }
 
@@ -810,8 +806,7 @@
   align-items: center;
   gap: 2rem;
   padding: 1.5rem 2rem;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(20px);
+  background: var(--ds-bg);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -862,8 +857,7 @@
 
 .playback-controls,
 .practice-mode-controls {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: var(--ds-raised);
   padding: 1.5rem;
   border-radius: 12px;
 }
@@ -921,7 +915,7 @@
 .state-indicator {
   text-align: center;
   padding: 0.5rem;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--ds-bg);
   border-radius: 8px;
   font-size: 0.9rem;
 }
@@ -982,8 +976,7 @@
 
 .score-display,
 .recent-feedback {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: var(--ds-raised);
   padding: 1.5rem;
   border-radius: 12px;
 }
@@ -1011,7 +1004,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--ds-bg);
 }
 
 .accuracy-value {
@@ -1036,7 +1029,7 @@
   display: flex;
   flex-direction: column;
   padding: 0.75rem;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--ds-bg);
   border-radius: 8px;
   border-left: 3px solid rgba(255, 255, 255, 0.3);
 }
@@ -1087,7 +1080,7 @@
   gap: 1rem;
   align-items: center;
   padding: 0.75rem;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--ds-bg);
   border-radius: 8px;
   border-left: 4px solid;
   font-size: 0.9rem;
@@ -1119,7 +1112,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ds-panel);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 20px;
   font-size: 0.9rem;
@@ -1136,7 +1129,7 @@
 .midi-dot {
   width: 8px;
   height: 8px;
-  background: rgba(255, 255, 255, 0.3);
+  background: #545456;
   border-radius: 50%;
   transition: all 0.2s ease;
 }
@@ -1162,7 +1155,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ds-panel);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 20px;
   font-size: 0.9rem;
@@ -1176,7 +1169,7 @@
 .keyboard-hint kbd {
   display: inline-block;
   padding: 0.25rem 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 4px;
   font-family: monospace;
@@ -1195,8 +1188,7 @@
 
 /* Mode Instructions */
 .mode-instructions {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: var(--ds-raised);
   padding: 1.5rem;
   border-radius: 12px;
 }
@@ -1215,7 +1207,7 @@
 
 .btn-secondary {
   padding: 0.75rem 1.5rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 999px;
   color: var(--ds-text);
@@ -1226,7 +1218,7 @@
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--ds-raised-strong);
   border-color: rgba(255, 255, 255, 0.5);
 }
 
@@ -1235,7 +1227,7 @@
   display: flex;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--ds-bg);
   border-radius: 12px;
   margin-bottom: 1rem;
 }
@@ -1247,7 +1239,7 @@
   align-items: center;
   gap: 0.25rem;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ds-panel);
   border: 2px solid transparent;
   border-radius: 999px;
   color: rgba(255, 255, 255, 0.6);
@@ -1256,7 +1248,7 @@
 }
 
 .mode-tab:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   color: rgba(255, 255, 255, 0.8);
 }
 
@@ -1299,7 +1291,7 @@
 .wait-progress-mini {
   width: 100px;
   height: 6px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -1319,18 +1311,17 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--ds-bg);
   border: 1px solid rgba(255, 255, 255, 0.3);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  backdrop-filter: blur(10px);
 }
 
 .game-settings-toggle:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
   border-color: rgba(255, 255, 255, 0.5);
   transform: scale(1.05);
 }
@@ -1357,7 +1348,6 @@
   z-index: 205;
   display: flex;
   flex-direction: column;
-  backdrop-filter: blur(20px);
   animation: slideInLeft 0.3s ease-out;
 }
 
@@ -1378,7 +1368,7 @@
   align-items: center;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--ds-bg);
 }
 
 .game-settings-header h3 {
@@ -1457,7 +1447,7 @@
   height: 6px;
   -webkit-appearance: none;
   appearance: none;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border-radius: 3px;
   outline: none;
   cursor: pointer;
@@ -1486,7 +1476,7 @@
 }
 
 .volume-slider:disabled::-webkit-slider-thumb {
-  background: rgba(255, 255, 255, 0.3);
+  background: #545456;
   cursor: not-allowed;
   box-shadow: none;
 }
@@ -1515,7 +1505,7 @@
   justify-content: space-around;
   padding: 1rem 1.25rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--ds-bg);
 }
 
 .game-control-btn {
@@ -1524,7 +1514,7 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 999px;
   cursor: pointer;
@@ -1533,7 +1523,7 @@
 }
 
 .game-control-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
   border-color: rgba(255, 255, 255, 0.3);
   transform: translateY(-2px);
 }
@@ -1641,13 +1631,13 @@
 }
 
 .sound-toggle.off {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ds-panel);
   border-color: rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.5);
 }
 
 .sound-toggle.off:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.09);
+  background: #202022;
 }
 
 .sound-toggle.off .sound-toggle-label {
@@ -1663,7 +1653,7 @@
   min-width: 1.4rem;
   padding: 0.05rem 0.3rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: #272729;
   font-size: 0.75rem;
   text-align: center;
 }
@@ -1718,7 +1708,6 @@
   font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
-  backdrop-filter: blur(10px);
 }
 
 /* Back: a round button with an arrow */
@@ -1731,7 +1720,7 @@
 }
 
 .jam-corner-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
 }
 
 /* A toggle that is on (e.g. the lane controls shown) */
@@ -1892,7 +1881,7 @@
 }
 
 .jam-reset:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   color: var(--ds-text);
 }
 
@@ -1916,7 +1905,7 @@
 }
 
 .jam-feel-switch button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
 }
 
 .jam-feel-switch button.active {
@@ -1970,7 +1959,7 @@
   gap: 0.4rem;
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--ds-panel-2);
   color: rgba(255, 255, 255, 0.85);
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;

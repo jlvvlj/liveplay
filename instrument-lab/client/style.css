@@ -136,7 +136,7 @@
   color: #b4b4b5;
 }
 .instrument-lab-ui .project-list .selected {
-  background: rgba(255, 255, 255, 0.027);
+  background: var(--ds-panel);
   color: #efeff0;
 }
 .instrument-lab-ui .project-icon {
@@ -386,7 +386,7 @@
 .instrument-lab-ui .section-top h2 span {
   font-size: 10px;
   margin-left: 9px;
-  background: rgba(255, 255, 255, 0.031);
+  background: var(--ds-panel);
   color: #a5a5a6;
   padding: 3px 6px;
   border-radius: 999px;
@@ -465,8 +465,8 @@
     90deg,
     transparent 0,
     transparent calc(25% - 1px),
-    rgba(255, 255, 255, 0.024) calc(25% - 1px),
-    rgba(255, 255, 255, 0.024) 25%
+    #101012 calc(25% - 1px),
+    #101012 25%
   );
 }
 .instrument-lab-ui .instrument-row rect {
@@ -871,13 +871,13 @@
       90deg,
       transparent 0,
       transparent calc(12.5% - 1px),
-      rgba(255, 255, 255, 0.031) calc(12.5% - 1px),
-      rgba(255, 255, 255, 0.031) 12.5%
+      #121214 calc(12.5% - 1px),
+      #121214 12.5%
     ),
     repeating-linear-gradient(
       0deg,
-      rgba(255, 255, 255, 0.008) 0,
-      rgba(255, 255, 255, 0.008) 11px,
+      #0c0c0e 0,
+      #0c0c0e 11px,
       transparent 11px,
       transparent 22px
     );
@@ -905,7 +905,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(255, 255, 255, 0.533);
+  background: #8d8d8f;
   pointer-events: none;
 }
 .instrument-lab-ui .playhead:before {
@@ -1140,7 +1140,7 @@
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.094);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--ds-panel);
 }
 .instrument-lab-ui .assignment-editor p,
 .instrument-lab-ui .assignment-editor small {
@@ -1373,7 +1373,7 @@
   width: 32px;
   height: 32px;
   background: #e7e7e8;
-  color: #222224;
+  color: var(--ds-raised);
 }
 .instrument-lab-ui .mix-zoom {
   margin-left: auto;
@@ -1488,8 +1488,8 @@
     90deg,
     transparent 0,
     transparent calc(25% - 1px),
-    rgba(255, 255, 255, 0.035) calc(25% - 1px),
-    rgba(255, 255, 255, 0.035) 25%
+    #131315 calc(25% - 1px),
+    #131315 25%
   );
 }
 .instrument-lab-ui .mix-lane rect {
@@ -1672,7 +1672,7 @@
   height: 26px;
   border-radius: 50%;
   background: #e7e7e8;
-  color: #222224;
+  color: var(--ds-raised);
   font-size: 10px;
 }
 .instrument-lab-ui .mix-select[aria-expanded="true"] strong:before {
