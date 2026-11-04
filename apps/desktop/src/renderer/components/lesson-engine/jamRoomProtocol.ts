@@ -4,6 +4,22 @@ import type { JamTrackEdit } from './LessonPlayer';
 // Messages between jam players and the room server (server/jamRooms.ts), as
 // JSON over a WebSocket, and between players over their direct connections.
 
+// An open room is listed with its key, so anyone can join it from the lobby;
+// a private room is listed without it, and joining takes its code
+export type JamRoomVisibility = 'open' | 'private';
+
+// A room as the lobby lists it
+export interface JamRoomSummary {
+  id: string;
+  visibility: JamRoomVisibility;
+  // The key to join with: an open room's; null for a private room
+  key: string | null;
+  songId: string;
+  playing: boolean;
+  players: { name: string; color: string }[];
+  full: boolean;
+}
+
 // The room's jam, the same for every player in it
 export interface JamRoomState {
   songId: string;
@@ -45,7 +61,20 @@ export interface JamRoomNote {
 }
 
 export type JamClientMessage =
-  | { t: 'join'; room: string; name: string; state: JamRoomState; sound: JamRoomSound | null; need: number }
+  // `create` opens the room when no room has this key; without it a missing room is reported
+  | {
+      t: 'join';
+      room: string;
+      create?: JamRoomVisibility;
+      name: string;
+      state: JamRoomState;
+      sound: JamRoomSound | null;
+      need: number;
+    }
+  // The lobby: the rooms list, now and whenever it changes
+  | { t: 'lobby' }
+  // Whether `code` opens the private room listed as `id`
+  | { t: 'check'; id: string; code: string; c: number }
   | { t: 'ping'; c: number }
   | { t: 'state'; state: Omit<JamRoomState, 'tracks'> }
   | { t: 'track'; file: string; edit: JamTrackEdit | null }
@@ -56,8 +85,11 @@ export type JamClientMessage =
   | { t: 'probe'; to: string; c: number; back: boolean };
 
 export type JamServerMessage =
-  | { t: 'welcome'; id: string; state: JamRoomState; peers: JamRoomPeer[] }
+  | { t: 'welcome'; id: string; visibility: JamRoomVisibility; state: JamRoomState; peers: JamRoomPeer[] }
   | { t: 'full' }
+  | { t: 'missing' }
+  | { t: 'rooms'; rooms: JamRoomSummary[] }
+  | { t: 'checked'; c: number; ok: boolean }
   | { t: 'pong'; c: number; s: number }
   | { t: 'state'; state: JamRoomState }
   | { t: 'joined'; peer: JamRoomPeer }
