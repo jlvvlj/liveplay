@@ -27,8 +27,8 @@ import {
   type JamEffects,
 } from './jamSynth';
 import { audioTimeAt, hitSlot, remoteNoteSlot } from './jamClock';
-import { JamRoom, newJamRoomCode, type JamRoomPlayer } from './jamRoom';
-import { JAM_ROOM_CODE, type JamRoomNote, type JamRoomSound, type JamRoomState } from './jamRoomProtocol';
+import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
+import type { JamRoomNote, JamRoomSound, JamRoomState, JamRoomVisibility } from './jamRoomProtocol';
 import { JamRemoteVoices } from './jamRemoteVoices';
 import { holdToleranceMs, isHoldStep, stepDurationMs } from './holdNotes';
 import './LessonPlayer.css';
@@ -42,8 +42,12 @@ interface LessonPlayerProps {
   jamSounds?: JamSoundPreset[];
   // Jam tab: songs (backing tracks) to choose from in the sidebar; `lesson` is the default
   jamSongs?: Lesson[];
-  // Jam tab: the room server (WebSocket URL) for playing together online; no rooms without one
+  // Jam tab: the room server (WebSocket URL) for playing together online, the
+  // room to join there (by its key; `create` opens it as a new room), and what
+  // to do when the room ends by itself
   jamRoomServer?: string;
+  jamRoomJoin?: { key: string; create?: JamRoomVisibility };
+  onJamRoomEnd?: (reason: JamRoomEnd) => void;
 }
 
 const MIN_EFFECTIVE_SPEED = 0.01;
@@ -263,6 +267,8 @@ export function LessonPlayer({
   jamSounds,
   jamSongs,
   jamRoomServer,
+  jamRoomJoin,
+  onJamRoomEnd,
 }: LessonPlayerProps) {
   // Jam tab: the chosen song, synth sound, its (editable) settings and the
   // effects, remembered between visits
@@ -275,7 +281,6 @@ export function LessonPlayer({
   const [jamRoom, setJamRoom] = useState<JamRoom | null>(null);
   const [jamRoomState, setJamRoomState] = useState<JamRoomState | null>(null);
   const [jamRoomPlayers, setJamRoomPlayers] = useState<JamRoomPlayer[]>([]);
-  const [jamRoomEnded, setJamRoomEnded] = useState<'full' | 'lost' | null>(null);
   const jamRoomRef = useRef<JamRoom | null>(null);
   jamRoomRef.current = jamRoom;
   const jamRoomStateRef = useRef<JamRoomState | null>(null);
@@ -1559,40 +1564,22 @@ export function LessonPlayer({
     return JAM_ROOM_RECEIVE_MARGIN_S + Math.max(0, context.currentTime - audioTimeAt(context));
   };
 
-  // Leaves the room; the jam carries on here from where the room was
-  const leaveJamRoom = (ended: 'full' | 'lost' | null = null) => {
-    const room = jamRoomRef.current;
-    if (!room) return;
-    room.leave();
-    const state = jamRoomStateRef.current;
-    if (state) {
-      setJamSettings((settings) => settings && { ...settings, songId: state.songId });
-      jamResumeAtRef.current = state.startAt === null ? state.position : jamHeardPosition();
-      setJamPaused(state.startAt === null);
-    }
-    remoteVoicesRef.current?.dispose();
-    remoteVoicesRef.current = null;
-    setJamRoom(null);
-    setJamRoomState(null);
-    setJamRoomPlayers([]);
-    setJamRoomEnded(ended);
-    const url = new URL(location.href);
-    url.searchParams.delete('room');
-    history.replaceState(history.state, '', url);
-  };
-  const leaveJamRoomRef = useRef(leaveJamRoom);
-  leaveJamRoomRef.current = leaveJamRoom;
-
-  const joinJamRoom = (code: string) => {
-    if (!jamRoomServer || !jamSettings) return;
-    jamRoomRef.current?.leave();
-    setJamRoomEnded(null);
+  // The room the app put this player in: joined on arrival, left on the way
+  // out. A room that ends by itself (full, gone, connection lost) is reported
+  // to the app, which takes the player back.
+  const onJamRoomEndRef = useRef(onJamRoomEnd);
+  onJamRoomEndRef.current = onJamRoomEnd;
+  const jamRoomKey = jamRoomJoin?.key;
+  const jamRoomCreate = jamRoomJoin?.create;
+  useEffect(() => {
+    if (!jamRoomServer || !jamRoomKey || !jamSettings) return;
     let first = true;
     const wasPlaying = !jamIsPaused;
     const room: JamRoom = new JamRoom(
-      code,
+      jamRoomKey,
       jamRoomServer,
       {
+        create: jamRoomCreate,
         name: jamName,
         state: { songId: lessonProp.id, startAt: null, position: jamHeardPosition(), tracks: jamSettings.tracks },
         sound: jamRoomSound,
@@ -1600,11 +1587,12 @@ export function LessonPlayer({
       },
       {
         onState: (state) => {
-          // A room this player just opened takes over the jam where it is, still playing
+          // A room this player is alone in (just opened, or come back to while
+          // it waited, paused) plays on from where it is
           if (first) {
             first = false;
             if (wasPlaying && state.startAt === null && room.players().length === 1) {
-              const position = jamHeardPosition();
+              const { position } = state;
               room.setState({ songId: state.songId, startAt: room.clock.now() - position * 1000, position });
               return;
             }
@@ -1613,27 +1601,22 @@ export function LessonPlayer({
         },
         onPlayers: setJamRoomPlayers,
         onNote: (from, note) => playRemoteJamNoteRef.current(from, note),
-        onClosed: (reason) => leaveJamRoomRef.current(reason),
+        onClosed: (reason) => onJamRoomEndRef.current?.(reason),
       }
     );
     jamRoomRef.current = room;
     setJamRoom(room);
-    const url = new URL(location.href);
-    url.searchParams.set('room', code);
-    history.replaceState(history.state, '', url);
-  };
-
-  // A link with a room code joins that room
-  useEffect(() => {
-    const code = new URLSearchParams(location.search).get('room')?.toUpperCase();
-    if (jamRoomServer && code && JAM_ROOM_CODE.test(code)) joinJamRoom(code);
     return () => {
-      jamRoomRef.current?.leave();
+      room.leave();
       remoteVoicesRef.current?.dispose();
       remoteVoicesRef.current = null;
+      jamRoomRef.current = null;
+      setJamRoom(null);
+      setJamRoomState(null);
+      setJamRoomPlayers([]);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [jamRoomServer, jamRoomKey, jamRoomCreate]);
 
   // A changed name goes out once typing pauses
   useEffect(() => {
@@ -2705,8 +2688,10 @@ export function LessonPlayer({
         {jamOnly && !showJamSettings && (
           <div className="jam-corner-buttons">
             {onComplete && (
-              <button className="jam-corner-btn" onClick={onComplete} title="Back">
-                &#8592;
+              <button className="jam-corner-btn jam-back-btn" onClick={onComplete} title="Back">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
               </button>
             )}
             <button className="jam-corner-btn" onClick={() => setShowJamSettings(true)} title="Show settings">
@@ -2724,15 +2709,16 @@ export function LessonPlayer({
                 : setJamSettings({ ...jamSettings, songId })
             }
             room={
-              jamRoomServer
-                ? { code: jamRoom?.code ?? null, joined: !!jamRoomState, players: jamRoomPlayers, ended: jamRoomEnded }
+              jamRoom
+                ? {
+                    code: jamRoom.visibility === 'private' ? jamRoom.code : null,
+                    joined: !!jamRoomState,
+                    players: jamRoomPlayers,
+                  }
                 : undefined
             }
             roomName={jamName}
             onRoomNameChange={setJamName}
-            onRoomStart={() => joinJamRoom(newJamRoomCode())}
-            onRoomJoin={joinJamRoom}
-            onRoomLeave={() => leaveJamRoom()}
             view={jamView}
             onViewChange={jamTrack ? setJamView : undefined}
             sounds={jamSounds}

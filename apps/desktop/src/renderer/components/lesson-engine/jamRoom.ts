@@ -6,6 +6,7 @@ import {
   type JamRoomPeer,
   type JamRoomSound,
   type JamRoomState,
+  type JamRoomVisibility,
   type JamServerMessage,
   type JamSignal,
 } from './jamRoomProtocol';
@@ -37,11 +38,15 @@ export interface JamRoomPlayer extends JamRoomPeer {
   latency: number | null;
 }
 
+// Why a room ended for this player: it was full, it no longer exists, or the
+// connection to it was lost
+export type JamRoomEnd = 'full' | 'missing' | 'lost';
+
 export interface JamRoomEvents {
   onState: (state: JamRoomState) => void;
   onPlayers: (players: JamRoomPlayer[]) => void;
   onNote: (from: string, note: JamRoomNote) => void;
-  onClosed: (reason: 'full' | 'lost') => void;
+  onClosed: (reason: JamRoomEnd) => void;
 }
 
 interface Link {
@@ -65,6 +70,7 @@ const pushKept = (list: number[], value: number) => {
 export class JamRoom {
   readonly clock = new ServerClock();
   id: string | null = null;
+  visibility: JamRoomVisibility | null = null;
   state: JamRoomState | null = null;
   private socket: WebSocket;
   private peers = new Map<string, JamRoomPeer>();
@@ -82,7 +88,7 @@ export class JamRoom {
   constructor(
     readonly code: string,
     url: string,
-    join: { name: string; state: JamRoomState; sound: JamRoomSound | null; need: number },
+    join: { create?: JamRoomVisibility; name: string; state: JamRoomState; sound: JamRoomSound | null; need: number },
     private events: JamRoomEvents
   ) {
     this.socket = new WebSocket(url);
@@ -178,6 +184,7 @@ export class JamRoom {
 
   leave(): void {
     if (this.closed) return;
+    this.send({ t: 'leave' });
     this.shutDown();
     this.socket.close();
   }
@@ -216,6 +223,7 @@ export class JamRoom {
     switch (message.t) {
       case 'welcome':
         this.id = message.id;
+        this.visibility = message.visibility;
         this.state = message.state;
         for (const peer of message.peers) {
           this.peers.set(peer.id, peer);
@@ -228,8 +236,9 @@ export class JamRoom {
         if (this.cursorLast !== null) this.setCursor(this.cursorLast);
         break;
       case 'full':
+      case 'missing':
         this.shutDown();
-        this.events.onClosed('full');
+        this.events.onClosed(message.t);
         break;
       case 'pong': {
         const wasReady = this.ready;

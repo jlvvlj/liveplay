@@ -13,19 +13,15 @@ import {
 } from './jamSynth';
 import type { Lesson } from '../../types/lesson';
 import type { JamRoomPlayer } from './jamRoom';
-import { JAM_ROOM_CODE, JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
+import { JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
 
 interface JamSettingsPanelProps {
   songs: Lesson[];
   songId: string;
   onSongChange: (id: string) => void;
-  // Playing together online: the room joined or being joined (code), its
-  // players, and why the last room ended if it ended by itself; none without
-  // a room server
-  room?: { code: string | null; joined: boolean; players: JamRoomPlayer[]; ended: 'full' | 'lost' | null };
-  onRoomStart?: () => void;
-  onRoomJoin?: (code: string) => void;
-  onRoomLeave?: () => void;
+  // Playing together online: the room this player is in (a private room's
+  // code, null for an open room) and its players once joined
+  room?: { code: string | null; joined: boolean; players: JamRoomPlayer[] };
   // This player's name on their ship in rooms; empty for the room's numbered name
   roomName?: string;
   onRoomNameChange?: (name: string) => void;
@@ -129,9 +125,6 @@ export function JamSettingsPanel({
   songId,
   onSongChange,
   room,
-  onRoomStart,
-  onRoomJoin,
-  onRoomLeave,
   roomName = '',
   onRoomNameChange,
   view,
@@ -165,7 +158,6 @@ export function JamSettingsPanel({
   onBack,
   onClose,
 }: JamSettingsPanelProps) {
-  const [roomCode, setRoomCode] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
   const setEffect = <K extends keyof JamEffects>(key: K, value: JamEffects[K]) =>
     onEffectsChange({ ...effects, [key]: value });
@@ -190,8 +182,10 @@ export function JamSettingsPanel({
     <div className="game-settings-sidebar">
       <div className="game-settings-header jam-settings-header">
         {onBack && (
-          <button className="jam-corner-btn" onClick={onBack} title="Back">
-            &#8592;
+          <button className="jam-corner-btn jam-back-btn" onClick={onBack} title="Back">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         )}
         <div className="jam-song">
@@ -244,92 +238,49 @@ export function JamSettingsPanel({
             <label className="setting-label">
               <span className="setting-icon">&#127760;</span>
               Together
-              {room.code && (
-                <button className="jam-reset" onClick={onRoomLeave}>
-                  Leave
+            </label>
+            <div className="jam-room-code">
+              <span className={room.code ? undefined : 'jam-room-open'}>{room.code ?? 'Open'}</span>
+              {navigator.clipboard && (
+                <button
+                  className="jam-sound-option"
+                  onClick={() =>
+                    navigator.clipboard.writeText(location.href).then(() => {
+                      setLinkCopied(true);
+                      setTimeout(() => setLinkCopied(false), 1500);
+                    })
+                  }
+                >
+                  {linkCopied ? 'Copied' : 'Copy link'}
                 </button>
               )}
-            </label>
-            {room.code ? (
-              <>
-                <div className="jam-room-code">
-                  <span>{room.code}</span>
-                  {navigator.clipboard && (
-                    <button
-                      className="jam-sound-option"
-                      onClick={() =>
-                        navigator.clipboard.writeText(location.href).then(() => {
-                          setLinkCopied(true);
-                          setTimeout(() => setLinkCopied(false), 1500);
-                        })
-                      }
-                    >
-                      {linkCopied ? 'Copied' : 'Copy link'}
-                    </button>
-                  )}
-                </div>
-                {room.joined && (
-                  <div className="jam-room-players">
-                    {room.players.map((player) =>
-                      player.you ? (
-                        <label key={player.id} className="jam-room-player jam-room-you">
-                          <span className="jam-room-dot" style={{ background: player.color }} />
-                          <input
-                            className="jam-room-name"
-                            value={roomName}
-                            placeholder={player.name}
-                            maxLength={JAM_ROOM_NAME_MAX}
-                            autoComplete="off"
-                            spellCheck={false}
-                            onChange={(event) => onRoomNameChange?.(event.target.value)}
-                          />
-                        </label>
-                      ) : (
-                        <span
-                          key={player.id}
-                          className="jam-room-player"
-                          title={player.direct ? 'Direct' : 'Through the server'}
-                        >
-                          <span className="jam-room-dot" style={{ background: player.color }} />
-                          {player.name}
-                          <span className="jam-room-latency">
-                            {player.latency === null ? '…' : `${Math.round(player.latency * 1000)} ms`}
-                          </span>
-                        </span>
-                      )
-                    )}
-                  </div>
+            </div>
+            {room.joined && (
+              <div className="jam-room-players">
+                {room.players.map((player) =>
+                  player.you ? (
+                    <label key={player.id} className="jam-room-player jam-room-you">
+                      <span className="jam-room-dot" style={{ background: player.color }} />
+                      <input
+                        className="jam-room-name"
+                        value={roomName}
+                        placeholder={player.name}
+                        maxLength={JAM_ROOM_NAME_MAX}
+                        autoComplete="off"
+                        spellCheck={false}
+                        onChange={(event) => onRoomNameChange?.(event.target.value)}
+                      />
+                    </label>
+                  ) : (
+                    <span key={player.id} className="jam-room-player" title={player.direct ? 'Direct' : 'Through the server'}>
+                      <span className="jam-room-dot" style={{ background: player.color }} />
+                      {player.name}
+                      <span className="jam-room-latency">
+                        {player.latency === null ? '…' : `${Math.round(player.latency * 1000)} ms`}
+                      </span>
+                    </span>
+                  )
                 )}
-              </>
-            ) : (
-              <form
-                className="jam-room-join"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (JAM_ROOM_CODE.test(roomCode)) onRoomJoin?.(roomCode);
-                }}
-              >
-                <button type="button" className="jam-sound-option" onClick={onRoomStart}>
-                  New room
-                </button>
-                <input
-                  className="jam-room-input"
-                  value={roomCode}
-                  onChange={(event) => setRoomCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                  placeholder="Code"
-                  maxLength={8}
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <button type="submit" className="jam-sound-option" disabled={!JAM_ROOM_CODE.test(roomCode)}>
-                  Join
-                </button>
-              </form>
-            )}
-            {!room.code && room.ended && (
-              <div className="jam-room-ended">
-                {room.ended === 'full' ? 'That room is full' : 'The connection to the room was lost'}
               </div>
             )}
           </div>

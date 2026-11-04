@@ -1,4 +1,5 @@
 import type { Server } from 'http';
+import { randomBytes } from 'crypto';
 import { performance } from 'perf_hooks';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
@@ -8,18 +9,25 @@ import {
   type JamClientMessage,
   type JamRoomPeer,
   type JamRoomState,
+  type JamRoomSummary,
+  type JamRoomVisibility,
   type JamServerMessage,
   JAM_ROOM_NAME_MAX,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamRoomProtocol';
 
-// Jam rooms: players who join the same room code play one jam together. The
+// Jam rooms: players who join the same room key play one jam together. The
 // server keeps each room's jam (song, when it started or where it paused, the
 // grid's edited tracks), answers clock pings so every player shares its clock,
 // introduces players to each other so they connect directly, and relays their
-// notes too, so a note takes whichever way arrives first.
+// notes too, so a note takes whichever way arrives first. The lobby lists the
+// rooms as they change: an open room with its key, a private one without.
 
 // One color per seat, in joining order
 const PEER_COLORS = ['#38bdf8', '#f472b6', '#a3e635', '#fbbf24', '#c084fc', '#fb7185', '#2dd4bf', '#f97316'];
+// Lobby lists go out at most this often while rooms change
+const LOBBY_MS = 250;
+// A room nobody is in stays listed, paused, this long for players to come back to
+const EMPTY_ROOM_MS = 30 * 60 * 1000;
 
 // A player's chosen name, or a numbered one by seat
 const playerName = (name: string, seat: number): string =>
@@ -31,12 +39,20 @@ interface Member {
 }
 
 interface Room {
+  // Listed in the lobby by `id`; joined by `key` (an open room's id, a private room's code)
+  id: string;
+  key: string;
+  visibility: JamRoomVisibility;
   state: JamRoomState;
   members: Map<string, Member>;
+  // Closes the room while nobody is in it
+  closing: ReturnType<typeof setTimeout> | null;
 }
 
-export function createJamRooms() {
+export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: number } = {}) {
   const rooms = new Map<string, Room>();
+  const lobby = new Set<WebSocket>();
+  let lobbyTimer: ReturnType<typeof setTimeout> | null = null;
   let nextId = 1;
   const wss = new WebSocketServer({ noServer: true });
 
@@ -47,10 +63,49 @@ export function createJamRooms() {
     for (const [id, member] of room.members) if (id !== except) send(member.socket, message);
   };
 
+  const summaries = (): JamRoomSummary[] =>
+    [...rooms.values()].map((room) => ({
+      id: room.id,
+      visibility: room.visibility,
+      key: room.visibility === 'open' ? room.key : null,
+      songId: room.state.songId,
+      playing: room.state.startAt !== null,
+      players: [...room.members.values()].map(({ peer }) => ({ name: peer.name, color: peer.color })),
+      full: room.members.size >= JAM_ROOM_MAX_PLAYERS,
+    }));
+  // The lobby hears of a change shortly after, once for a burst of changes
+  const lobbyChanged = () => {
+    if (lobbyTimer || lobby.size === 0) return;
+    lobbyTimer = setTimeout(() => {
+      lobbyTimer = null;
+      const message: JamServerMessage = { t: 'rooms', rooms: summaries() };
+      for (const socket of lobby) send(socket, message);
+    }, LOBBY_MS);
+  };
+
   wss.on('connection', (socket) => {
     let room: Room | null = null;
-    let code: string | null = null;
     const id = String(nextId++);
+
+    // Out of the room: the others hear of it; the last one out leaves the
+    // room waiting, paused where it was, until it closes
+    const leaveRoom = () => {
+      if (!room) return;
+      const left = room;
+      room = null;
+      left.members.delete(id);
+      if (left.members.size === 0) {
+        const { startAt } = left.state;
+        if (startAt !== null) left.state = { ...left.state, startAt: null, position: Math.max(0, (performance.now() - startAt) / 1000) };
+        left.closing = setTimeout(() => {
+          if (rooms.get(left.key) === left && left.members.size === 0) rooms.delete(left.key);
+          lobbyChanged();
+        }, emptyRoomMs);
+      } else {
+        broadcast(left, { t: 'left', id });
+      }
+      lobbyChanged();
+    };
 
     socket.on('message', (raw) => {
       let message: JamClientMessage;
@@ -66,20 +121,49 @@ export function createJamRooms() {
         return;
       }
 
+      if (message.t === 'lobby') {
+        lobby.add(socket);
+        send(socket, { t: 'rooms', rooms: summaries() });
+        return;
+      }
+
+      if (message.t === 'check') {
+        const target = rooms.get(message.code);
+        send(socket, { t: 'checked', c: message.c, ok: target?.id === message.id });
+        return;
+      }
+
       if (message.t === 'join') {
         if (room || !JAM_ROOM_CODE.test(message.room)) {
           socket.close(1008, 'Bad join');
           return;
         }
-        code = message.room;
-        room = rooms.get(code) ?? { state: message.state, members: new Map() };
-        if (room.members.size >= JAM_ROOM_MAX_PLAYERS) {
+        let joining = rooms.get(message.room);
+        if (!joining && !message.create) {
+          send(socket, { t: 'missing' });
+          socket.close(1000, 'No such room');
+          return;
+        }
+        if (!joining) {
+          const visibility = message.create!;
+          joining = {
+            id: visibility === 'open' ? message.room : randomBytes(6).toString('hex'),
+            key: message.room,
+            visibility,
+            state: message.state,
+            members: new Map(),
+            closing: null,
+          };
+        }
+        if (joining.members.size >= JAM_ROOM_MAX_PLAYERS) {
           send(socket, { t: 'full' });
-          room = null;
           socket.close(1000, 'Room full');
           return;
         }
-        rooms.set(code, room);
+        room = joining;
+        rooms.set(room.key, room);
+        if (room.closing) clearTimeout(room.closing);
+        room.closing = null;
         const taken = new Set([...room.members.values()].map((member) => member.peer.color));
         const seat = Math.max(0, PEER_COLORS.findIndex((candidate) => !taken.has(candidate)));
         const peer: JamRoomPeer = {
@@ -93,17 +177,25 @@ export function createJamRooms() {
         send(socket, {
           t: 'welcome',
           id,
+          visibility: room.visibility,
           state: room.state,
           peers: [peer, ...[...room.members.values()].map((member) => member.peer)],
         });
         broadcast(room, { t: 'joined', peer });
         room.members.set(id, { socket, peer });
+        lobbyChanged();
         return;
       }
 
       if (!room) return;
       switch (message.t) {
+        case 'leave':
+          leaveRoom();
+          break;
         case 'state':
+          if (message.state.songId !== room.state.songId || (message.state.startAt === null) !== (room.state.startAt === null)) {
+            lobbyChanged();
+          }
           room.state = { ...message.state, tracks: room.state.tracks };
           broadcast(room, { t: 'state', state: room.state });
           break;
@@ -118,12 +210,9 @@ export function createJamRooms() {
         case 'peer': {
           const member = room.members.get(id);
           if (!member) break;
-          member.peer = {
-            ...member.peer,
-            name: playerName(message.name, PEER_COLORS.indexOf(member.peer.color)),
-            sound: message.sound,
-            need: message.need,
-          };
+          const name = playerName(message.name, PEER_COLORS.indexOf(member.peer.color));
+          if (name !== member.peer.name) lobbyChanged();
+          member.peer = { ...member.peer, name, sound: message.sound, need: message.need };
           broadcast(room, { t: 'peer', peer: member.peer }, id);
           break;
         }
@@ -150,10 +239,8 @@ export function createJamRooms() {
     });
 
     socket.on('close', () => {
-      if (!room || !code) return;
-      room.members.delete(id);
-      if (room.members.size === 0) rooms.delete(code);
-      else broadcast(room, { t: 'left', id });
+      lobby.delete(socket);
+      leaveRoom();
     });
   });
 
@@ -166,6 +253,8 @@ export function createJamRooms() {
       });
     },
     close() {
+      if (lobbyTimer) clearTimeout(lobbyTimer);
+      for (const room of rooms.values()) if (room.closing) clearTimeout(room.closing);
       for (const client of wss.clients) client.terminate();
       wss.close();
     },
