@@ -222,9 +222,7 @@
   font-size: 9px;
 }
 .instrument-lab-ui .page-heading h1 {
-  font:
-    500 30px/1.2 "Space Grotesk",
-    sans-serif;
+  font: 500 30px/1.2 var(--lab-font);
   letter-spacing: -1px;
   white-space: pre-line;
   margin: 0 0 12px;
@@ -291,7 +289,7 @@
   color: #adadae;
 }
 .instrument-lab-ui .welcome h2 {
-  font: 500 30px "Space Grotesk";
+  font: 500 30px var(--lab-font);
   letter-spacing: -0.7px;
   margin: 20px 0 12px;
 }
@@ -445,7 +443,7 @@
 }
 .instrument-lab-ui .track-number {
   color: var(--track);
-  font: 10px "Space Grotesk";
+  font: 10px var(--lab-font);
   opacity: 0.7;
 }
 .instrument-lab-ui .track-label {
@@ -555,7 +553,7 @@
   padding-left: 8px;
 }
 .instrument-lab-ui .time-display {
-  font: 12px "Space Grotesk";
+  font: 12px var(--lab-font);
   font-variant-numeric: tabular-nums;
   min-width: 94px;
 }
@@ -602,7 +600,7 @@
   letter-spacing: 1.2px;
 }
 .instrument-lab-ui .patch-intro h3 {
-  font: 500 19px/1.45 "Space Grotesk";
+  font: 500 19px/1.45 var(--lab-font);
   letter-spacing: -0.4px;
   margin: 10px 0;
 }
@@ -790,7 +788,7 @@
   animation: instrument-lab-pulse 2s infinite;
 }
 .instrument-lab-ui .progress-card h2 {
-  font: 500 22px "Space Grotesk";
+  font: 500 22px var(--lab-font);
   margin: 24px 0 10px;
 }
 .instrument-lab-ui .progress-card p {
