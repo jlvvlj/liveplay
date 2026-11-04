@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as Tone from 'tone';
 import type { Lesson } from '../../types/lesson';
 import { newJamRoomCode, type JamRoomEnd } from './jamRoom';
 import {
@@ -35,6 +36,14 @@ const ENDED: Record<JamRoomEnd, string> = {
   lost: 'The connection to the room was lost',
 };
 
+// Browsers (Safari above all) only start audio within a tap or click, and the
+// room's Jam opens after it: the click that leads into a room starts it
+function startJamAudio() {
+  const audioSession = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (audioSession) audioSession.type = 'playback'; // iPhone: play through the silent switch
+  Tone.start().catch((err) => console.error('[JamLobby] Could not start the audio:', err));
+}
+
 const LockIcon = () => (
   <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
     <rect x="5" y="11" width="14" height="10" rx="2" fill="currentColor" />
@@ -42,26 +51,39 @@ const LockIcon = () => (
   </svg>
 );
 
-export function JamLobby({ rooms, unreachable, check, songs, onEnter, ended }: JamLobbyProps) {
+export function JamLobby({ rooms, unreachable, check, songs, onEnter: enterRoom, ended }: JamLobbyProps) {
+  const onEnter = (entry: JamRoomEntry) => {
+    startJamAudio();
+    enterRoom(entry);
+  };
   return (
     <div className="jam-lobby">
       <header className="jam-lobby-header">
         <h1>Jam</h1>
       </header>
-      {ended && <div className="jam-lobby-note">{ENDED[ended]}</div>}
-      {unreachable && <div className="jam-lobby-note">Can&apos;t reach the rooms</div>}
-      <div className="jam-lobby-grid">
-        <NewRoomCard onCreate={(create) => onEnter({ key: newJamRoomCode(), create })} />
-        {(rooms ?? []).map((room) => (
-          <RoomCard
-            key={room.id}
-            room={room}
-            song={songs.find((song) => song.id === room.songId)}
-            onEnter={onEnter}
-            check={(code) => check(room.id, code)}
-          />
-        ))}
-      </div>
+      {/* Without the server the rooms are unknown and none can be opened or
+          joined: only that is shown until it is back */}
+      {unreachable ? (
+        <div className="jam-lobby-note">Can&apos;t reach the rooms. Trying again…</div>
+      ) : (
+        <>
+          {ended && <div className="jam-lobby-note">{ENDED[ended]}</div>}
+          {rooms && (
+            <div className="jam-lobby-grid">
+              <NewRoomCard onCreate={(create) => onEnter({ key: newJamRoomCode(), create })} />
+              {rooms.map((room) => (
+                <RoomCard
+                  key={room.id}
+                  room={room}
+                  song={songs.find((song) => song.id === room.songId)}
+                  onEnter={onEnter}
+                  check={(code) => check(room.id, code)}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -119,6 +141,7 @@ function RoomCard({ room, song, onEnter, check }: RoomCardProps) {
           {room.full ? 'Full' : `${room.players.length}/${JAM_ROOM_MAX_PLAYERS}`}
         </span>
       </div>
+      <div className="jam-lobby-title">{room.host}&apos;s room</div>
       <div className="jam-lobby-song">
         {room.playing && <span className="jam-lobby-live" />}
         {song?.title ?? room.songId}
@@ -149,6 +172,7 @@ function RoomCard({ room, song, onEnter, check }: RoomCardProps) {
 
   const submit = async () => {
     if (!JAM_ROOM_CODE.test(code) || checking) return;
+    startJamAudio(); // now, while this is still the player's click
     setChecking(true);
     const ok = await check(code);
     setChecking(false);

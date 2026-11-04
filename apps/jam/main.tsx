@@ -29,6 +29,8 @@ function roomInAddress(): JamRoomEntry | null {
 // The rooms list is followed the whole time, so the lobby is up to date the
 // moment the player comes back to it.
 function JamApp() {
+  const [room, setRoom] = useState<JamRoomEntry | null>(roomInAddress);
+  const [ended, setEnded] = useState<JamRoomEnd | null>(null);
   const [rooms, setRooms] = useState<JamRoomSummary[] | null>(null);
   const [unreachable, setUnreachable] = useState(false);
   const [lobby, setLobby] = useState<JamLobbyConnection | null>(null);
@@ -36,13 +38,13 @@ function JamApp() {
     const connection = new JamLobbyConnection(jamRoomServer, (next) => {
       setUnreachable(next === null);
       if (next) setRooms(next);
+      // Losing the server says more than why the last room ended
+      else setEnded(null);
     });
     setLobby(connection);
     return () => connection.close();
   }, []);
 
-  const [room, setRoom] = useState<JamRoomEntry | null>(roomInAddress);
-  const [ended, setEnded] = useState<JamRoomEnd | null>(null);
   useEffect(() => {
     const onPop = () => {
       setEnded(null);

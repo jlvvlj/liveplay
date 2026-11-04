@@ -145,7 +145,10 @@ describe('jam rooms', () => {
     if (rooms.length < 2) rooms = (await lobby.next('rooms')).rooms;
     const open = rooms.find((room) => room.visibility === 'open')!;
     const secret = rooms.find((room) => room.visibility === 'private')!;
-    expect(open).toMatchObject({ id: 'OPEN1', key: 'OPEN1', songId: 'chip-run-jam', playing: false, full: false });
+    expect(open).toMatchObject({ id: 'OPEN1', host: 'Aiko', key: 'OPEN1', songId: 'chip-run-jam', playing: false, full: false });
+    expect(secret.host).toBe('Ren');
+    // The newest room first
+    expect(rooms.map((room) => room.host)).toEqual(['Ren', 'Aiko']);
     expect(open.players).toEqual([{ name: 'Aiko', color: '#38bdf8' }]);
     expect(secret.key).toBeNull();
     expect(secret.id).not.toBe('SECRET');

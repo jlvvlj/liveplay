@@ -1336,6 +1336,12 @@ export function LessonPlayer({
     jamResumeAtRef.current = 0;
   }, [lesson.id]);
 
+  // Paused, the clock shows where the jam stopped (it runs on from there)
+  const jamPausedAt = currentMode !== 'jam' || !jamIsPaused ? null : (jamRoomState?.position ?? jamResumeAtRef.current);
+  useEffect(() => {
+    if (jamPausedAt !== null) setCurrentTime(jamPausedAt * 1000);
+  }, [jamPausedAt]);
+
   // Where the jam is, as heard (s)
   const jamHeardPosition = (): number =>
     jamStartRef.current === null ? 0 : Math.max(0, audioTimeAt(rawAudioContext()) - jamStartRef.current);
