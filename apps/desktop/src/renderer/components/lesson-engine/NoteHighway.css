@@ -592,8 +592,8 @@
    bar; the ship and its notes stay right of them (--jam-inset) */
 .note-highway.jam-strips {
   --jam-lane-width: 13rem;
-  --jam-lanes-top: 1rem;
-  --jam-lanes-bottom: calc(1rem + 50px);
+  --jam-lanes-top: 0px;
+  --jam-lanes-bottom: 50px; /* the clock bar */
 }
 
 /* Folded away: only the fold bar is left */
@@ -668,8 +668,7 @@
   }
 
   .note-highway.jam-strips {
-    --jam-lanes-top: 0.25rem;
-    --jam-lanes-bottom: calc(0.25rem + 28px);
+    --jam-lanes-bottom: 28px;
   }
 
   .note-highway.jam .lane-label {
@@ -713,12 +712,26 @@
   to { width: 100%; }
 }
 
-/* Jam row controls clear of the Jam tab's corner buttons (36px high, 0.75rem
-   from the top) when the settings are folded away */
-.highway-container:has(.jam-corner-btn) .note-highway.jam-strips {
-  --jam-lanes-top: calc(0.75rem + 36px + 0.4rem);
+/* Jam rows fill the highway down to the clock bar */
+.note-highway.jam-strips .jam-lanes {
+  padding: var(--jam-lanes-top) 0 var(--jam-lanes-bottom);
 }
 
-.note-highway.jam-strips .jam-lanes {
-  padding-top: var(--jam-lanes-top);
+/* The Jam tab's corner buttons (back, settings) sit in the clock bar's left
+   corner, clear of the rows */
+.highway-container:has(.note-highway.jam-strips) .jam-corner-buttons {
+  top: auto;
+  bottom: 7px;
+}
+
+@media (max-height: 500px) {
+  .highway-container:has(.note-highway.jam-strips) .jam-corner-buttons {
+    bottom: 2px;
+  }
+
+  .highway-container:has(.note-highway.jam-strips) .jam-corner-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 0.85rem;
+  }
 }
