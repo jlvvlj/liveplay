@@ -4,13 +4,13 @@
    sectioned right sidebar. Orange primary accent. */
 
 .stem-editor {
-  --se-bg: #0a0a0c;
-  --se-panel: #131316;
-  --se-panel-2: #1a1a1f;
-  --se-border: rgba(255, 255, 255, 0.08);
-  --se-text: #f4f4f5;
-  --se-text-dim: rgba(244, 244, 245, 0.5);
-  --se-accent: #fb923c;
+  --se-bg: var(--ds-bg);
+  --se-panel: var(--ds-panel);
+  --se-panel-2: var(--ds-panel-2);
+  --se-border: var(--ds-border);
+  --se-text: var(--ds-text);
+  --se-text-dim: var(--ds-text-dim);
+  --se-accent: var(--ds-accent);
 
   position: fixed;
   inset: 0;

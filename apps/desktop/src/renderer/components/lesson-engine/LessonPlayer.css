@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  background: var(--ds-bg);
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -30,8 +30,8 @@
 .countdown-number {
   font-size: 8rem;
   font-weight: bold;
-  color: #4ade80;
-  text-shadow: 0 0 40px #4ade80, 0 0 80px #4ade80;
+  color: var(--ds-accent);
+  text-shadow: 0 0 40px var(--ds-accent), 0 0 80px var(--ds-accent);
   animation: countdownPulse 1s ease-out infinite;
 }
 
@@ -81,7 +81,7 @@
   padding: 3rem;
   max-width: 600px;
   width: 90%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 100px rgba(74, 222, 128, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 100px rgba(52, 211, 153, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.1);
   text-align: center;
   animation: slideUp 0.5s ease-out;
@@ -102,7 +102,7 @@
   font-size: 2.5rem;
   font-weight: bold;
   margin-bottom: 2rem;
-  background: linear-gradient(135deg, #4ade80, #22c55e);
+  background: linear-gradient(135deg, var(--ds-success), var(--ds-success));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -124,16 +124,16 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.4);
-  box-shadow: 0 0 40px rgba(74, 222, 128, 0.4);
+  box-shadow: 0 0 40px rgba(52, 211, 153, 0.4);
   animation: pulseGlow 2s ease-in-out infinite;
 }
 
 @keyframes pulseGlow {
   0%, 100% {
-    box-shadow: 0 0 40px rgba(74, 222, 128, 0.4);
+    box-shadow: 0 0 40px rgba(52, 211, 153, 0.4);
   }
   50% {
-    box-shadow: 0 0 60px rgba(74, 222, 128, 0.6);
+    box-shadow: 0 0 60px rgba(52, 211, 153, 0.6);
   }
 }
 
@@ -169,7 +169,7 @@
   font-size: 2rem;
   font-weight: bold;
   line-height: 1;
-  color: #4ade80;
+  color: var(--ds-success);
 }
 
 .completion-stat-label {
@@ -225,8 +225,8 @@
   padding: 0.4rem 0.6rem;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: white;
+  border-radius: 999px;
+  color: var(--ds-text);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -239,9 +239,9 @@
 }
 
 .toolbar-btn.active {
-  background: rgba(74, 222, 128, 0.2);
-  border-color: #4ade80;
-  color: #4ade80;
+  background: rgba(251, 146, 60, 0.2);
+  border-color: var(--ds-accent);
+  color: var(--ds-accent);
 }
 
 .toolbar-btn.exit-btn {
@@ -261,7 +261,7 @@
 .toolbar-badge {
   padding: 0.2rem 0.5rem;
   background: rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
+  border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
@@ -288,12 +288,12 @@
 
 .toolbar-mode-tab:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: white;
+  color: var(--ds-text);
 }
 
 .toolbar-mode-tab.active {
-  background: rgba(74, 222, 128, 0.25);
-  color: #4ade80;
+  background: rgba(251, 146, 60, 0.25);
+  color: var(--ds-accent);
 }
 
 .toolbar-mode-tab:not(:last-child) {
@@ -304,7 +304,7 @@
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.7);
   padding: 0.2rem 0.5rem;
-  background: rgba(96, 165, 250, 0.15);
+  background: rgba(129, 140, 248, 0.15);
   border-radius: 4px;
 }
 
@@ -321,8 +321,8 @@
 }
 
 .toolbar-midi.active {
-  background: rgba(74, 222, 128, 0.15);
-  border-color: #4ade80;
+  background: rgba(52, 211, 153, 0.15);
+  border-color: var(--ds-success);
 }
 
 .toolbar-midi .midi-dot {
@@ -334,8 +334,8 @@
 }
 
 .toolbar-midi.active .midi-dot {
-  background: #4ade80;
-  box-shadow: 0 0 6px #4ade80;
+  background: var(--ds-success);
+  box-shadow: 0 0 6px var(--ds-success);
 }
 
 .toolbar-keys {
@@ -381,12 +381,12 @@
 
 .toolbar-label-tab:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: white;
+  color: var(--ds-text);
 }
 
 .toolbar-label-tab.active {
-  background: rgba(74, 222, 128, 0.25);
-  color: #4ade80;
+  background: rgba(251, 146, 60, 0.25);
+  color: var(--ds-accent);
 }
 
 .toolbar-label-tab:first-child {
@@ -437,12 +437,12 @@
 
 .label-tab:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: white;
+  color: var(--ds-text);
 }
 
 .label-tab.active {
-  background: rgba(74, 222, 128, 0.3);
-  color: #4ade80;
+  background: rgba(251, 146, 60, 0.3);
+  color: var(--ds-accent);
 }
 
 .label-tab:first-child {
@@ -455,8 +455,8 @@
   height: 40px;
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  color: white;
+  border-radius: 999px;
+  color: var(--ds-text);
   font-size: 1.2rem;
   cursor: pointer;
   display: flex;
@@ -471,8 +471,8 @@
 }
 
 .collapse-toggle.collapsed {
-  background: rgba(74, 222, 128, 0.2);
-  border-color: #4ade80;
+  background: rgba(251, 146, 60, 0.2);
+  border-color: var(--ds-accent);
 }
 
 /* Settings toggle button */
@@ -481,8 +481,8 @@
   height: 40px;
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  color: white;
+  border-radius: 999px;
+  color: var(--ds-text);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -498,8 +498,8 @@
 }
 
 .settings-toggle.active {
-  background: rgba(74, 222, 128, 0.2);
-  border-color: #4ade80;
+  background: rgba(251, 146, 60, 0.2);
+  border-color: var(--ds-accent);
 }
 
 /* Key settings panel */
@@ -508,7 +508,7 @@
   top: 4rem;
   right: 2.5rem;
   z-index: 25;
-  background: rgba(15, 23, 42, 0.95);
+  background: var(--ds-panel);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   padding: 1rem;
@@ -529,7 +529,7 @@
 .key-settings-header h4 {
   margin: 0;
   font-size: 1rem;
-  color: #4ade80;
+  color: var(--ds-accent);
 }
 
 .close-settings {
@@ -543,7 +543,7 @@
 }
 
 .close-settings:hover {
-  color: white;
+  color: var(--ds-text);
 }
 
 .key-bindings-list {
@@ -563,7 +563,7 @@
 
 .note-number {
   font-weight: bold;
-  color: #4ade80;
+  color: var(--ds-accent);
   text-align: center;
 }
 
@@ -578,7 +578,7 @@
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 6px;
-  color: white;
+  color: var(--ds-text);
   font-size: 1rem;
   font-weight: bold;
   text-align: center;
@@ -587,8 +587,8 @@
 
 .key-input:focus {
   outline: none;
-  border-color: #4ade80;
-  background: rgba(74, 222, 128, 0.1);
+  border-color: var(--ds-accent);
+  background: rgba(251, 146, 60, 0.1);
 }
 
 .reset-keys {
@@ -644,7 +644,7 @@
 
 .feedback-item-compact .feedback-points {
   font-weight: bold;
-  color: #4ade80;
+  color: var(--ds-success);
   font-size: 0.75rem;
 }
 
@@ -715,19 +715,19 @@
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  background: var(--ds-text);
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 20px rgba(74, 222, 128, 0.4), 0 0 30px rgba(74, 222, 128, 0.2);
   transition: all 0.2s ease;
+  color: #111113;
 }
 
 .highway-play-btn:hover {
   transform: scale(1.1);
-  box-shadow: 0 6px 30px rgba(74, 222, 128, 0.5), 0 0 40px rgba(74, 222, 128, 0.3);
+  box-shadow: 0 6px 30px rgba(251, 146, 60, 0.5), 0 0 40px rgba(251, 146, 60, 0.3);
 }
 
 .highway-play-btn:active {
@@ -736,7 +736,7 @@
 
 .highway-play-btn .play-icon {
   font-size: 1.75rem;
-  color: #1f2937;
+  color: var(--ds-on-accent);
   margin-left: 4px; /* Optical centering for play icon */
 }
 
@@ -766,7 +766,7 @@
 .difficulty-badge {
   padding: 0.25rem 0.75rem;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 0.9rem;
 }
 
@@ -782,8 +782,8 @@
   padding: 0.75rem 1.5rem;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  color: white;
+  border-radius: 999px;
+  color: var(--ds-text);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -833,7 +833,7 @@
 .floating-points {
   font-size: 1.2rem;
   opacity: 0.9;
-  color: #4ade80;
+  color: var(--ds-success);
 }
 
 .floating-buttons {
@@ -844,7 +844,7 @@
 .floating-buttons button {
   padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -882,7 +882,7 @@
   flex: 1;
   padding: 0.75rem 1rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -890,30 +890,30 @@
 }
 
 .btn-primary {
-  background: #4ade80;
-  color: #1f2937;
+  background: var(--ds-text);
+  color: #111113;
 }
 
 .btn-primary:hover {
-  background: #22c55e;
+  background: #ffffff;
 }
 
 .btn-warning {
-  background: #facc15;
-  color: #1f2937;
+  background: var(--ds-warning);
+  color: var(--ds-on-accent);
 }
 
 .btn-warning:hover {
-  background: #eab308;
+  background: var(--ds-warning);
 }
 
 .btn-danger {
-  background: #f87171;
-  color: white;
+  background: var(--ds-danger);
+  color: var(--ds-text);
 }
 
 .btn-danger:hover {
-  background: #ef4444;
+  background: var(--ds-danger);
 }
 
 .state-indicator {
@@ -925,21 +925,21 @@
 }
 
 .state-indicator .state-playing {
-  color: #4ade80;
+  color: var(--ds-success);
   font-weight: bold;
 }
 
 .state-indicator .state-paused {
-  color: #facc15;
+  color: var(--ds-warning);
   font-weight: bold;
 }
 
 .state-indicator .state-stopped {
-  color: #9ca3af;
+  color: #a2a2a3;
 }
 
 .state-indicator .state-waiting {
-  color: #60a5fa;
+  color: var(--ds-info);
   font-weight: bold;
 }
 
@@ -1040,15 +1040,15 @@
 }
 
 .stat.perfect {
-  border-left-color: #4ade80;
+  border-left-color: var(--ds-success);
 }
 
 .stat.good {
-  border-left-color: #facc15;
+  border-left-color: var(--ds-warning);
 }
 
 .stat.miss {
-  border-left-color: #f87171;
+  border-left-color: var(--ds-danger);
 }
 
 .stat-value {
@@ -1108,7 +1108,7 @@
 
 .feedback-points {
   font-weight: bold;
-  color: #4ade80;
+  color: var(--ds-success);
 }
 
 /* MIDI Input Indicator */
@@ -1125,9 +1125,9 @@
 }
 
 .midi-indicator.active {
-  background: rgba(74, 222, 128, 0.2);
-  border-color: #4ade80;
-  box-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
+  background: rgba(52, 211, 153, 0.2);
+  border-color: var(--ds-success);
+  box-shadow: 0 0 15px rgba(52, 211, 153, 0.3);
 }
 
 .midi-dot {
@@ -1139,8 +1139,8 @@
 }
 
 .midi-indicator.active .midi-dot {
-  background: #4ade80;
-  box-shadow: 0 0 10px #4ade80;
+  background: var(--ds-success);
+  box-shadow: 0 0 10px var(--ds-success);
   animation: midiBlink 0.5s ease-in-out;
 }
 
@@ -1201,7 +1201,7 @@
 .mode-instructions h3 {
   font-size: 1.2rem;
   margin-bottom: 0.75rem;
-  color: #4ade80;
+  color: var(--ds-accent);
 }
 
 .mode-instructions p {
@@ -1214,8 +1214,8 @@
   padding: 0.75rem 1.5rem;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  color: white;
+  border-radius: 999px;
+  color: var(--ds-text);
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
@@ -1246,7 +1246,7 @@
   padding: 0.75rem 1rem;
   background: rgba(255, 255, 255, 0.05);
   border: 2px solid transparent;
-  border-radius: 8px;
+  border-radius: 999px;
   color: rgba(255, 255, 255, 0.6);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1258,9 +1258,9 @@
 }
 
 .mode-tab.active {
-  background: rgba(74, 222, 128, 0.15);
-  border-color: #4ade80;
-  color: white;
+  background: rgba(251, 146, 60, 0.15);
+  border-color: var(--ds-accent);
+  color: var(--ds-text);
 }
 
 .mode-tab .mode-icon {
@@ -1283,14 +1283,14 @@
   align-items: center;
   gap: 1rem;
   padding: 0.5rem 1rem;
-  background: rgba(96, 165, 250, 0.15);
-  border: 1px solid rgba(96, 165, 250, 0.3);
+  background: rgba(129, 140, 248, 0.15);
+  border: 1px solid rgba(129, 140, 248, 0.3);
   border-radius: 12px;
 }
 
 .wait-step-counter {
   font-weight: 600;
-  color: #60a5fa;
+  color: var(--ds-info);
 }
 
 .wait-progress-mini {
@@ -1303,7 +1303,7 @@
 
 .wait-progress-mini-fill {
   height: 100%;
-  background: #60a5fa;
+  background: var(--ds-info);
   transition: width 0.2s ease;
 }
 
@@ -1334,7 +1334,7 @@
 
 .game-settings-toggle .settings-icon {
   font-size: 1.5rem;
-  color: white;
+  color: var(--ds-text);
   transition: transform 0.3s ease;
 }
 
@@ -1349,7 +1349,7 @@
   left: 0;
   bottom: 0;
   width: 280px;
-  background: rgba(15, 23, 42, 0.95);
+  background: var(--ds-panel);
   border-right: 1px solid rgba(255, 255, 255, 0.2);
   z-index: 205;
   display: flex;
@@ -1382,7 +1382,7 @@
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #4ade80;
+  color: var(--ds-accent);
 }
 
 .close-sidebar {
@@ -1397,7 +1397,7 @@
 }
 
 .close-sidebar:hover {
-  color: white;
+  color: var(--ds-text);
 }
 
 .game-settings-content {
@@ -1424,7 +1424,7 @@
   gap: 0.5rem;
   font-size: 0.9rem;
   font-weight: 600;
-  color: white;
+  color: var(--ds-text);
   margin-bottom: 0.35rem;
 }
 
@@ -1436,8 +1436,8 @@
   margin-left: auto;
   font-size: 0.8rem;
   font-weight: 700;
-  color: #4ade80;
-  background: rgba(74, 222, 128, 0.15);
+  color: var(--ds-accent);
+  background: rgba(251, 146, 60, 0.15);
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
 }
@@ -1470,16 +1470,16 @@
   appearance: none;
   width: 18px;
   height: 18px;
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  background: var(--ds-accent);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(74, 222, 128, 0.4);
+  box-shadow: 0 2px 8px rgba(251, 146, 60, 0.4);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .volume-slider::-webkit-slider-thumb:hover {
   transform: scale(1.15);
-  box-shadow: 0 2px 12px rgba(74, 222, 128, 0.6);
+  box-shadow: 0 2px 12px rgba(251, 146, 60, 0.6);
 }
 
 .volume-slider:disabled::-webkit-slider-thumb {
@@ -1491,11 +1491,11 @@
 .volume-slider::-moz-range-thumb {
   width: 18px;
   height: 18px;
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  background: var(--ds-accent);
   border-radius: 50%;
   cursor: pointer;
   border: none;
-  box-shadow: 0 2px 8px rgba(74, 222, 128, 0.4);
+  box-shadow: 0 2px 8px rgba(251, 146, 60, 0.4);
 }
 
 .slider-labels {
@@ -1523,7 +1523,7 @@
   padding: 0.75rem 1rem;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
+  border-radius: 999px;
   cursor: pointer;
   transition: all 0.2s ease;
   min-width: 70px;
@@ -1541,7 +1541,7 @@
 
 .game-control-btn .control-icon {
   font-size: 1.5rem;
-  color: white;
+  color: var(--ds-text);
   line-height: 1;
 }
 
@@ -1555,32 +1555,32 @@
 
 /* Back button - subtle red on hover */
 .game-control-btn.back-btn:hover {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.4);
 }
 
 .game-control-btn.back-btn:hover .control-icon {
-  color: #f87171;
+  color: var(--ds-danger);
 }
 
 /* Play/Pause button - green on hover */
 .game-control-btn.play-pause-btn:hover {
-  background: rgba(74, 222, 128, 0.15);
-  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(251, 146, 60, 0.15);
+  border-color: rgba(251, 146, 60, 0.4);
 }
 
 .game-control-btn.play-pause-btn:hover .control-icon {
-  color: #4ade80;
+  color: var(--ds-accent);
 }
 
 /* Restart button - yellow/amber on hover */
 .game-control-btn.restart-btn:hover {
-  background: rgba(250, 204, 21, 0.15);
-  border-color: rgba(250, 204, 21, 0.4);
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.4);
 }
 
 .game-control-btn.restart-btn:hover .control-icon {
-  color: #facc15;
+  color: var(--ds-warning);
 }
 
 /* Responsive */
@@ -1623,10 +1623,10 @@
   gap: 0.6rem;
   width: 100%;
   padding: 0.45rem 0.6rem;
-  background: rgba(74, 222, 128, 0.12);
-  border: 1px solid rgba(74, 222, 128, 0.45);
-  border-radius: 8px;
-  color: white;
+  background: rgba(251, 146, 60, 0.12);
+  border: 1px solid rgba(251, 146, 60, 0.45);
+  border-radius: 999px;
+  color: var(--ds-text);
   font-size: 0.85rem;
   cursor: pointer;
   text-align: left;
@@ -1634,7 +1634,7 @@
 }
 
 .sound-toggle:hover:not(:disabled) {
-  background: rgba(74, 222, 128, 0.22);
+  background: rgba(251, 146, 60, 0.22);
 }
 
 .sound-toggle.off {
@@ -1659,7 +1659,7 @@
 .sound-toggle kbd {
   min-width: 1.4rem;
   padding: 0.05rem 0.3rem;
-  border-radius: 4px;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   font-size: 0.75rem;
   text-align: center;
@@ -1673,7 +1673,7 @@
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #4ade80;
+  color: var(--ds-accent);
 }
 
 .sound-toggle.off .sound-toggle-state {
@@ -1681,8 +1681,8 @@
 }
 
 .toolbar-btn.has-off {
-  border-color: #facc15;
-  color: #facc15;
+  border-color: var(--ds-warning);
+  color: var(--ds-warning);
 }
 
 /* Jam tab: the highway fills the page edge to edge; the open settings sidebar
@@ -1708,10 +1708,10 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(0, 0, 0, 0.55);
-  color: #fff;
+  color: var(--ds-text);
   font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
@@ -1733,8 +1733,8 @@
 
 /* A toggle that is on (e.g. the lane controls shown) */
 .jam-corner-btn.on {
-  border-color: rgba(74, 222, 128, 0.6);
-  color: #4ade80;
+  border-color: rgba(251, 146, 60, 0.6);
+  color: var(--ds-accent);
 }
 
 .jam-settings-header {
@@ -1764,7 +1764,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 700;
-  color: #fff;
+  color: var(--ds-text);
 }
 
 .jam-keys-row {
@@ -1807,9 +1807,9 @@
 }
 
 .jam-sound-option.active {
-  border-color: #4ade80;
-  background: rgba(74, 222, 128, 0.18);
-  color: #fff;
+  border-color: var(--ds-accent);
+  background: rgba(251, 146, 60, 0.18);
+  color: var(--ds-text);
 }
 
 .jam-hold-options {
@@ -1863,7 +1863,7 @@
 }
 
 .jam-slider-value {
-  color: #4ade80;
+  color: var(--ds-accent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1889,7 +1889,7 @@
 
 .jam-reset:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  color: var(--ds-text);
 }
 
 /* Hold repeat: straight or triplet */
@@ -1897,7 +1897,7 @@
   margin-left: auto;
   display: flex;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  border-radius: 999px;
   overflow: hidden;
 }
 
@@ -1915,8 +1915,8 @@
 }
 
 .jam-feel-switch button.active {
-  background: rgba(74, 222, 128, 0.18);
-  color: #fff;
+  background: rgba(251, 146, 60, 0.18);
+  color: var(--ds-text);
 }
 
 
@@ -1949,7 +1949,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 1.35rem;
   letter-spacing: 0.2em;
-  color: #fff;
+  color: var(--ds-text);
 }
 
 .jam-room-players {
@@ -1981,7 +1981,7 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: #fff;
+  color: var(--ds-text);
   border-bottom: 1px dashed rgba(255, 255, 255, 0.3);
   font: inherit;
   outline: none;

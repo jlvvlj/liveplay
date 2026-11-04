@@ -4,6 +4,7 @@ import type { JamTrackMix } from './jamBackingMixer';
 import { JamLaneStrip } from './JamLaneStrip';
 import { LanesIcon } from './JamIcons';
 import './JamTrackGrid.css';
+import { SOUND_COLORS } from '../../styles/palette';
 
 // The Jam tab's backing track as an editable step grid: one lane per drum and
 // per synth part, four bars at a time. Clicking a cell adds or removes a hit or
@@ -17,7 +18,7 @@ const SECTIONS = JAM_TRACK_BARS / SECTION_BARS;
 const LOOP_STEPS = JAM_TRACK_BARS * 16;
 // Cells per bar a lane can use; each lane shows at least the coarsest one that fits its notes
 const DIVISIONS = [4, 8, 16, 32];
-const ROW_COLORS = ['#2f9e5b', '#e07b39', '#e8b33f', '#7b57b0', '#3b82c4', '#c8508a', '#2aa198'];
+const ROW_COLORS = SOUND_COLORS;
 const NEW_VELOCITY = 100;
 // Dragging this far (px) changes a velocity by the full range; less than
 // DRAG_SLOP_PX counts as a click
