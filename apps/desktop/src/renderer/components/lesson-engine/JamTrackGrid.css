@@ -82,15 +82,6 @@
   border-radius: 8px;
 }
 
-/* Clear of the Jam tab's corner buttons (one or two, 36px each) */
-.highway-container:has(.jam-corner-btn) .jam-grid-head {
-  padding-left: 2.75rem;
-}
-
-.highway-container:has(.jam-corner-btn + .jam-corner-btn) .jam-grid-head {
-  padding-left: 5.25rem;
-}
-
 /* Rows are as tall as a 1/8 cell is wide (32 per section), so 1/8 cells stay
    square at any width and the others keep their shape: 1/4 twice as wide,
    1/16 half as wide, 1/32 a quarter. With the same gap everywhere, every
@@ -130,22 +121,6 @@
 /* Folded away: the cells take the controls' place */
 .jam-grid.lanes-closed {
   --jam-grid-name: 0px;
-}
-
-/* The fold bar runs down the gap between the controls and the cells */
-.jam-grid-fold {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: var(--jam-grid-name);
-  width: var(--jam-grid-gap);
-  display: flex;
-  padding: 0 2px;
-  z-index: 1;
-}
-
-.jam-grid-fold .jam-lanes-handle {
-  flex: 1;
 }
 
 /* A muted lane, or one left out by a solo, is drawn faded */
@@ -246,7 +221,7 @@
 @media (max-width: 700px), (max-height: 500px) {
   .jam-grid {
     --jam-grid-name: 6.5rem;
-    --jam-grid-gap: 12px; /* room for the fold bar */
+    --jam-grid-gap: 0.4rem;
     --jam-grid-cell-gap: 2px;
     padding: 0.75rem;
     gap: 0.6rem;

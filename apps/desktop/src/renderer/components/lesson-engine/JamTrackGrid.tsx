@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { JAM_TRACK_BARS, jamTrackParts, type JamTrack, type JamTrackNote } from './jamTracks';
 import type { JamTrackMix } from './jamBackingMixer';
-import { JamLanesHandle, JamLaneStrip } from './JamLaneStrip';
+import { JamLaneStrip } from './JamLaneStrip';
+import { LanesIcon } from './JamIcons';
 import './JamTrackGrid.css';
 
 // The Jam tab's backing track as an editable step grid: one lane per drum and
@@ -30,6 +31,8 @@ interface JamTrackGridProps {
   // Resolution picked per lane, in cells per bar; null for the coarsest that fits
   divisions: (number | null)[];
   mix: JamTrackMix;
+  // Buttons shown first in the header (back, the sidebar's)
+  toolbar?: ReactNode;
   // Lane controls shown, or folded away
   lanesOpen: boolean;
   onLanesOpenChange: (open: boolean) => void;
@@ -71,6 +74,7 @@ export function JamTrackGrid({
   notes,
   divisions,
   mix,
+  toolbar,
   lanesOpen,
   onLanesOpenChange,
   edited,
@@ -192,6 +196,17 @@ export function JamTrackGrid({
   return (
     <div className={`jam-grid ${lanesOpen ? '' : 'lanes-closed'}`}>
       <div className="jam-grid-head">
+        {toolbar}
+        <button
+          className={`jam-corner-btn ${lanesOpen ? 'on' : ''}`}
+          onClick={(event) => {
+            onLanesOpenChange(!lanesOpen);
+            event.currentTarget.blur();
+          }}
+          title={lanesOpen ? 'Hide lane controls' : 'Show lane controls'}
+        >
+          <LanesIcon />
+        </button>
         <button
           className={`jam-grid-play ${paused ? '' : 'playing'}`}
           onClick={onTogglePause}
@@ -329,9 +344,6 @@ export function JamTrackGrid({
             </div>
           );
         })}
-        <div className="jam-grid-fold">
-          <JamLanesHandle open={lanesOpen} onToggle={() => onLanesOpenChange(!lanesOpen)} />
-        </div>
         <div className="jam-grid-overlay">
           <div ref={playheadRef} className="jam-grid-playhead" style={{ width: `${100 / SECTION_STEPS}%` }} />
         </div>

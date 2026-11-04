@@ -1,4 +1,4 @@
-import { forwardRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import './JamLaneStrip.css';
 
 // A lane's controls in the Jam tab, the same beside the step grid and the
@@ -75,22 +75,3 @@ export function JamLaneStrip({
     </div>
   );
 }
-
-// The bar between the lane controls and the lanes that folds the controls away and back
-export const JamLanesHandle = forwardRef<HTMLButtonElement, { open: boolean; onToggle: () => void }>(function JamLanesHandle(
-  { open, onToggle },
-  ref
-) {
-  return (
-    <button
-      ref={ref}
-      className="jam-lanes-handle"
-      onPointerDown={keepPointer}
-      onPointerMove={keepPointer}
-      onClick={blurAfter(onToggle)}
-      aria-label={open ? 'Hide lane controls' : 'Show lane controls'}
-    >
-      {open ? '‹' : '›'}
-    </button>
-  );
-});
