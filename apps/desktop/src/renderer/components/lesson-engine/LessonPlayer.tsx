@@ -1998,8 +1998,8 @@ export function LessonPlayer({
     const handleKeyDown = (e: KeyboardEvent) => {
       // Keys typed into a field (a name, a room code) are text, not notes
       if (isTextEntry(e.target)) return;
-      // ESC key to stop lesson and exit game mode
-      if (e.key === 'Escape') {
+      // ESC key to stop lesson and exit game mode; the Jam tab has no other mode
+      if (e.key === 'Escape' && !jamOnly) {
         e.preventDefault();
         setIsGameMode(false);
         setCurrentMode('free'); // Reset to free mode when exiting game
@@ -2056,7 +2056,7 @@ export function LessonPlayer({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [handleNoteInput, keyBindings, currentMode, setJamKeys]);
+  }, [handleNoteInput, keyBindings, currentMode, setJamKeys, jamOnly]);
 
   // Update current time from the engine's logical lesson clock. The lesson
   // duration stays fixed; speed changes how quickly this playhead advances.
