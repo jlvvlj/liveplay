@@ -1,11 +1,14 @@
 import type { SynthPatch } from '../../../../../../instrument-lab/engine/synth.mjs';
 import type { DrumPatchData } from '../../../../../../instrument-lab/engine/drums.mjs';
 import { SOFTER_TRACK } from './jamSofter';
+import { SOFTER_JAM_TRACK } from './jamSofterJam';
 
 // The Jam tab's backing tracks as data, 8 bars each, rendered live by
 // jamTrackRender.ts (as edited in the Jam tab's step grid). The synthesized ones
 // are in A minor and exported as WAVs by scripts/make-pentatonic-jam-audio.mjs;
-// Softer (jamSofter.ts) plays sounds cut from its own song. Each track's BPM
+// Softer plays sounds cut from its own song, made two ways to compare: Softer
+// Lesson (jamSofter.ts) with the Lessons tab's Ableton import, Softer Jam
+// (jamSofterJam.ts) with its own script. Each track's BPM
 // must match its song in jamSongs.ts.
 
 export const JAM_TRACK_BARS = 8;
@@ -42,7 +45,7 @@ export interface JamTrackDrum {
   hits: [number, number][];
 }
 
-// A recorded sound (a file in softer/): `root` held for `held` 16ths at `velocity`
+// A recorded sound (a file in softer/ or softer-jam/): `root` held for `held` 16ths at `velocity`
 export interface JamTrackSound {
   file: string;
   root: number;
@@ -198,6 +201,7 @@ export const JAM_TRACKS: JamTrack[] = [
         [[3, 90], [14, 70]]),
     ],
   },
+  SOFTER_JAM_TRACK,
   SOFTER_TRACK,
 ];
 

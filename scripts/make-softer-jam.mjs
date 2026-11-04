@@ -1,4 +1,4 @@
-// Makes the Jam tab's Softer backing track and Softer sound from the Softer
+// Makes the Jam tab's Softer Lesson backing track and sound from the Softer
 // Ableton project folder (its Live Set and its tracks exported one by one with
 // File > Export Audio/Video > All Individual Tracks, rendered from 1.1.1), with
 // the app's own Ableton import: every track is read and turned into a lesson
@@ -13,6 +13,9 @@
 // sounds like one of its notes there: the one with the longest slice (its
 // effects' tail), the loudest of those. The Softer sound is the song's first 16
 // tracks, in order, each with its most played lane's sound.
+//
+// Softer Jam (scripts/make_softer_jam.py) is the first way Softer was made,
+// kept to compare.
 //
 // Writes lesson-engine/softer/*.wav and lesson-engine/jamSofter.ts.
 import fs from "node:fs";
@@ -150,12 +153,12 @@ for (const [index, name] of order.entries()) {
     const step = await pick(file, pool.filter((s) => s.note === note));
     const audio = await cut(file, step.slice);
     const sound = {
-      file: `${slug(name)}${lanes.length > 1 ? `-lane-${lanes.indexOf(note) + 1}` : ""}.wav`,
+      file: `softer/${slug(name)}${lanes.length > 1 ? `-lane-${lanes.indexOf(note) + 1}` : ""}.wav`,
       root: note,
       velocity: step.velocity,
       held: Math.round(((step.dur / TICKS_PER_BEAT) * 4) * 100) / 100,
     };
-    fs.writeFileSync(path.join(outDir, sound.file), encodeWav16(audio));
+    fs.writeFileSync(path.join(engine, sound.file), encodeWav16(audio));
     sounds.push({ ...sound, uses: pool.filter((s) => s.note === note).length });
   }
   if (index < LANES) preset.push({ file: sounds.reduce((most, s) => (s.uses > most.uses ? s : most)).file, name });
@@ -173,7 +176,7 @@ for (const [index, name] of order.entries()) {
 }
 // Lanes no part or the Softer sound uses are not kept
 const used = new Set([...preset.map((sound) => sound.file), ...parts.flatMap((part) => part.sounds.map((s) => s.file))]);
-for (const file of fs.readdirSync(outDir)) if (!used.has(file)) fs.rmSync(path.join(outDir, file));
+for (const file of fs.readdirSync(outDir)) if (!used.has(`softer/${file}`)) fs.rmSync(path.join(outDir, file));
 
 const json = (value) => JSON.stringify(value).replace(/"/g, "'");
 fs.writeFileSync(
