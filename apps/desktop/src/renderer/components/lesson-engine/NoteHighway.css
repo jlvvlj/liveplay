@@ -102,16 +102,16 @@
   top: 0;
   bottom: 50px; /* Above progress bar */
   width: 4px;
-  background: linear-gradient(180deg, #4ade80 0%, #22c55e 50%, #4ade80 100%);
-  box-shadow: 0 0 20px rgba(74, 222, 128, 0.5), 0 0 40px rgba(74, 222, 128, 0.3);
+  background: var(--ds-accent);
+  box-shadow: none;
   z-index: 15;
   border-radius: 2px;
   transform: translateX(-50%); /* Center the line on the position */
 }
 
 .timing-line.active {
-  background: linear-gradient(180deg, #fff 0%, #4ade80 50%, #fff 100%);
-  box-shadow: 0 0 30px rgba(255, 255, 255, 0.8), 0 0 60px rgba(74, 222, 128, 0.6);
+  background: linear-gradient(180deg, #fff 0%, var(--ds-accent) 50%, #fff 100%);
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
   animation: timingLinePulse 0.15s ease-out;
 }
 
@@ -165,16 +165,16 @@
   filter: none;
   opacity: 1;
   border-color: #22d3ee;
-  box-shadow: 0 0 25px rgba(34, 211, 238, 0.6), 0 4px 20px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   animation: currentNotePulse 1s ease-in-out infinite;
 }
 
 @keyframes currentNotePulse {
   0%, 100% {
-    box-shadow: 0 0 25px rgba(34, 211, 238, 0.6), 0 4px 20px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   }
   50% {
-    box-shadow: 0 0 40px rgba(34, 211, 238, 0.9), 0 4px 20px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -182,8 +182,8 @@
 .note.played {
   filter: none;
   opacity: 0.6;
-  background-color: #4ade80 !important;
-  border-color: #22c55e;
+  background-color: var(--ds-success) !important;
+  border-color: var(--ds-success);
 }
 
 /* Note labels (key letters or numbers) */
@@ -198,7 +198,7 @@
 }
 
 .note.grayed .note-label {
-  color: white;
+  color: var(--ds-text);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
@@ -208,9 +208,9 @@
 
 /* On time - green with subtle pulse */
 .note.hit.on-time {
-  background-color: #4ade80 !important;
-  border-color: #22c55e;
-  box-shadow: 0 0 20px rgba(74, 222, 128, 0.6);
+  background-color: var(--ds-success) !important;
+  border-color: var(--ds-success);
+  box-shadow: none;
   animation: hitPulseGreen 0.25s ease-out;
 }
 
@@ -219,14 +219,14 @@
 .note.hit.timing-late {
   background-color: #fb923c !important;
   border-color: #f97316;
-  box-shadow: 0 0 20px rgba(251, 146, 60, 0.6);
+  box-shadow: none;
 }
 
 /* Early - blue, ghost drawn to the left of the expected note. */
 .note.hit.timing-early {
-  background-color: #3b82f6 !important;
-  border-color: #2563eb;
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+  background-color: var(--ds-info) !important;
+  border-color: var(--ds-info);
+  box-shadow: none;
 }
 
 /* Ghost note - solid duplicate drawn where an early/late hit actually landed */
@@ -236,15 +236,15 @@
 }
 
 .note.ghost-hit.timing-early {
-  background-color: #3b82f6 !important;
-  border-color: #2563eb;
-  box-shadow: 0 0 24px rgba(59, 130, 246, 0.8);
+  background-color: var(--ds-info) !important;
+  border-color: var(--ds-info);
+  box-shadow: none;
 }
 
 .note.ghost-hit.timing-late {
   background-color: #fb923c !important;
   border-color: #f97316;
-  box-shadow: 0 0 24px rgba(251, 146, 60, 0.8);
+  box-shadow: none;
 }
 
 @keyframes ghostHitPop {
@@ -261,9 +261,9 @@
 
 /* Miss - red, no animation */
 .note.miss {
-  background-color: #ef4444 !important;
-  border-color: #dc2626;
-  box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+  background-color: var(--ds-danger) !important;
+  border-color: var(--ds-danger);
+  box-shadow: none;
   opacity: 0.6;
 }
 
@@ -316,8 +316,8 @@
 }
 
 .timing-popup.on-time .timing-popup-text {
-  color: #4ade80;
-  text-shadow: 0 0 16px rgba(74, 222, 128, 0.8), 0 2px 8px rgba(0, 0, 0, 0.9);
+  color: var(--ds-success);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 .timing-popup.early .timing-popup-delta,
@@ -326,18 +326,18 @@
 }
 
 .timing-popup.early .timing-popup-text {
-  color: #3b82f6;
-  text-shadow: 0 0 12px rgba(59, 130, 246, 0.6), 0 2px 8px rgba(0, 0, 0, 0.9);
+  color: var(--ds-info);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 .timing-popup.late .timing-popup-text {
   color: #fb923c;
-  text-shadow: 0 0 12px rgba(251, 146, 60, 0.6), 0 2px 8px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 .timing-popup.miss .timing-popup-text {
-  color: #ef4444;
-  text-shadow: 0 0 12px rgba(239, 68, 68, 0.5), 0 2px 8px rgba(0, 0, 0, 0.9);
+  color: var(--ds-danger);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 @keyframes timingPopupFloat {
@@ -389,10 +389,10 @@
 
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+  background: var(--ds-accent);
   border-radius: 4px;
   transition: width 0.1s linear;
-  box-shadow: 0 0 10px #4ade80;
+  box-shadow: 0 0 10px var(--ds-accent);
 }
 
 .progress-label {
@@ -523,8 +523,7 @@
   inset: 0;
   background-repeat: repeat;
   background-image:
-    radial-gradient(circle, rgba(148, 197, 255, 0.35) 0 1px, transparent 1.5px),
-    radial-gradient(circle, rgba(255, 255, 255, 0.22) 0 1.5px, transparent 2px);
+    var(--ds-info);
   background-size: 173px 131px, 251px 197px;
   background-position-y: 17px, 83px;
 }
@@ -537,7 +536,7 @@
   left: 0;
   width: 0;
   height: 0;
-  color: #ffffff;
+  color: var(--ds-text);
   pointer-events: none;
   z-index: 21;
   will-change: transform;
@@ -566,7 +565,7 @@
   bottom: 12px;
   padding: 1px 7px;
   border-radius: 999px;
-  color: #0f172a;
+  color: var(--ds-on-accent);
   font-size: 11px;
   font-weight: 600;
   line-height: 16px;
@@ -626,8 +625,9 @@
   --jam-lane-width: 13rem;
 }
 
+/* No fade beside the row controls in jam: the highway starts solid there */
 .note-highway.jam::before {
-  left: var(--jam-inset, 0px);
+  display: none;
 }
 
 .jam-lane-box {

@@ -1,0 +1,34 @@
+/* Design system tokens — taken from the sound editor (StemSoundEditor.css):
+   system font, neutral studio blacks, one orange accent, pill controls.
+   Every screen (home, lessons, player, jam, settings, sound editor,
+   Instrument Lab) reads its colors from here. */
+
+:root {
+  --ds-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  --ds-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ds-bg: #0a0a0c;
+  --ds-panel: #131316;
+  --ds-panel-2: #1a1a1f;
+  --ds-border: rgba(255, 255, 255, 0.08);
+  --ds-border-strong: rgba(255, 255, 255, 0.12);
+  --ds-text: #f4f4f5;
+  --ds-text-dim: rgba(244, 244, 245, 0.5);
+
+  --ds-accent: #fb923c;
+  --ds-accent-hover: #fdac63;
+  --ds-on-accent: #1a1005;
+  /* Selected buttons are white with this text. */
+  --ds-on-light: #111113;
+
+  --ds-success: #34d399;
+  --ds-warning: #fbbf24;
+  --ds-info: #818cf8;
+  --ds-danger: #f87171;
+  --ds-danger-text: #fca5a5;
+
+  --ds-radius-pill: 999px;
+  --ds-radius-card: 12px;
+}

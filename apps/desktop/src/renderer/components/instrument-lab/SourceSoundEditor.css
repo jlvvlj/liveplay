@@ -4,13 +4,13 @@
    sectioned right sidebar. Orange primary accent. */
 
 .source-sound-editor {
-  --source-se-bg: #0a0a0c;
-  --source-se-panel: #131316;
-  --source-se-panel-2: #1a1a1f;
-  --source-se-border: rgba(255, 255, 255, 0.08);
-  --source-se-text: #f4f4f5;
-  --source-se-text-dim: rgba(244, 244, 245, 0.5);
-  --source-se-accent: #fb923c;
+  --source-se-bg: var(--ds-bg);
+  --source-se-panel: var(--ds-panel);
+  --source-se-panel-2: var(--ds-panel-2);
+  --source-se-border: var(--ds-border);
+  --source-se-text: var(--ds-text);
+  --source-se-text-dim: var(--ds-text-dim);
+  --source-se-accent: var(--ds-accent);
 
   position: relative;
   inset: auto;
@@ -120,7 +120,7 @@
 }
 
 .instrument-lab-ui .source-sound-editor .source-se-tool:hover:not(:disabled) {
-  background: rgba(251, 146, 60, 0.18);
+  background: var(--ds-panel-2);
   color: var(--source-se-accent);
 }
 
@@ -130,7 +130,7 @@
 }
 
 .instrument-lab-ui .source-sound-editor .source-se-tool.danger:hover {
-  background: rgba(248, 113, 113, 0.18);
+  background: var(--ds-panel-2);
   color: #fca5a5;
 }
 
@@ -181,7 +181,7 @@
 .instrument-lab-ui .source-sound-editor .source-se-merge-button {
   height: 26px;
   padding: 0 0.7rem;
-  background: rgba(251, 146, 60, 0.18);
+  background: var(--ds-panel-2);
   border: none;
   border-radius: 999px;
   color: var(--source-se-accent);
@@ -192,7 +192,7 @@
 }
 
 .instrument-lab-ui .source-sound-editor .source-se-merge-button:hover:not(:disabled) {
-  background: rgba(251, 146, 60, 0.28);
+  background: var(--ds-panel-2);
 }
 
 .instrument-lab-ui .source-sound-editor .source-se-merge-button:disabled {
@@ -230,8 +230,8 @@
 }
 
 .instrument-lab-ui .source-sound-editor .source-se-stem-tab.active {
-  background: rgba(251, 146, 60, 0.2);
-  color: var(--source-se-accent);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .instrument-lab-ui .source-sound-editor .source-se-chip-button {
@@ -280,7 +280,7 @@
   background: #f4f4f5;
   border: none;
   border-radius: 999px;
-  color: #111113;
+  color: var(--ds-on-light);
   font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
@@ -682,8 +682,8 @@
 .instrument-lab-ui .source-sound-editor .source-se-error {
   margin: 0.8rem 1.1rem 0;
   padding: 0.65rem 0.9rem;
-  background: rgba(248, 113, 113, 0.1);
-  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: var(--ds-panel);
+  border: 1px solid var(--ds-danger);
   border-radius: 10px;
   color: #fca5a5;
   font-size: 0.8rem;
@@ -703,7 +703,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 2px solid rgba(251, 146, 60, 0.25);
+  border: 2px solid var(--ds-accent);
   border-top-color: var(--source-se-accent);
   animation: source-se-spin 0.9s linear infinite;
 }

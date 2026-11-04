@@ -4,8 +4,8 @@
   min-height: 0;
   overflow-y: auto;
   padding: 1.5rem;
-  background: radial-gradient(120% 80% at 50% 0%, #1e293b 0%, #0b1120 60%);
-  color: #fff;
+  background: radial-gradient(120% 80% at 50% 0%, #28282a 0%, var(--ds-on-light) 60%);
+  color: var(--ds-text);
 }
 
 .jam-lobby-header h1 {
@@ -17,7 +17,7 @@
 
 .jam-lobby-note {
   margin-bottom: 1rem;
-  color: #fca5a5;
+  color: var(--ds-danger-text);
   font-size: 0.9rem;
 }
 
@@ -91,7 +91,7 @@ button.jam-lobby-card:hover:not(:disabled) {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  color: var(--ds-text);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -134,13 +134,13 @@ button.jam-lobby-card:hover:not(:disabled) {
 }
 
 .jam-lobby-badge.open {
-  background: rgba(74, 222, 128, 0.15);
-  color: #86efac;
+  background: var(--ds-panel-2);
+  color: var(--ds-success);
 }
 
 .jam-lobby-badge.private {
-  background: rgba(251, 191, 36, 0.15);
-  color: #fcd34d;
+  background: var(--ds-panel-2);
+  color: var(--ds-warning);
 }
 
 .jam-lobby-count {
@@ -179,8 +179,8 @@ button.jam-lobby-card:hover:not(:disabled) {
   height: 8px;
   flex: none;
   border-radius: 50%;
-  background: #4ade80;
-  box-shadow: 0 0 8px #4ade80;
+  background: var(--ds-success);
+  box-shadow: 0 0 8px var(--ds-success);
   animation: jamLobbyLive 1.6s ease-in-out infinite;
 }
 
@@ -232,22 +232,22 @@ button.jam-lobby-card:hover:not(:disabled) {
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.3);
-  color: #fff;
+  color: var(--ds-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.95rem;
   letter-spacing: 0.15em;
 }
 
 .jam-lobby-code input.wrong {
-  border-color: #f87171;
+  border-color: var(--ds-danger);
 }
 
 .jam-lobby-code button[type='submit'] {
   padding: 0.5rem 0.9rem;
-  border-radius: 8px;
+  border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  color: var(--ds-text);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -259,7 +259,7 @@ button.jam-lobby-card:hover:not(:disabled) {
 }
 
 .jam-lobby-problem {
-  color: #fca5a5;
+  color: var(--ds-danger-text);
   font-size: 0.8rem;
 }
 

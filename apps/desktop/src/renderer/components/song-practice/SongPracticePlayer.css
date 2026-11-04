@@ -26,7 +26,7 @@
   background: rgba(255, 255, 255, 0.1);
   border: none;
   border-radius: 8px;
-  color: white;
+  color: var(--ds-text);
   cursor: pointer;
   font-size: 1rem;
 }
@@ -43,7 +43,7 @@
 }
 
 .song-practice-error {
-  color: #f87171;
+  color: var(--ds-danger);
 }
 
 /* Focus stem selector */
@@ -63,8 +63,8 @@
   padding: 0.6rem 1.2rem;
   background: rgba(255, 255, 255, 0.1);
   border: 2px solid transparent;
-  border-radius: 8px;
-  color: white;
+  border-radius: 999px;
+  color: var(--ds-text);
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -75,9 +75,10 @@
 }
 
 .focus-button.active {
-  background: #4ade80;
-  color: #1a1a1a;
+  background: var(--ds-text);
+  color: var(--ds-on-light);
   font-weight: 600;
+  border-color: transparent;
 }
 
 /* Mixer */
@@ -101,7 +102,7 @@
 }
 
 .stem-strip.focused {
-  border-color: #4ade80;
+  border-color: var(--ds-accent);
 }
 
 .stem-strip.muted {
@@ -114,7 +115,7 @@
 
 .stem-volume {
   width: 100%;
-  accent-color: #4ade80;
+  accent-color: var(--ds-accent);
 }
 
 .stem-strip-buttons {
@@ -126,9 +127,9 @@
   width: 2.2rem;
   height: 2.2rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
-  color: white;
+  color: var(--ds-text);
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s;
@@ -139,13 +140,13 @@
 }
 
 .stem-button.active-mute {
-  background: #f87171;
-  color: #1a1a1a;
+  background: var(--ds-danger);
+  color: var(--ds-on-accent);
 }
 
 .stem-button.active-solo {
-  background: #facc15;
-  color: #1a1a1a;
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 /* Transport */
@@ -165,7 +166,7 @@
   border: none;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.12);
-  color: white;
+  color: var(--ds-text);
   font-size: 1.1rem;
   cursor: pointer;
 }
@@ -175,8 +176,8 @@
 }
 
 .transport-play {
-  background: #4ade80;
-  color: #1a1a1a;
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 
 .transport-time {
@@ -197,7 +198,7 @@
 
 .transport-seek-fill {
   height: 100%;
-  background: #4ade80;
+  background: var(--ds-accent);
 }
 
 .midi-status {

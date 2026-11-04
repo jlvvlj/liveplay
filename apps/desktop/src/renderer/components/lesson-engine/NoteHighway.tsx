@@ -14,6 +14,7 @@ import { HOLD_MIN_MS, stepDurationMs } from './holdNotes';
 import { jamTrackLevels, type JamTrackMix } from './jamBackingMixer';
 import { JamLaneStrip } from './JamLaneStrip';
 import { LanesIcon } from './JamIcons';
+import { SOUND_COLORS } from '../../styles/palette';
 import './NoteHighway.css';
 
 export type HighwayMode = 'free' | 'wait' | 'play' | 'jam';
@@ -381,17 +382,7 @@ export function NoteHighway({
   };
 
   const getLaneColor = (laneIndex: number): string => {
-    const colors = [
-      '#ef4444', // red (P1)
-      '#3b82f6', // blue (P2)
-      '#a855f7', // purple (P3)
-      '#f59e0b', // amber (P4)
-      '#8b5cf6', // violet
-      '#ec4899', // pink
-      '#06b6d4', // cyan
-      '#f97316', // orange
-    ];
-    return colors[laneIndex % colors.length];
+    return SOUND_COLORS[laneIndex % SOUND_COLORS.length];
   };
 
   // Check if any pad is active for the timing line glow effect
