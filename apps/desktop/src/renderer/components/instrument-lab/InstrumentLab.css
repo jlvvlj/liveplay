@@ -2,27 +2,27 @@
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: #111217;
-  color: #ececf1;
+  background: #0a0a0c;
+  color: #f4f4f5;
 }
 .instrument-lab-opening header {
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid #ffffff14;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.078);
 }
 .instrument-lab-opening header span {
-  color: #a7a9b5;
+  color: #a9a9aa;
   font-size: 12px;
 }
 .instrument-lab-opening button {
   cursor: pointer;
   padding: 0.5rem 1rem;
   color: inherit;
-  background: #1b1d25;
-  border: 1px solid #ffffff14;
-  border-radius: 6px;
+  background: #1a1a1f;
+  border: 1px solid rgba(255, 255, 255, 0.078);
+  border-radius: 999px;
 }
 .instrument-lab-opening > p,
 .instrument-lab-opening > div {
