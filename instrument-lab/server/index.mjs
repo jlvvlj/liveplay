@@ -897,7 +897,8 @@ if (process.env.NODE_ENV === "production") {
     server: {
       middlewareMode: true,
       hmr: { host: "127.0.0.1" },
-      fs: { allow: [root] },
+      // The shared design-system tokens live with the desktop app's styles.
+      fs: { allow: [root, path.resolve(root, "../apps/desktop/src/renderer/styles")] },
     },
     appType: "spa",
   });

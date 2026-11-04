@@ -33,6 +33,7 @@ import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
 import type { JamRoomNote, JamRoomSound, JamRoomState, JamRoomVisibility } from './jamRoomProtocol';
 import { JamRemoteVoices } from './jamRemoteVoices';
 import { holdToleranceMs, isHoldStep, stepDurationMs } from './holdNotes';
+import { ACCENT, DANGER, SUCCESS, TEXT, WARNING } from '../../styles/palette';
 import './LessonPlayer.css';
 
 interface LessonPlayerProps {
@@ -2296,25 +2297,25 @@ export function LessonPlayer({
   };
 
   const getAccuracyColor = (accuracy: number): string => {
-    if (accuracy >= 90) return '#4ade80'; // green
-    if (accuracy >= 75) return '#facc15'; // yellow
-    if (accuracy >= 60) return '#fb923c'; // orange
-    return '#f87171'; // red
+    if (accuracy >= 90) return SUCCESS;
+    if (accuracy >= 75) return WARNING;
+    if (accuracy >= 60) return ACCENT;
+    return DANGER;
   };
 
   const getFeedbackColor = (feedback: HitFeedback): string => {
     switch (feedback.accuracy) {
       case 'perfect':
-        return '#4ade80';
+        return SUCCESS;
       case 'good':
-        return '#facc15';
+        return WARNING;
       case 'early':
       case 'late':
-        return '#fb923c';
+        return ACCENT;
       case 'miss':
-        return '#f87171';
+        return DANGER;
       default:
-        return '#ffffff';
+        return TEXT;
     }
   };
 

@@ -1,17 +1,15 @@
-/* Same design system as the sound editor (StemSoundEditor.css): system font,
-   neutral studio blacks, orange accent. */
+/* Design system tokens come from apps/desktop/src/renderer/styles/tokens.css. */
 .instrument-lab-ui {
-  --lab-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-  --lab-bg: #0a0a0c;
-  --lab-panel: #131316;
-  --lab-panel-2: #1a1a1f;
-  --lab-text: #f4f4f5;
-  --lab-accent: #fb923c;
-  --lab-accent-hover: #fdac63;
-  --lab-on-accent: #1a1005;
-  --lab-danger: #f87171;
-  --lab-danger-text: #fca5a5;
+  --lab-font: var(--ds-font);
+  --lab-bg: var(--ds-bg);
+  --lab-panel: var(--ds-panel);
+  --lab-panel-2: var(--ds-panel-2);
+  --lab-text: var(--ds-text);
+  --lab-accent: var(--ds-accent);
+  --lab-accent-hover: var(--ds-accent-hover);
+  --lab-on-accent: var(--ds-on-accent);
+  --lab-danger: var(--ds-danger);
+  --lab-danger-text: var(--ds-danger-text);
 
   font-family: var(--lab-font);
   color: var(--lab-text);
@@ -98,9 +96,9 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  background: rgba(251, 146, 60, 0.075);
-  border: 1px solid rgba(251, 146, 60, 0.145);
-  color: var(--lab-accent-hover);
+  background: var(--ds-text);
+  border: 1px solid var(--ds-text);
+  color: var(--ds-on-light);
   border-radius: 999px;
   padding: 13px 11px;
   font-size: 12px;
@@ -138,7 +136,7 @@
   color: #b4b4b5;
 }
 .instrument-lab-ui .project-list .selected {
-  background: rgba(255, 255, 255, 0.027);
+  background: var(--ds-panel);
   color: #efeff0;
 }
 .instrument-lab-ui .project-icon {
@@ -235,7 +233,7 @@
 }
 .instrument-lab-ui .primary {
   background: var(--lab-text);
-  color: #111113;
+  color: var(--ds-on-light);
   border-radius: 999px;
   padding: 12px 18px;
   font-size: 12px;
@@ -244,9 +242,9 @@
 }
 .instrument-lab-ui .error {
   padding: 14px;
-  border: 1px solid rgba(248, 113, 113, 0.439);
+  border: 1px solid var(--ds-danger);
   border-radius: 8px;
-  background: rgba(248, 113, 113, 0.082);
+  background: var(--ds-panel);
   color: var(--lab-danger-text);
   font-size: 12px;
   margin-bottom: 20px;
@@ -262,8 +260,7 @@
   border-radius: 14px;
   padding: 42px;
   text-align: center;
-  background:
-    radial-gradient(ellipse at 50% 12%, rgba(251, 146, 60, 0.082), transparent 65%), var(--lab-panel);
+  background: var(--lab-panel);
 }
 .instrument-lab-ui .sound-art {
   height: 175px;
@@ -277,7 +274,7 @@
 .instrument-lab-ui .sound-art i {
   display: block;
   width: 4px;
-  background: linear-gradient(var(--lab-accent-hover), rgba(251, 146, 60, 0.333));
+  background: var(--ds-accent);
   border-radius: 5px;
 }
 .instrument-lab-ui .pill {
@@ -318,12 +315,12 @@
   background: var(--lab-panel);
 }
 .instrument-lab-ui .demo-icon {
-  background: rgba(251, 146, 60, 0.063);
-  color: var(--lab-accent);
-  border: 1px solid rgba(251, 146, 60, 0.133);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
+  border: none;
   width: 45px;
   height: 45px;
-  border-radius: 10px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
 }
@@ -389,7 +386,7 @@
 .instrument-lab-ui .section-top h2 span {
   font-size: 10px;
   margin-left: 9px;
-  background: rgba(255, 255, 255, 0.031);
+  background: var(--ds-panel);
   color: #a5a5a6;
   padding: 3px 6px;
   border-radius: 999px;
@@ -429,7 +426,7 @@
   position: relative;
 }
 .instrument-lab-ui .instrument-row.active {
-  background: color-mix(in srgb, var(--track) 5%, transparent);
+  background: var(--lab-panel-2);
 }
 .instrument-lab-ui .instrument-row.active:before {
   content: "";
@@ -468,8 +465,8 @@
     90deg,
     transparent 0,
     transparent calc(25% - 1px),
-    rgba(255, 255, 255, 0.024) calc(25% - 1px),
-    rgba(255, 255, 255, 0.024) 25%
+    #101012 calc(25% - 1px),
+    #101012 25%
   );
 }
 .instrument-lab-ui .instrument-row rect {
@@ -576,9 +573,10 @@
   white-space: nowrap;
 }
 .instrument-lab-ui .segmented .active {
-  background: #2b2b2d;
-  color: #c6c6c7;
+  background: var(--ds-text);
+  color: var(--ds-on-light);
   border-radius: 999px;
+  border-color: var(--ds-text);
 }
 .instrument-lab-ui .loop {
   margin-left: auto;
@@ -587,7 +585,8 @@
   white-space: nowrap;
 }
 .instrument-lab-ui .loop.active {
-  color: var(--lab-accent);
+  color: var(--ds-on-light);
+  background: var(--ds-text);
 }
 .instrument-lab-ui .patch-panel {
   display: grid;
@@ -872,13 +871,13 @@
       90deg,
       transparent 0,
       transparent calc(12.5% - 1px),
-      rgba(255, 255, 255, 0.031) calc(12.5% - 1px),
-      rgba(255, 255, 255, 0.031) 12.5%
+      #121214 calc(12.5% - 1px),
+      #121214 12.5%
     ),
     repeating-linear-gradient(
       0deg,
-      rgba(255, 255, 255, 0.008) 0,
-      rgba(255, 255, 255, 0.008) 11px,
+      #0c0c0e 0,
+      #0c0c0e 11px,
       transparent 11px,
       transparent 22px
     );
@@ -906,7 +905,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(255, 255, 255, 0.533);
+  background: #8d8d8f;
   pointer-events: none;
 }
 .instrument-lab-ui .playhead:before {
@@ -1117,7 +1116,7 @@
 .instrument-lab-ui .add-note-row button {
   font-size: 10px;
   color: var(--lab-accent);
-  border: 1px solid rgba(251, 146, 60, 0.2);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 999px;
   padding: 8px 12px;
 }
@@ -1141,7 +1140,7 @@
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.094);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--ds-panel);
 }
 .instrument-lab-ui .assignment-editor p,
 .instrument-lab-ui .assignment-editor small {
@@ -1250,8 +1249,8 @@
   margin: 0 0 20px;
 }
 .instrument-lab-ui .lab-analysis-modes .active {
-  background: rgba(251, 146, 60, 0.2);
-  color: var(--lab-accent);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
   opacity: 1;
 }
 .instrument-lab-ui .drum-explanation {
@@ -1374,7 +1373,7 @@
   width: 32px;
   height: 32px;
   background: #e7e7e8;
-  color: #222224;
+  color: var(--ds-raised);
 }
 .instrument-lab-ui .mix-zoom {
   margin-left: auto;
@@ -1422,7 +1421,7 @@
   min-height: 72px;
 }
 .instrument-lab-ui .mix-track.active {
-  background: color-mix(in srgb, var(--track) 7%, transparent);
+  background: var(--lab-panel-2);
   box-shadow: inset 2px 0 var(--track);
 }
 .instrument-lab-ui .mix-track-controls {
@@ -1467,12 +1466,12 @@
   font-size: 11px;
 }
 .instrument-lab-ui .mix-solo[aria-pressed="true"] {
-  background: #fbbf24;
-  color: #262628;
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 .instrument-lab-ui .mix-mute[aria-pressed="true"] {
-  background: var(--lab-danger);
-  color: #171719;
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }
 .instrument-lab-ui .mix-lane {
   position: relative;
@@ -1489,8 +1488,8 @@
     90deg,
     transparent 0,
     transparent calc(25% - 1px),
-    rgba(255, 255, 255, 0.035) calc(25% - 1px),
-    rgba(255, 255, 255, 0.035) 25%
+    #131315 calc(25% - 1px),
+    #131315 25%
   );
 }
 .instrument-lab-ui .mix-lane rect {
@@ -1576,8 +1575,8 @@
   align-items: center;
   gap: 12px;
   padding: 14px 24px;
-  background: rgba(251, 146, 60, 0.051);
-  border-top: 1px solid rgba(251, 146, 60, 0.188);
+  background: var(--ds-panel-2);
+  border-top: 1px solid var(--ds-border-strong);
   font-size: 12px;
 }
 .instrument-lab-ui .mix-merge-review p {
@@ -1587,7 +1586,7 @@
   color: #c6c6c7;
 }
 .instrument-lab-ui .mix-merge-review button {
-  border: 1px solid rgba(251, 146, 60, 0.314);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 999px;
   padding: 8px 12px;
 }
@@ -1673,7 +1672,7 @@
   height: 26px;
   border-radius: 50%;
   background: #e7e7e8;
-  color: #222224;
+  color: var(--ds-raised);
   font-size: 10px;
 }
 .instrument-lab-ui .mix-select[aria-expanded="true"] strong:before {
@@ -1749,7 +1748,7 @@
 }
 .instrument-lab-ui .expanded-roll-viewport .pitch-labels span {
   right: 4px;
-  background: rgba(19, 19, 22, 0.933);
+  background: var(--ds-panel);
   padding: 2px;
 }
 

@@ -15,20 +15,20 @@
 }
 
 .error-message {
-  background: rgba(255, 100, 100, 0.2);
-  border: 1px solid rgba(255, 100, 100, 0.5);
+  background: var(--ds-panel);
+  border: 1px solid var(--ds-danger);
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
-  color: #ffcccc;
+  color: var(--ds-danger-text);
 }
 
 .device-list {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: var(--ds-panel);
   padding: 1.5rem;
   border-radius: 12px;
   margin-bottom: 2rem;
+  border: 1px solid var(--ds-border);
 }
 
 .device-list ul {
@@ -44,33 +44,36 @@
 .device-list button {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.15);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  color: white;
+  background: var(--ds-raised-hover);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: 999px;
+  color: var(--ds-text);
   font-size: 1rem;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .device-list button:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: #474749;
   border-color: rgba(255, 255, 255, 0.5);
 }
 
 .device-list li.selected button {
-  background: rgba(100, 200, 255, 0.4);
-  border-color: rgba(100, 200, 255, 0.8);
+  background: var(--ds-text);
+  border-color: var(--ds-text);
   font-weight: bold;
+  color: var(--ds-on-light);
 }
 
 .refresh-button {
-  background: rgba(100, 200, 100, 0.3) !important;
-  border-color: rgba(100, 200, 100, 0.6) !important;
+  background: var(--ds-panel-2) !important;
+  border-color: transparent;
+  color: var(--ds-accent);
+  font-weight: 700;
 }
 
 .refresh-button:hover {
-  background: rgba(100, 200, 100, 0.5) !important;
+  background: var(--ds-panel-2) !important;
 }
 
 .no-devices,
@@ -81,16 +84,16 @@
 }
 
 .midi-monitor {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: var(--ds-panel);
   padding: 1.5rem;
   border-radius: 12px;
+  border: 1px solid var(--ds-border);
 }
 
 .event-list {
   max-height: 400px;
   overflow-y: auto;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--ds-bg);
   border-radius: 8px;
   padding: 1rem;
 }
@@ -103,7 +106,7 @@
 .event-list thead th {
   text-align: left;
   padding: 0.5rem;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 1px solid var(--ds-border-strong);
   font-weight: bold;
 }
 
@@ -113,11 +116,11 @@
 }
 
 .event-list tbody tr.note-on {
-  background: rgba(100, 255, 100, 0.1);
+  background: var(--ds-panel-2);
 }
 
 .event-list tbody tr.note-off {
-  background: rgba(255, 100, 100, 0.1);
+  background: var(--ds-panel);
 }
 
 /* Mapping Section */
@@ -145,10 +148,10 @@
 .instrument-btn {
   flex: 1;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  color: white;
+  background: var(--ds-raised);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: 999px;
+  color: var(--ds-text);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -156,25 +159,25 @@
 }
 
 .instrument-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
   border-color: rgba(255, 255, 255, 0.5);
   transform: translateY(-2px);
 }
 
 .instrument-btn.active {
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
-  border-color: #4ade80;
-  color: #000;
-  box-shadow: 0 5px 15px rgba(74, 222, 128, 0.4);
+  background: var(--ds-text);
+  border-color: transparent;
+  color: var(--ds-on-light);
+  box-shadow: none;
 }
 
 .btn-configure {
   width: 100%;
   padding: 1rem;
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  background: var(--ds-text);
   border: none;
-  border-radius: 8px;
-  color: #000;
+  border-radius: 999px;
+  color: var(--ds-on-light);
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
@@ -183,22 +186,22 @@
 
 .btn-configure:hover {
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(74, 222, 128, 0.4);
+  background: #ffffff;
 }
 
 .btn-back-mapper {
   margin-bottom: 1rem;
   padding: 0.75rem 1.5rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ds-raised);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  color: white;
+  border-radius: 999px;
+  color: var(--ds-text);
   font-size: 1rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .btn-back-mapper:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--ds-raised-hover);
   transform: translateX(-3px);
 }
