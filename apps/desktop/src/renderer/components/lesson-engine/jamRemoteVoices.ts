@@ -1,7 +1,7 @@
 import * as Tone from 'tone';
 import { renderJamSound } from './jamRenderer';
 import { jamSoundUrl } from './jamSoundFiles';
-import type { JamSampleSound, JamSoundPreset } from './jamSynth';
+import { JAM_RENDERED_BOOST_DB, type JamSampleSound, type JamSoundPreset } from './jamSynth';
 import type { JamRoomSound } from './jamRoomProtocol';
 
 // Other players' sounds in a jam room: each player's chosen sound is rendered
@@ -15,6 +15,7 @@ interface Voice {
   players: Map<number, Tone.Player[]>;
   next: Map<number, number>;
   blobs: string[];
+  boostDb: number; // rendered sounds play louder than recorded ones
 }
 
 const audioPath = (file: string) => (/^(blob|https?):|^\//.test(file) ? file : `/audio/${file}`);
@@ -70,7 +71,7 @@ export class JamRemoteVoices {
       })
     );
     this.remove(id);
-    this.voices.set(id, { key, players, next: new Map(), blobs });
+    this.voices.set(id, { key, players, next: new Map(), blobs, boostDb: blobs.length ? JAM_RENDERED_BOOST_DB : 0 });
   }
 
   // Plays player `id`'s row `note` at audio time `time`, scaled by the row's
@@ -84,7 +85,8 @@ export class JamRemoteVoices {
     voice.next.set(note, index + 1);
     const player = pool.find((candidate) => candidate.state !== 'started') ?? pool[index % pool.length];
     if (player.state === 'started') player.stop(time);
-    player.volume.value = volume === 0 ? -Infinity : -6 + (volume - 1) * 20 + (level < 1 ? 20 * Math.log10(level) : 0);
+    player.volume.value =
+      volume === 0 ? -Infinity : -6 + (volume - 1) * 20 + (level < 1 ? 20 * Math.log10(level) : 0) + voice.boostDb;
     player.start(time);
     return true;
   }

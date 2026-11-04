@@ -470,6 +470,10 @@ export function renderJamWavs(
   return Object.fromEntries(rows.map((pitch, row) => [pitch, encodeWav(clips[row], SAMPLE_RATE)]));
 }
 
+// Rendered sounds (synths, kits, recorded instruments) play this much louder
+// than the reference sounds, to stand out over the backing track
+export const JAM_RENDERED_BOOST_DB = 16;
+
 // Effects on the played notes (not the backing track)
 export type JamEchoTime = '1/16' | '1/8' | '1/8.' | '1/4';
 

@@ -22,6 +22,7 @@ import {
   loadJamReferenceSounds,
   DEFAULT_JAM_EFFECTS,
   JAM_ECHO_BEATS,
+  JAM_RENDERED_BOOST_DB,
   type JamSoundPreset,
   type JamSampleSound,
   type JamSynthPatch,
@@ -317,6 +318,9 @@ export function LessonPlayer({
   const jamKit = jamKitPreset && 'kit' in jamKitPreset ? jamKitPreset.kit : undefined;
   const jamRecorded = jamKitPreset && 'sounds' in jamKitPreset ? jamKitPreset.sounds : undefined;
   const jamInstrument = jamKitPreset && 'sample' in jamKitPreset ? jamKitPreset.sample : undefined;
+  // Our rendered sounds play louder than recorded ones (JAM_RENDERED_BOOST_DB)
+  const jamRenderedRef = useRef(false);
+  jamRenderedRef.current = !!(jamKit || jamPatch || jamInstrument);
 
   // Jam tab: recorded reference sounds on this machine, if any
   const [jamReferenceSounds, setJamReferenceSounds] = useState<JamSampleSound[] | null>(null);
@@ -759,10 +763,15 @@ export function LessonPlayer({
     const reverb = new Tone.Reverb();
     bus.connect(echo.input);
     echo.output.chain(reverb, Tone.getDestination());
+    // The notes and the backing together stay under 0 dBFS
+    const limiter = new Tone.Limiter(-1);
+    Tone.getDestination().chain(limiter);
     jamNotesBusRef.current = bus;
     jamEchoRef.current = echo;
     jamReverbRef.current = reverb;
     return () => {
+      Tone.getDestination().chain();
+      limiter.dispose();
       bus.dispose();
       echo.dispose();
       reverb.dispose();
@@ -1547,7 +1556,8 @@ export function LessonPlayer({
     if (level > 0) {
       const at = Math.max(start + sounds, context.currentTime + JAM_SCHEDULE_MARGIN_S);
       const player = playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, at, step?.semitones);
-      if (player && level < 1) player.volume.value += 20 * Math.log10(level);
+      const gainDb = (level < 1 ? 20 * Math.log10(level) : 0) + (jamRenderedRef.current ? JAM_RENDERED_BOOST_DB : 0);
+      if (player && gainDb) player.volume.value += gainDb;
     }
     room?.sendNote({ song: lesson.id, slot, note: row });
     addJamNote({ note: row, timeMs }, heard * 1000);
