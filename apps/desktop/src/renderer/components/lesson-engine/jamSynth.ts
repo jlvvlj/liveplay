@@ -158,6 +158,15 @@ export const JAM_SOUND_PRESETS: JamSoundPreset[] = [
   preset('pad', 'Warm pad', { family: 'saw', brightness: 0.22, body: 0.5, attack: 0.3, decay: 1.2, sustain: 0.7, release: 1, detune: 14, gain: 1, hold: 0.5 }),
   // Breathy flute: soft triangle that fades in
   preset('flute', 'Soft flute', { family: 'triangle', brightness: 0.25, body: 0.3, attack: 0.07, decay: 0.5, sustain: 0.75, release: 0.2, detune: 2, gain: 1, hold: 0.3 }),
+  // Night jazz: a Rhodes whose tine glows then mellows (its filter closing over
+  // the first half second), softer up high
+  preset('night-rhodes', 'Night Rhodes', { family: 'fm', fm: 3, ratio: 1, brightness: 0.75, body: 0.2, attack: 0.003, decay: 1.6, sustain: 0.18, release: 0.9, detune: 3, gain: 1, hold: 1.2, cutoff: 20, cutoffEnd: 6, sweepTime: 0.6, keyDecay: 0.35 }),
+  // Vibraphone: a struck metal bar with a slow, gentle shimmer
+  preset('vibes', 'Vibraphone', { family: 'fm', fm: 1.3, ratio: 4, brightness: 0.6, body: 0.15, attack: 0.002, decay: 1.8, sustain: 0.03, release: 1.4, gain: 1, hold: 0.6, vibrato: 8, keyDecay: 0.3 }),
+  // Breathy, rounded tenor-like lead: a vowel-shaped saw, a little grit, vibrato that grows in
+  preset('mellow-sax', 'Mellow sax', { family: 'saw', brightness: 0.55, body: 0.35, attack: 0.07, decay: 1.2, sustain: 0.8, release: 0.22, detune: 2, gain: 1, hold: 0.9, cutoff: 10, cutoffEnd: 7, sweepTime: 0.4, resonance: 0.15, vowel: 0.45, vibrato: 16, drive: 0.25 }),
+  // Hollow-body jazz guitar, thumb-picked: warm and quick to soften
+  preset('jazz-guitar', 'Jazz guitar', { family: 'saw', brightness: 0.55, body: 0.25, attack: 0.003, decay: 0.7, sustain: 0.08, release: 0.35, detune: 2, gain: 1, hold: 0.6, cutoff: 12, cutoffEnd: 4, sweepTime: 0.35, keyDecay: 0.3 }),
 
   // Room kit, lowest row to highest: kicks, toms, snares, clap, wood, cowbell, shaker, hats, crash
   {
