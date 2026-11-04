@@ -1742,6 +1742,13 @@
   padding: 0.75rem;
 }
 
+/* The header's buttons line up with the highway's and the grid's toolbar
+   (16px from the top) */
+.jam-settings-header .jam-corner-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
 .jam-song {
   flex: 1;
   min-width: 0;
