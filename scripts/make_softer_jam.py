@@ -16,6 +16,11 @@ Every track gets one sound, cut from its own export:
   - an audio track whose clips are one-shots (chops, swells, crash): one clip;
   - an audio loop (hats, percussion, vocal chops): one of its loudest hits.
 
+The sounds are also played on the highway: a pitched track (a MIDI track
+playing more than one key, or the vocal chops) is an instrument, its sound
+re-pitched to every row; the others make up one drum & FX pack, one sound per
+row, in the song's order, as many as there are rows.
+
 The backing track is the song's last 8 bars, every track that plays there as
 one grid row, on the nearest 16ths: a MIDI track's own notes, a one-shot
 track's clips, and the hits found in a loop's export (vocal chops at the pitch
@@ -315,15 +320,18 @@ def main():
         sf.write(out_dir / file, sound["audio"].astype(np.float32), SAMPLE_RATE, subtype="PCM_16")
         return {"file": f"softer-jam/{file}", "root": sound["root"], "velocity": sound["velocity"], "held": round(sound["held"], 2)}
 
-    parts, preset = [], []
+    parts, drums, instruments = [], [], []
     for index, track in enumerate(tracks):
         name = track["name"]
         audio, rate = sf.read(find_export(folder, name), always_2d=True)
         assert rate == SAMPLE_RATE, f"{name}: {rate} Hz"
         make = midi_track if track["midi"] else loop_track if name in LOOPS else one_shot_track
         sound, part = make(track, audio, spb)
-        if index < LANES:
-            preset.append({"file": write(name, sound)["file"], "name": name})
+        pitched = (track["midi"] and len({n["key"] for n in track["notes"]}) > 1) or name in PITCHED_LOOPS
+        if pitched:
+            instruments.append({"name": name, "file": write(name, sound)["file"], "root": sound["root"]})
+        elif len(drums) < LANES:
+            drums.append({"file": write(name, sound)["file"], "name": name})
         if part:
             sounds = [
                 write(name, s, "" if s is sound or len(part["sounds"]) == 1 else f"-{s['root']}") for s in part["sounds"]
@@ -349,8 +357,10 @@ def main():
         )
         + "  ],\n"
         "};\n\n"
-        "// One sound per track, in the song's track order, as many as the highway has rows\n"
-        f"export const SOFTER_JAM_SOUNDS: {{ file: string; name: string }}[] = {json.dumps(preset)};\n"
+        "// The drum & FX tracks' sounds, in the song's order, as many as the highway has rows\n"
+        f"export const SOFTER_JAM_DRUMS: {{ file: string; name: string }}[] = {json.dumps(drums)};\n\n"
+        "// The pitched tracks' sounds, each played as an instrument from its root key\n"
+        f"export const SOFTER_JAM_INSTRUMENTS: {{ name: string; file: string; root: number }}[] = {json.dumps(instruments)};\n"
     )
     (ENGINE / "jamSofterJam.ts").write_text(ts)
 

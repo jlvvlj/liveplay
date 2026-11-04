@@ -11,8 +11,11 @@
 // The backing track is the song's last 8 bars: every track playing there is a
 // grid row, its lesson's keys the row's lanes, on the nearest 16ths. Each lane
 // sounds like one of its notes there: the one with the longest slice (its
-// effects' tail), the loudest of those. The Softer sound is the song's first 16
-// tracks, in order, each with its most played lane's sound.
+// effects' tail), the loudest of those. On the highway, each track plays its
+// most played lane's sound: a MIDI track playing more than one key is an
+// instrument, that sound re-pitched to every row from its real key; the others
+// make up one drum & FX pack, one sound per row, in the song's order, as many
+// as there are rows.
 //
 // Softer Jam (scripts/make_softer_jam.py) is the first way Softer was made,
 // kept to compare.
@@ -137,8 +140,9 @@ const order = Array.from(liveSet.querySelectorAll(":scope > Tracks > MidiTrack, 
   .filter((name) => project.exports.has(name) && (project.tracks.some((t) => t.name === name) || project.audioTracks.includes(name)));
 const midi = new Map(project.tracks.map((track) => [track.name, track]));
 const parts = [];
-const preset = [];
-for (const [index, name] of order.entries()) {
+const drums = [];
+const instruments = [];
+for (const name of order) {
   const file = project.exports.get(name);
   const track = midi.get(name) ?? audioTrackFromAnalysis(project, name, await analyzeAudio(repoRoot, Buffer.from(await file.arrayBuffer()), project.tempo));
   const lesson = await withSoundLengths(abletonTrackToLesson(project, track, { export: "export" }), file);
@@ -159,9 +163,16 @@ for (const [index, name] of order.entries()) {
       held: Math.round(((step.dur / TICKS_PER_BEAT) * 4) * 100) / 100,
     };
     fs.writeFileSync(path.join(engine, sound.file), encodeWav16(audio));
-    sounds.push({ ...sound, uses: pool.filter((s) => s.note === note).length });
+    sounds.push({ ...sound, uses: pool.filter((s) => s.note === note).length, beat: beatOf(step) });
   }
-  if (index < LANES) preset.push({ file: sounds.reduce((most, s) => (s.uses > most.uses ? s : most)).file, name });
+  const most = sounds.reduce((best, s) => (s.uses > best.uses ? s : best));
+  if (midi.has(name) && new Set(track.notes.map((n) => n.key)).size > 1) {
+    // Lanes are numbered by the import; the sound's real key is its notes' lowest
+    // (a strummed chord's first note starts it, within a tick)
+    const first = track.notes.find((n) => Math.abs(n.beat - most.beat) <= 1 / TICKS_PER_BEAT);
+    const root = Math.min(...track.notes.filter((n) => n.beat >= first.beat && n.beat - first.beat < 0.25).map((n) => n.key));
+    instruments.push({ name, file: most.file, root });
+  } else if (drums.length < LANES) drums.push({ file: most.file, name });
   if (playing.length) {
     const kind = lanes.length === 1 ? "drum" : "notes";
     const notes = playing.map((step) => ({
@@ -170,12 +181,12 @@ for (const [index, name] of order.entries()) {
       length: Math.max(1, Math.round((step.dur / TICKS_PER_BEAT) * 4)),
       velocity: step.velocity,
     }));
-    parts.push({ name, kind, sounds: sounds.map(({ uses: _uses, ...s }) => s), notes });
+    parts.push({ name, kind, sounds: sounds.map(({ uses: _uses, beat: _beat, ...s }) => s), notes });
   }
   console.log(`${name.padEnd(18)} ${String(lanes.length).padStart(2)} lanes  ${String(sounds.length).padStart(2)} sounds  ${String(playing.length).padStart(3)} notes`);
 }
-// Lanes no part or the Softer sound uses are not kept
-const used = new Set([...preset.map((sound) => sound.file), ...parts.flatMap((part) => part.sounds.map((s) => s.file))]);
+// Lanes no part or the highway uses are not kept
+const used = new Set([...[...drums, ...instruments].map((sound) => sound.file), ...parts.flatMap((part) => part.sounds.map((s) => s.file))]);
 for (const file of fs.readdirSync(outDir)) if (!used.has(`softer/${file}`)) fs.rmSync(path.join(outDir, file));
 
 const json = (value) => JSON.stringify(value).replace(/"/g, "'");
@@ -206,7 +217,10 @@ ${parts
   ],
 };
 
-// One sound per track, in the song's track order, as many as the highway has rows
-export const SOFTER_SOUNDS: { file: string; name: string }[] = ${json(preset)};
+// The drum & FX tracks' sounds, in the song's order, as many as the highway has rows
+export const SOFTER_DRUMS: { file: string; name: string }[] = ${json(drums)};
+
+// The pitched tracks' sounds, each played as an instrument from its real key
+export const SOFTER_INSTRUMENTS: { name: string; file: string; root: number }[] = ${json(instruments)};
 `
 );

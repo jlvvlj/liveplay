@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import {
   JAM_FILTER_OPEN,
   JAM_SYNTH_CONTROLS,
@@ -169,6 +169,9 @@ export function JamSettingsPanel({
   const [linkCopied, setLinkCopied] = useState(false);
   const setEffect = <K extends keyof JamEffects>(key: K, value: JamEffects[K]) =>
     onEffectsChange({ ...effects, [key]: value });
+  // Songs with recorded sounds, each listed under its name: drums & FX, then instruments
+  const soundSongs = [...new Set(sounds.flatMap((sound) => ('song' in sound ? [sound.song] : [])))];
+
   const soundGrid = (choices: { id: string; label: string }[]) => (
     <div className="jam-sound-grid">
       {choices.map((sound) => (
@@ -367,11 +370,16 @@ export function JamSettingsPanel({
             <span className="setting-icon">&#127927;</span>
             Sound
           </label>
+          <div className="jam-subhead">Instruments</div>
           {soundGrid(sounds.filter((sound) => 'patch' in sound))}
           <div className="jam-subhead">Drums</div>
           {soundGrid(sounds.filter((sound) => 'kit' in sound))}
-          <div className="jam-subhead">Songs</div>
-          {soundGrid(sounds.filter((sound) => 'sounds' in sound))}
+          {soundSongs.map((song) => (
+            <Fragment key={song}>
+              <div className="jam-subhead">{song}</div>
+              {soundGrid(sounds.filter((sound) => 'song' in sound && sound.song === song))}
+            </Fragment>
+          ))}
           {referenceSounds.length > 0 && (
             <>
               <div className="jam-subhead">Reference</div>

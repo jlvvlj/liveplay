@@ -110,6 +110,63 @@ export function renderJamSampledLoop(
   return loop;
 }
 
+// A recorded instrument's clip per note, keyed by MIDI note: its one sound
+// re-pitched from `root`. The rows move by whole octaves to sit around the
+// root, so a bass stays low and a lead high, in the rows' key. All clips share
+// one gain, the sound's peak at 0.8 like the synth sounds.
+export function renderJamSampleWavs(
+  sound: Float32Array[],
+  root: number,
+  notes: number[],
+  sampleRate: number
+): { [note: number]: ArrayBuffer } {
+  const rows = [...notes].sort((a, b) => a - b);
+  const shift = 12 * Math.round((root - (rows[0] + rows[rows.length - 1]) / 2) / 12);
+  let peak = 0;
+  for (const channel of sound) for (let i = 0; i < channel.length; i++) peak = Math.max(peak, Math.abs(channel[i]));
+  const gain = peak > 0 ? 0.8 / peak : 1;
+  return Object.fromEntries(
+    rows.map((note) => {
+      const rate = 2 ** ((note + shift - root) / 12);
+      const length = Math.floor((sound[0].length - 1) / rate);
+      const channels = [0, 1].map((c) => {
+        const source = sound[Math.min(c, sound.length - 1)];
+        const out = new Float32Array(length);
+        for (let i = 0; i < length; i++) {
+          const at = i * rate;
+          const j = Math.floor(at);
+          out[i] = (source[j] + (source[j + 1] - source[j]) * (at - j)) * gain;
+        }
+        return out;
+      });
+      return [note, encodeWav16(channels, sampleRate)];
+    })
+  );
+}
+
+// A 16-bit stereo PCM WAV file
+export function encodeWav16([left, right]: Float32Array[], sampleRate: number): ArrayBuffer {
+  const view = new DataView(new ArrayBuffer(44 + left.length * 4));
+  const text = (at: number, value: string) => [...value].forEach((c, i) => view.setUint8(at + i, c.charCodeAt(0)));
+  text(0, 'RIFF');
+  view.setUint32(4, 36 + left.length * 4, true);
+  text(8, 'WAVEfmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 2, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 4, true);
+  view.setUint16(32, 4, true);
+  view.setUint16(34, 16, true);
+  text(36, 'data');
+  view.setUint32(40, left.length * 4, true);
+  for (let i = 0; i < left.length; i++) {
+    view.setInt16(44 + i * 4, Math.max(-1, Math.min(1, left[i])) * 32767, true);
+    view.setInt16(46 + i * 4, Math.max(-1, Math.min(1, right[i])) * 32767, true);
+  }
+  return view.buffer;
+}
+
 // The channels of a 16-bit PCM WAV file
 export function decodeWav16(file: ArrayBuffer): { channels: Float32Array[]; sampleRate: number } {
   const view = new DataView(file);
