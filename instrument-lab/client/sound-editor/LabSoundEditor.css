@@ -391,7 +391,7 @@
   align-items: center;
   gap: 0.25rem;
   padding: 0.22rem 0.4rem;
-  background: rgba(19, 19, 22, 0.96);
+  background: var(--ds-panel);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
@@ -405,7 +405,7 @@
   bottom: -5px;
   width: 9px;
   height: 9px;
-  background: rgba(19, 19, 22, 0.96);
+  background: var(--ds-panel);
   border-right: 1px solid rgba(255, 255, 255, 0.12);
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   transform: translateX(-50%) rotate(45deg);

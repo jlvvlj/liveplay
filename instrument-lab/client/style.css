@@ -1748,7 +1748,7 @@
 }
 .instrument-lab-ui .expanded-roll-viewport .pitch-labels span {
   right: 4px;
-  background: rgba(19, 19, 22, 0.933);
+  background: var(--ds-panel);
   padding: 2px;
 }
 
