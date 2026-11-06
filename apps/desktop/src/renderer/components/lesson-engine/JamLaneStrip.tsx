@@ -1,4 +1,4 @@
-import { type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import './JamLaneStrip.css';
 
 // A track's or a row's controls in the Jam tab's grid: its name with a tag,
@@ -67,6 +67,7 @@ export function JamLaneStrip({
         max={1}
         step={0.01}
         value={level}
+        style={{ '--level': `${level * 100}%` } as CSSProperties}
         onChange={(event) => onLevel(parseFloat(event.target.value))}
         onPointerUp={(event) => event.currentTarget.blur()}
         aria-label={`${name} level`}

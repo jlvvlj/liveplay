@@ -123,7 +123,7 @@
 
 .jam-timeline-head .jam-lane-level {
   flex: 1 1 auto;
-  margin-left: 0.25rem;
+  margin-left: 0.4rem;
 }
 
 /* Folded away: the clips take the headers' place */
@@ -249,7 +249,7 @@
   align-items: center;
   gap: 0.6rem;
   flex: none;
-  padding: 0.45rem 0.6rem 0.45rem 0.85rem;
+  padding: 0.45rem 0.6rem;
   border-bottom: 1px solid var(--ds-border);
 }
 
@@ -327,6 +327,20 @@
   color: var(--ds-text);
 }
 
+.jam-editor-icon-btn.on {
+  background: var(--ds-text);
+  color: var(--ds-on-light);
+}
+
+/* Row headers folded away: the cells take their place */
+.jam-editor.heads-closed {
+  --jam-head: 0px;
+}
+
+.jam-editor.heads-closed .jam-editor-content {
+  padding-left: 0.75rem;
+}
+
 /* Rows and cells scroll together; the headers stay on the left, the ruler on top */
 .jam-editor-body {
   flex: 1;
@@ -370,6 +384,10 @@
 
 .jam-grid .jam-lane-level {
   flex-basis: 3rem;
+}
+
+.jam-editor-head .jam-lane-level {
+  --thumb: 8px;
 }
 
 .jam-editor-head .jam-lane-name {

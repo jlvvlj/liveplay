@@ -30,7 +30,7 @@ const PAGE_BARS = 4;
 const PAGE_STEPS = PAGE_BARS * 16;
 const PAGES = JAM_TRACK_BARS / PAGE_BARS;
 const LOOP_STEPS = JAM_TRACK_BARS * 16;
-const NEW_VELOCITY = 100;
+const NEW_VELOCITY = 127; // a new hit or note: full velocity, a fully coloured square
 // Dragging a hit this far (px) changes its velocity by the full range; less
 // than DRAG_SLOP_PX counts as a click
 const DRAG_RANGE_PX = 120;
@@ -172,6 +172,8 @@ export function JamTrackGrid({
   const [pinned, setPinned] = useState<number | null>(null);
   const [playing, setPlaying] = useState(0);
   const [selected, setSelected] = useState<{ part: number; key: string } | null>(null);
+  // The editor's row headers (each drum's controls, the piano keys) shown, or folded away
+  const [rowsOpen, setRowsOpen] = useState(true);
   const [cell, setCell] = useState(MIN_CELL_PX);
   const timelinePlayheadRef = useRef<HTMLDivElement>(null);
   const editorPlayheadRef = useRef<HTMLDivElement>(null);
@@ -440,24 +442,26 @@ export function JamTrackGrid({
 
   const renderDrums = (gridTrack: GridTrack) => (
     <>
-      <div className="jam-editor-heads">
-        <div className="jam-editor-corner" />
-        {gridTrack.parts.map((part) => (
-          <div key={part} className="jam-editor-head">
-            <JamLaneStrip
-              name={original[part].name}
-              tag=""
-              solo={mix.solos[part]}
-              mute={mix.mutes[part]}
-              level={mix.levels[part]}
-              onNameClick={() => auditionJamPart(track.file, part, original[part].notes[0]?.pitch ?? 0)}
-              onSolo={() => setMixOf([part], 'solos', !mix.solos[part])}
-              onMute={() => setMixOf([part], 'mutes', !mix.mutes[part])}
-              onLevel={(level) => setMixOf([part], 'levels', level)}
-            />
-          </div>
-        ))}
-      </div>
+      {rowsOpen && (
+        <div className="jam-editor-heads">
+          <div className="jam-editor-corner" />
+          {gridTrack.parts.map((part) => (
+            <div key={part} className="jam-editor-head">
+              <JamLaneStrip
+                name={original[part].name}
+                tag=""
+                solo={mix.solos[part]}
+                mute={mix.mutes[part]}
+                level={mix.levels[part]}
+                onNameClick={() => auditionJamPart(track.file, part, original[part].notes[0]?.pitch ?? 0)}
+                onSolo={() => setMixOf([part], 'solos', !mix.solos[part])}
+                onMute={() => setMixOf([part], 'mutes', !mix.mutes[part])}
+                onLevel={(level) => setMixOf([part], 'levels', level)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
       <div className="jam-editor-area" ref={areaRef}>
         {ruler}
         {gridTrack.parts.map((part) => {
@@ -504,22 +508,24 @@ export function JamTrackGrid({
     const isSelected = (note: JamTrackNote) => selected?.part === part && selected.key === noteKey(note);
     return (
       <>
-        <div className="jam-editor-heads">
-          <div className="jam-editor-corner" />
-          <div className="jam-editor-keys">
-            {pitches.map((pitch) => (
-              <button
-                key={pitch}
-                className={`jam-editor-key ${isBlackKey(pitch) ? 'black' : ''}`}
-                onClick={blurAfter(() => auditionJamPart(track.file, part, pitch))}
-                aria-label={`Play ${noteName(pitch)}`}
-              >
-                {pitch % 12 === 0 && noteName(pitch)}
-              </button>
-            ))}
+        {rowsOpen && (
+          <div className="jam-editor-heads">
+            <div className="jam-editor-corner" />
+            <div className="jam-editor-keys">
+              {pitches.map((pitch) => (
+                <button
+                  key={pitch}
+                  className={`jam-editor-key ${isBlackKey(pitch) ? 'black' : ''}`}
+                  onClick={blurAfter(() => auditionJamPart(track.file, part, pitch))}
+                  aria-label={`Play ${noteName(pitch)}`}
+                >
+                  {pitch % 12 === 0 && noteName(pitch)}
+                </button>
+              ))}
+            </div>
+            <div className="jam-editor-velocity-name">Velocity</div>
           </div>
-          <div className="jam-editor-velocity-name">Velocity</div>
-        </div>
+        )}
         <div className="jam-editor-area" ref={areaRef}>
           {ruler}
           <div
@@ -660,8 +666,18 @@ export function JamTrackGrid({
       </div>
 
       {open && (
-        <section className="jam-editor" style={{ '--track-color': open.color, '--cell': `${cell}px` } as CSSProperties}>
+        <section
+          className={`jam-editor ${rowsOpen ? '' : 'heads-closed'}`}
+          style={{ '--track-color': open.color, '--cell': `${cell}px` } as CSSProperties}
+        >
           <div className="jam-editor-top">
+            <button
+              className={`jam-editor-icon-btn ${rowsOpen ? 'on' : ''}`}
+              onClick={blurAfter(() => setRowsOpen(!rowsOpen))}
+              title={rowsOpen ? 'Hide row headers' : 'Show row headers'}
+            >
+              <LanesIcon />
+            </button>
             <span className="jam-editor-dot" />
             <span className="jam-editor-name">{open.name}</span>
             <div className="jam-grid-sections">

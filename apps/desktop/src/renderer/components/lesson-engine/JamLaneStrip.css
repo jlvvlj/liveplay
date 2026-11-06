@@ -77,12 +77,48 @@ button.jam-lane-name:hover {
   color: var(--ds-on-light);
 }
 
+/* A thin track, white up to the level, with a small round thumb */
 .jam-lane-level {
+  --thumb: 10px;
   flex: 0 0 4rem;
   min-width: 0;
+  height: var(--thumb);
+  margin: 0;
   align-self: center;
-  accent-color: var(--ds-text);
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
   cursor: pointer;
+}
+
+.jam-lane-level::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: var(--ds-radius-pill);
+  background: linear-gradient(to right, var(--ds-text) var(--level), var(--ds-raised-strong) var(--level));
+}
+
+.jam-lane-level::-moz-range-track {
+  height: 3px;
+  border-radius: var(--ds-radius-pill);
+  background: linear-gradient(to right, var(--ds-text) var(--level), var(--ds-raised-strong) var(--level));
+}
+
+.jam-lane-level::-webkit-slider-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc((3px - var(--thumb)) / 2);
+  border: none;
+  border-radius: 50%;
+  background: var(--ds-text);
+  -webkit-appearance: none;
+}
+
+.jam-lane-level::-moz-range-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  border: none;
+  border-radius: 50%;
+  background: var(--ds-text);
 }
 
 @media (max-width: 700px), (max-height: 500px) {
