@@ -1,6 +1,7 @@
 import { matchJamLoudness } from './jamLoudness';
 import { SOFTER_DRUMS, SOFTER_INSTRUMENTS } from './jamSofter';
 import { SOFTER_JAM_DRUMS, SOFTER_JAM_INSTRUMENTS } from './jamSofterJam';
+import { JAM_PACK_SOUNDS } from './jamPacks';
 import {
   DEFAULT_PATCH,
   PARAMS,
@@ -47,11 +48,15 @@ export interface JamDrum {
   cut?: number;
 }
 
-// A recorded instrument: one sound (a file in softer/ or softer-jam/) and the key it was played at
-export interface JamRecordedInstrument {
+// One recorded note of an instrument: its sound (a file in softer/, softer-jam/
+// or packs/) and the key it was played at
+export interface JamRecordedNote {
   file: string;
   root: number;
 }
+// A recorded instrument: one or more recorded notes, each row playing the
+// nearest one re-pitched
+export type JamRecordedInstrument = JamRecordedNote[];
 
 // Instruments play one sound at every row's pitch; drums a different sound per row
 export type JamSoundPreset =
@@ -61,7 +66,10 @@ export type JamSoundPreset =
   // A song's recorded sounds, listed under its name: a drum & FX pack, one
   // sound per row from the lowest row up, or an instrument
   | { id: string; label: string; song: string; sounds: { file: string; name: string }[] }
-  | { id: string; label: string; song: string; sample: JamRecordedInstrument };
+  | { id: string; label: string; song: string; sample: JamRecordedInstrument }
+  // A sound pack's drums or instruments (jamPacks.ts), listed under the pack's name
+  | { id: string; label: string; pack: string; sounds: { file: string; name: string }[] }
+  | { id: string; label: string; pack: string; sample: JamRecordedInstrument };
 
 // A song's drum & FX pack, then its instruments
 const songSounds = (
@@ -75,7 +83,7 @@ const songSounds = (
     id: `${id}:${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
     label: name,
     song,
-    sample: { file, root },
+    sample: [{ file, root }],
   })),
 ];
 
@@ -286,6 +294,8 @@ export const JAM_SOUND_PRESETS: JamSoundPreset[] = [
   // The song Softer's sounds, cut two ways (see jamTracks.ts)
   ...songSounds('Softer Jam', 'softer-jam', SOFTER_JAM_DRUMS, SOFTER_JAM_INSTRUMENTS),
   ...songSounds('Softer Lesson', 'softer', SOFTER_DRUMS, SOFTER_INSTRUMENTS),
+  // Sound packs imported by scripts/make-jam-packs.mjs
+  ...JAM_PACK_SOUNDS,
 ];
 
 export const SYNTH_FAMILIES: SynthFamily[] = FAMILIES;

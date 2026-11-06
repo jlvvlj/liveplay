@@ -228,20 +228,25 @@ export function renderJamSampledLoop(
   return loop;
 }
 
-// A recorded instrument's clip per note, keyed by MIDI note: its one sound
-// re-pitched from `root`. The rows move by whole octaves to sit around the
-// root, so a bass stays low and a lead high, in the rows' key. All clips share
-// one gain, as loud as the reference sounds.
+// A recorded instrument's clip per note, keyed by MIDI note: the recorded
+// note nearest it (`sounds[i]`, played at `roots[i]`), re-pitched. The rows
+// move by whole octaves to sit around the middle of the recorded notes, so a
+// bass stays low and a lead high, in the rows' key. All clips share one gain,
+// as loud as the reference sounds.
 export function renderJamSampleWavs(
-  sound: Float32Array[],
-  root: number,
+  sounds: Float32Array[][],
+  roots: number[],
   notes: number[],
   sampleRate: number
 ): { [note: number]: ArrayBuffer } {
   const rows = [...notes].sort((a, b) => a - b);
-  const shift = 12 * Math.round((root - (rows[0] + rows[rows.length - 1]) / 2) / 12);
+  const middle = (Math.min(...roots) + Math.max(...roots)) / 2;
+  const shift = 12 * Math.round((middle - (rows[0] + rows[rows.length - 1]) / 2) / 12);
   const clips = rows.map((note) => {
-    const rate = 2 ** ((note + shift - root) / 12);
+    const played = note + shift;
+    const nearest = roots.reduce((best, root, i) => (Math.abs(root - played) < Math.abs(roots[best] - played) ? i : best), 0);
+    const sound = sounds[nearest];
+    const rate = 2 ** ((played - roots[nearest]) / 12);
     const length = Math.floor((sound[0].length - 1) / rate);
     return [0, 1].map((c) => {
       const source = sound[Math.min(c, sound.length - 1)];

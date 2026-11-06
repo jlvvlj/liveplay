@@ -174,6 +174,8 @@ export function JamSettingsPanel({
     onEffectsChange({ ...effects, [key]: value });
   // Songs with recorded sounds, each listed under its name: drums & FX, then instruments
   const soundSongs = [...new Set(sounds.flatMap((sound) => ('song' in sound ? [sound.song] : [])))];
+  // Sound packs, each listed under its name
+  const soundPacks = [...new Set(sounds.flatMap((sound) => ('pack' in sound ? [sound.pack] : [])))];
 
   const soundGrid = (choices: { id: string; label: string }[]) => (
     <div className="jam-sound-grid">
@@ -404,6 +406,12 @@ export function JamSettingsPanel({
           {soundGrid(sounds.filter((sound) => 'patch' in sound))}
           <div className="jam-subhead">Drums</div>
           {soundGrid(sounds.filter((sound) => 'kit' in sound))}
+          {soundPacks.map((pack) => (
+            <Fragment key={pack}>
+              <div className="jam-subhead">{pack}</div>
+              {soundGrid(sounds.filter((sound) => 'pack' in sound && sound.pack === pack))}
+            </Fragment>
+          ))}
           {soundSongs.map((song) => (
             <Fragment key={song}>
               <div className="jam-subhead">{song}</div>

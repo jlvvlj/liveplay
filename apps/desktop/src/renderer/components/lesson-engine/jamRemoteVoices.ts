@@ -18,7 +18,7 @@ interface Voice {
   boostDb: number; // rendered sounds play louder than recorded ones
 }
 
-const audioPath = (file: string) => (/^(blob|https?):|^\//.test(file) ? file : `/audio/${file}`);
+const audioPath = (file: string) => (/^(blob|data|https?):|^\//.test(file) ? file : `/audio/${file}`);
 
 export class JamRemoteVoices {
   private voices = new Map<string, Voice>();

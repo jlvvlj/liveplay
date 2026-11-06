@@ -226,7 +226,7 @@ function saveJamSettings(settings: JamSettings, sounds: JamSoundPreset[]) {
 
 // Lesson audio is either a file under the app's /audio/ folder or already a
 // full URL (blob: for files read from a picked Ableton project folder).
-const audioUrl = (path: string): string => (/^(blob|https?):/.test(path) ? path : `/audio/${path}`);
+const audioUrl = (path: string): string => (/^(blob|data|https?):/.test(path) ? path : `/audio/${path}`);
 
 // The sounds a player switched off are remembered per lesson in this browser.
 // The lane list is part of the record, so a re-analysed lesson (whose lanes
@@ -866,7 +866,7 @@ export function LessonPlayer({
           try {
             let audioPath: string;
 
-            if (/^(blob|https?):/.test(filename)) {
+            if (/^(blob|data|https?):/.test(filename)) {
               // already a full URL, e.g. a sample read from a picked Ableton project folder
               audioPath = filename;
             } else if (window.electronAPI?.audio) {

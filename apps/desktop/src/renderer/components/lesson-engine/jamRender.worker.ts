@@ -37,7 +37,12 @@ self.onmessage = async (event: MessageEvent<Request>) => {
       const { source } = request;
       const clips =
         'sample' in source
-          ? renderJamSampleWavs(await loadSound(source.sample.file), source.sample.root, request.notes, SAMPLE_RATE)
+          ? renderJamSampleWavs(
+              await Promise.all(source.sample.map((note) => loadSound(note.file))),
+              source.sample.map((note) => note.root),
+              request.notes,
+              SAMPLE_RATE
+            )
           : renderJamWavs(source, request.notes);
       post({ id: request.id, clips }, Object.values(clips));
       return;
