@@ -76,7 +76,7 @@ export const SYNTH_TAG_ICONS: Record<string, () => ReactNode> = {
     ),
   Pad: () => large(<path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.2 9.3 4.4 4.4 0 0 0 7 18z" />),
   Bass: () => large(<path d="M2 12c2.5-6 5-6 7.5 0s5 6 7.5 0 3.5-4 5-3" />),
-  Keys: () =>
+  'Mallets & Keys': () =>
     large(
       <>
         <rect x="3" y="5" width="18" height="14" rx="1.5" />

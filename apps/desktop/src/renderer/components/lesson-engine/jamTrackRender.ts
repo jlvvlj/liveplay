@@ -112,7 +112,7 @@ function lowPass(input: Float32Array, cutoff: number, sampleRate: number): Float
 }
 
 // A step as played: an off-beat 8th comes late in a swung track
-function swung(track: JamTrack, step: number): number {
+export function swung(track: JamTrack, step: number): number {
   const inBeat = step - 4 * Math.floor(step / 4);
   return track.swing && Math.abs(inBeat - 2) < 1e-6 ? step + (track.swing - 0.5) * 4 : step;
 }
