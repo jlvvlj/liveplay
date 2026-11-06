@@ -312,6 +312,15 @@ describe('jam rooms', () => {
     expect(kept.get(copy)).toMatchObject({ edit: null });
   });
 
+  it('lists songs made in the same instant newest first', () => {
+    const store = createJamSongStore(fs.mkdtempSync(path.join(os.tmpdir(), 'jam-songs-')));
+    const song = { title: '', bpm: 120, file: 'empty-120.wav', transpose: 0, edit: null, offered: false };
+    const first = store.add({ ...song, title: 'First' });
+    const second = store.add({ ...song, title: 'Second' });
+    expect(second.created).toBeGreaterThan(first.created);
+    expect(store.list().map((made) => made.title)).toEqual(['Second', 'First']);
+  });
+
   it('plays a copy of a built-in song at another tempo, and back at its own', async () => {
     const lobby = await player(url);
     lobby.send({ t: 'newSong', c: 1, title: 'Fast chip', from: 'chip-run-jam', bpm: 0 });
