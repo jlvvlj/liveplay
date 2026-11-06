@@ -64,6 +64,9 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 // The timeline's zoom, as Instrument Lab's tracks: it shows `span` 16ths
 // from `start`, never fewer than a beat
 const MIN_SPAN = 4;
+// A pinch zooms as far as it moves: a trackpad's many small steps zoom
+// smoothly, a mouse wheel's notch (capped) by about a half
+const wheelZoom = (deltaY: number) => Math.exp(clamp(deltaY, -50, 50) * 0.008);
 
 // A note's color, brighter the louder it is (solid, over the panel)
 const velocityColor = (color: string, velocity: number) =>
@@ -293,7 +296,7 @@ export function JamTrackGrid({
       if (event.ctrlKey) {
         event.preventDefault();
         setView(([start, span]) =>
-          zoomWindow(start, span, loopRef.current, start + clamp((event.clientX - rect.left) / rect.width, 0, 1) * span, event.deltaY > 0 ? 1.25 : 0.8, MIN_SPAN)
+          zoomWindow(start, span, loopRef.current, start + clamp((event.clientX - rect.left) / rect.width, 0, 1) * span, wheelZoom(event.deltaY), MIN_SPAN)
         );
         return;
       }
