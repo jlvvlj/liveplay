@@ -350,6 +350,26 @@ export function JamTrackGrid({
       bars
     );
 
+  // A section taken out of every track: its notes go (a note running into it
+  // stops where it starts) and the bars after it move back
+  const removeSection = (section: number) => {
+    const from = section * PAGE_STEPS;
+    const to = from + PAGE_STEPS;
+    onChange(
+      notes.map((part) =>
+        part.flatMap((note) => {
+          if (note.step >= to) return [{ ...note, step: note.step - PAGE_STEPS }];
+          if (note.step >= from) return [];
+          return [{ ...note, length: Math.min(note.length, from - note.step) }];
+        })
+      ),
+      added,
+      bars - PAGE_BARS
+    );
+    setPinned(null);
+    setSelected(null);
+  };
+
   // A section more at the end, silent, shown in the editor
   const addSection = () => {
     onChange(notes, added, bars + PAGE_BARS);
@@ -563,6 +583,38 @@ export function JamTrackGrid({
         height={1}
       />
     ));
+  };
+
+  // A track's clips: one per run of sections that have notes, from its first 16th to past its last
+  const clipRuns = (gridTrack: GridTrack): [number, number][] => {
+    const filled = Array.from({ length: PAGES }, (_, section) =>
+      gridTrack.parts.some((part) =>
+        notes[part].some((note) => note.step < (section + 1) * PAGE_STEPS && note.step + note.length > section * PAGE_STEPS)
+      )
+    );
+    const runs: [number, number][] = [];
+    filled.forEach((has, section) => {
+      if (!has) return;
+      const last = runs[runs.length - 1];
+      if (last && last[1] === section * PAGE_STEPS) last[1] += PAGE_STEPS;
+      else runs.push([section * PAGE_STEPS, (section + 1) * PAGE_STEPS]);
+    });
+    return runs;
+  };
+
+  // A track's editor, at the section clicked on its lane; the open track's lane closes it
+  const openAt = (gridTrack: GridTrack, event: ReactMouseEvent<HTMLElement>) => {
+    event.currentTarget.blur();
+    if (open?.id === gridTrack.id) {
+      setOpenId(null);
+      setSelected(null);
+      return;
+    }
+    const lane = event.currentTarget.closest('.jam-timeline-lane')!.getBoundingClientRect();
+    const at = viewStart + clamp((event.clientX - lane.left) / lane.width, 0, 1) * viewSpan;
+    setOpenId(gridTrack.id);
+    setPinned(clamp(Math.floor(at / PAGE_STEPS), 0, PAGES - 1));
+    setSelected(null);
   };
 
   const previewRows = (gridTrack: GridTrack) =>
@@ -830,22 +882,23 @@ export function JamTrackGrid({
                 )}
               </div>
               <div className="jam-timeline-lane">
-                <button
-                  className={`jam-timeline-clip ${open?.id === gridTrack.id ? 'open' : ''} ${
-                    gridTrack.parts.every(silent) ? 'silent' : ''
-                  }`}
-                  onClick={blurAfter(() => {
-                    setOpenId(gridTrack.id);
-                    setPinned(null);
-                    setSelected(null);
-                  })}
-                  aria-label={`Edit ${gridTrack.name}`}
-                  style={{ left: at(0), width: `${(LOOP_STEPS / viewSpan) * 100}%` }}
-                >
-                  <svg viewBox={`0 0 ${LOOP_STEPS} ${previewRows(gridTrack)}`} preserveAspectRatio="none" aria-hidden="true">
-                    {renderPreview(gridTrack)}
-                  </svg>
-                </button>
+                {/* Empty sections are only the lane: pressing anywhere on it opens the track there */}
+                <button className="jam-timeline-lane-hit" onClick={(event) => openAt(gridTrack, event)} aria-label={`Edit ${gridTrack.name}`} />
+                {clipRuns(gridTrack).map(([from, to]) => (
+                  <button
+                    key={from}
+                    className={`jam-timeline-clip ${open?.id === gridTrack.id ? 'open' : ''} ${
+                      gridTrack.parts.every(silent) ? 'silent' : ''
+                    }`}
+                    onClick={(event) => openAt(gridTrack, event)}
+                    tabIndex={-1}
+                    style={{ left: at(from), width: `${((to - from) / viewSpan) * 100}%` }}
+                  >
+                    <svg viewBox={`${from} 0 ${to - from} ${previewRows(gridTrack)}`} preserveAspectRatio="none" aria-hidden="true">
+                      {renderPreview(gridTrack)}
+                    </svg>
+                  </button>
+                ))}
               </div>
             </div>
           );
@@ -909,13 +962,24 @@ export function JamTrackGrid({
                 Auto
               </button>
               {Array.from({ length: PAGES }, (_, index) => (
-                <button
-                  key={index}
-                  className={`${pinned === index ? 'active' : ''} ${playing === index ? 'playing' : ''}`}
-                  onClick={blurAfter(() => setPinned(index))}
-                >
-                  {index * PAGE_BARS + 1}–{(index + 1) * PAGE_BARS}
-                </button>
+                <span key={index} className="jam-grid-section">
+                  <button
+                    className={`${pinned === index ? 'active' : ''} ${playing === index ? 'playing' : ''}`}
+                    onClick={blurAfter(() => setPinned(index))}
+                  >
+                    {index * PAGE_BARS + 1}–{(index + 1) * PAGE_BARS}
+                  </button>
+                  {PAGES > 1 && (
+                    <button
+                      className="jam-grid-section-remove"
+                      onClick={blurAfter(() => removeSection(index))}
+                      aria-label={`Delete bars ${index * PAGE_BARS + 1}–${(index + 1) * PAGE_BARS}`}
+                      title="Delete these bars"
+                    >
+                      ×
+                    </button>
+                  )}
+                </span>
               ))}
               {bars < JAM_MAX_BARS && (
                 <button className="jam-grid-add-section" onClick={blurAfter(addSection)} aria-label="Add 4 bars" title="Add 4 bars">
@@ -933,17 +997,6 @@ export function JamTrackGrid({
                 <TrashIcon />
               </button>
             )}
-            <button
-              className="jam-editor-icon-btn jam-editor-close"
-              onClick={blurAfter(() => {
-                setOpenId(null);
-                setSelected(null);
-              })}
-              aria-label="Close"
-              title="Close"
-            >
-              &times;
-            </button>
           </div>
           <div className="jam-editor-body">
             <div className="jam-editor-content">{open.kind === 'drum' ? renderDrums(open) : renderRoll(open)}</div>

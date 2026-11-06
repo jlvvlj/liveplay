@@ -116,7 +116,7 @@ interface JamSettings {
 
 // An edited backing track: its notes, one list per part (its own parts, then
 // the ones added in the grid, played by `added`), and its length in bars when
-// the grid made it longer than its own 8
+// the grid made it other than its own 8
 export interface JamTrackEdit {
   parts: JamTrackNote[][];
   added?: JamAddedPart[];
@@ -134,7 +134,7 @@ function validTrackEdits(saved: unknown): Record<string, JamTrackEdit> {
       const bars = edit?.bars ?? JAM_TRACK_BARS;
       return (
         Number.isInteger(bars / JAM_SECTION_BARS) &&
-        bars >= JAM_TRACK_BARS &&
+        bars >= JAM_SECTION_BARS &&
         bars <= JAM_MAX_BARS &&
         Array.isArray(added) &&
         added.every(validJamAddedPart) &&
@@ -2686,7 +2686,7 @@ export function LessonPlayer({
             paused={jamIsPaused}
             onTogglePause={toggleJamPause}
             onChange={(parts, added, bars) => {
-              const edit = { parts, ...(added.length ? { added } : {}), ...(bars > JAM_TRACK_BARS ? { bars } : {}) };
+              const edit = { parts, ...(added.length ? { added } : {}), ...(bars !== JAM_TRACK_BARS ? { bars } : {}) };
               if (jamRoom && jamRoomState) {
                 setJamRoomState({ ...jamRoomState, tracks: { ...jamRoomState.tracks, [jamTrack.file]: edit } });
                 jamRoom.setTrack(jamTrack.file, edit);

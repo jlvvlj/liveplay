@@ -204,6 +204,20 @@
   overflow: hidden;
 }
 
+/* The lane under the clips: pressing it opens the track at that section */
+.jam-timeline-lane-hit {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.jam-timeline-lane-hit:hover {
+  background: var(--ds-panel-2);
+}
+
 /* A clip fills its row: a light tint of its track's color, its notes in a dark one */
 .jam-timeline-clip {
   position: absolute;
@@ -572,6 +586,40 @@
 
 .jam-editor-cells.empty .jam-editor-cell:hover {
   border-color: transparent;
+}
+
+/* A section's button, with an x at its top right on hover that deletes it */
+.jam-grid-section {
+  position: relative;
+  display: inline-flex;
+}
+
+.jam-grid-sections .jam-grid-section-remove {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  z-index: 1;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--ds-raised-strong);
+  color: var(--ds-text);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.jam-grid-section:hover .jam-grid-section-remove,
+.jam-grid-section-remove:focus-visible {
+  display: inline-flex;
+}
+
+.jam-grid-sections .jam-grid-section-remove:hover {
+  background: var(--ds-danger);
+  color: var(--ds-on-light);
 }
 
 /* The section switch's + : 4 more bars */
