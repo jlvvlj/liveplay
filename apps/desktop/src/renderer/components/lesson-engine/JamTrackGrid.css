@@ -103,12 +103,11 @@
   box-shadow: inset 4px 0 0 var(--track-color, transparent);
 }
 
-/* A track's name, its round solo and mute, then its level across */
+/* A track's name, its round solo and mute and its level, on one line */
 .jam-timeline-head .jam-lane-strip {
-  flex-wrap: wrap;
-  align-content: center;
-  row-gap: 0.4rem;
-  padding: 0.45rem 0.55rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.55rem;
   border-radius: 10px;
 }
 
@@ -117,8 +116,7 @@
 }
 
 .jam-timeline-head .jam-lane-name {
-  flex: 1 0 100%;
-  height: 1rem;
+  flex: 1 1 0;
   padding: 0;
   background: none;
   color: var(--ds-text);
@@ -133,7 +131,7 @@
 }
 
 .jam-timeline-head .jam-lane-level {
-  flex: 1 0 100%;
+  flex: 0 0 3.5rem;
 }
 
 /* Folded away: the clips take the headers' place */
@@ -263,41 +261,6 @@
   width: 2px;
   margin-left: -1px;
   background: var(--ds-accent);
-}
-
-/* The timeline's zoom: out, a slider, in, and the whole loop */
-.jam-grid-zoom {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-left: auto;
-}
-
-.jam-grid-zoom .jam-lane-level {
-  flex: none;
-  width: 7rem;
-}
-
-.jam-grid-zoom button {
-  min-width: 1.9rem;
-  height: 1.9rem;
-  padding: 0 0.6rem;
-  border-radius: var(--ds-radius-pill);
-  border: 1px solid var(--ds-border-strong);
-  background: var(--ds-panel-2);
-  color: var(--ds-text);
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.jam-grid-zoom button:hover:not(:disabled) {
-  background: var(--ds-raised);
-}
-
-.jam-grid-zoom button:disabled {
-  color: var(--ds-text-dim);
-  cursor: default;
 }
 
 /* The open clip's editor */

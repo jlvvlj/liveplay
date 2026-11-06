@@ -13,6 +13,8 @@ import { JAM_TRACK_BARS, jamTrackParts, type JamTrack, type JamTrackNote, type J
 import type { JamTrackMix } from './jamBackingMixer';
 import { JamLaneStrip } from './JamLaneStrip';
 import { auditionJamPart } from './jamAudition';
+import TrackZoom from '../../../../../../instrument-lab/client/TrackZoom.jsx';
+import { zoomWindow } from '../../../../../../instrument-lab/client/timeline.mjs';
 import { LanesIcon } from './JamIcons';
 import { SOUND_COLORS } from '../../styles/palette';
 import './JamTrackGrid.css';
@@ -48,15 +50,9 @@ const partColor = (part: number) => SOUND_COLORS[part % SOUND_COLORS.length];
 const noteKey = (note: JamTrackNote) => `${note.step}|${note.pitch}`;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-// The timeline's zoom, as Instrument Lab's tracks (instrument-lab/client/timeline.mjs):
-// it shows `span` 16ths from `start`, never fewer than a beat
+// The timeline's zoom, as Instrument Lab's tracks: it shows `span` 16ths
+// from `start`, never fewer than a beat
 const MIN_SPAN = 4;
-// The view after zooming by `factor` around the 16th `focus`, which stays where it is
-function zoomWindow(start: number, span: number, focus: number, factor: number): [number, number] {
-  const nextSpan = clamp(span * factor, MIN_SPAN, LOOP_STEPS);
-  const ratio = clamp((focus - start) / span, 0, 1);
-  return [clamp(focus - ratio * nextSpan, 0, LOOP_STEPS - nextSpan), nextSpan];
-}
 
 // A note's color, brighter the louder it is (solid, over the panel)
 const velocityColor = (color: string, velocity: number) =>
@@ -221,7 +217,7 @@ export function JamTrackGrid({
       if (event.ctrlKey) {
         event.preventDefault();
         setView(([start, span]) =>
-          zoomWindow(start, span, start + clamp((event.clientX - rect.left) / rect.width, 0, 1) * span, event.deltaY > 0 ? 1.25 : 0.8)
+          zoomWindow(start, span, LOOP_STEPS, start + clamp((event.clientX - rect.left) / rect.width, 0, 1) * span, event.deltaY > 0 ? 1.25 : 0.8, MIN_SPAN)
         );
         return;
       }
@@ -639,9 +635,6 @@ export function JamTrackGrid({
     const now = getStep();
     return now === null ? viewStart + viewSpan / 2 : ((now % LOOP_STEPS) + LOOP_STEPS) % LOOP_STEPS;
   };
-  const zoomAround = (factor: number) => setView(zoomWindow(viewStart, viewSpan, zoomFocus(), factor));
-  // 0 shows the whole loop, 100 a beat
-  const zoomLevel = (1 - (viewSpan - MIN_SPAN) / (LOOP_STEPS - MIN_SPAN)) * 100;
   // A 16th's place across the view
   const at = (step16: number) => `${((step16 - viewStart) / viewSpan) * 100}%`;
   // The ruler's marks in view: every bar, and every beat once there is room
@@ -668,33 +661,7 @@ export function JamTrackGrid({
         <button className={`jam-grid-play ${paused ? '' : 'playing'}`} onClick={togglePause} aria-label={paused ? 'Play' : 'Pause'}>
           {paused ? '▶' : '❚❚'}
         </button>
-        <div className="jam-grid-zoom">
-          <button aria-label="Zoom out tracks" title="Zoom out" onClick={blurAfter(() => zoomAround(1.4))} disabled={viewSpan >= LOOP_STEPS}>
-            −
-          </button>
-          <input
-            className="jam-lane-level"
-            aria-label="Track zoom"
-            type="range"
-            min={0}
-            max={100}
-            step={0.1}
-            value={zoomLevel}
-            style={{ '--level': `${zoomLevel}%` } as CSSProperties}
-            onChange={(event) => {
-              const span = Math.max(LOOP_STEPS - (Number(event.target.value) / 100) * (LOOP_STEPS - MIN_SPAN), MIN_SPAN);
-              const focus = zoomFocus();
-              setView([clamp(focus - span / 2, 0, LOOP_STEPS - span), span]);
-            }}
-            onPointerUp={(event) => event.currentTarget.blur()}
-          />
-          <button aria-label="Zoom in tracks" title="Zoom in" onClick={blurAfter(() => zoomAround(0.7))} disabled={viewSpan <= MIN_SPAN}>
-            +
-          </button>
-          <button className="jam-grid-fit" onClick={blurAfter(() => setView([0, LOOP_STEPS]))} disabled={viewSpan >= LOOP_STEPS}>
-            Fit
-          </button>
-        </div>
+        <TrackZoom view={view} duration={LOOP_STEPS} focus={zoomFocus()} minSpan={MIN_SPAN} onView={setView} />
         {edited && (
           <button className="jam-grid-reset" onClick={blurAfter(onReset)}>
             Reset

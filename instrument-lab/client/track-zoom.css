@@ -1,0 +1,32 @@
+/* TrackZoom: the same wherever it sits (Instrument Lab, the Jam's grid) */
+.mix-zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  font-size: 11px;
+}
+.mix-zoom button,
+.mix-zoom input {
+  font: inherit;
+  outline-offset: 4px;
+}
+.mix-zoom button {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.102);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.mix-zoom button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.mix-zoom button:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.mix-zoom input {
+  width: 110px;
+  accent-color: var(--lab-accent, var(--ds-accent));
+}
