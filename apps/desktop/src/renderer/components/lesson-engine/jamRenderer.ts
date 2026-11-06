@@ -1,4 +1,4 @@
-import type { JamSoundSource } from './jamSynth';
+import type { JamSoundSource, JamSynthPatch } from './jamSynth';
 import { jamTrackByFile, type JamTrackNote } from './jamTracks';
 import type { JamAddedInstrument } from './jamAddedParts';
 
@@ -14,6 +14,7 @@ type Reply = {
   id: number;
   clips?: { [note: number]: ArrayBuffer };
   part?: JamPartAudio;
+  synth?: { gain: number; tables?: Float32Array[] };
   error?: string;
 };
 
@@ -57,6 +58,17 @@ export async function renderJamSound(source: JamSoundSource, notes: number[]): P
   return Object.fromEntries(
     Object.entries(clips).map(([note, wav]) => [note, URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }))])
   );
+}
+
+// A Melodics Synth patch made ready to play live (see prepareJamSynth)
+export async function prepareJamSynthPatch(
+  patch: JamSynthPatch,
+  sampleRate: number,
+  tables: boolean
+): Promise<{ gain: number; tables?: Float32Array[] }> {
+  const { synth } = await request({ synth: patch, sampleRate, tables });
+  if (!synth) throw new Error('The synth patch could not be prepared');
+  return synth;
 }
 
 // One part of a backing track's loop, unscaled (as jamTrackParts orders the

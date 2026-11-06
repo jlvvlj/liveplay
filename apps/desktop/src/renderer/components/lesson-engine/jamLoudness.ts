@@ -3,7 +3,7 @@
 // to the level of the reference sounds, so every sound plays as loud.
 
 // The reference sounds' typical level (the median over their notes), and how long a note is heard for
-const JAM_SOUND_LOUDNESS = -18;
+export const JAM_SOUND_LOUDNESS = -18;
 const HEARD_SECONDS = 0.4;
 const MAX_PEAK = 0.95;
 

@@ -12,11 +12,16 @@ interface WebMidiState {
 }
 
 /**
- * Subscribes to note-on events from every connected MIDI input using the
- * Web MIDI API (Chrome/Edge). Devices that connect while the app is open
- * are picked up automatically via the statechange event.
+ * Subscribes to note-on (and, given `onNoteOff`, note-off) events from every
+ * connected MIDI input using the Web MIDI API (Chrome/Edge). Devices that
+ * connect while the app is open are picked up automatically via the
+ * statechange event. Nothing is asked of the browser while `enabled` is false.
  */
-export function useWebMidi(onNoteOn: (event: WebMidiNote) => void): WebMidiState {
+export function useWebMidi(
+  onNoteOn: (event: WebMidiNote) => void,
+  onNoteOff?: (event: WebMidiNote) => void,
+  enabled = true
+): WebMidiState {
   const [state, setState] = useState<WebMidiState>({
     supported: typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator,
     error: null,
@@ -24,9 +29,11 @@ export function useWebMidi(onNoteOn: (event: WebMidiNote) => void): WebMidiState
   });
   const handlerRef = useRef(onNoteOn);
   handlerRef.current = onNoteOn;
+  const offRef = useRef(onNoteOff);
+  offRef.current = onNoteOff;
 
   useEffect(() => {
-    if (!('requestMIDIAccess' in navigator)) {
+    if (!enabled || !('requestMIDIAccess' in navigator)) {
       return;
     }
     let access: MIDIAccess | null = null;
@@ -40,6 +47,8 @@ export function useWebMidi(onNoteOn: (event: WebMidiNote) => void): WebMidiState
       const velocity = data[2];
       if (status === 0x90 && velocity > 0) {
         handlerRef.current({ note, velocity });
+      } else if (status === 0x80 || status === 0x90) {
+        offRef.current?.({ note, velocity });
       }
     };
 
@@ -75,7 +84,7 @@ export function useWebMidi(onNoteOn: (event: WebMidiNote) => void): WebMidiState
         });
       }
     };
-  }, []);
+  }, [enabled]);
 
   return state;
 }

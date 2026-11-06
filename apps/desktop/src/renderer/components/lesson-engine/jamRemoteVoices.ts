@@ -1,114 +1,92 @@
 import * as Tone from 'tone';
-import { renderJamSound } from './jamRenderer';
-import { jamSoundUrl } from './jamSoundFiles';
-import { JAM_RENDERED_BOOST_DB, type JamSampleSound, type JamSoundPreset } from './jamSynth';
+import { InstrumentChannel } from './instruments/channel';
+import { findInstrument, jamRowNote } from './instruments/catalog';
+import type { InstrumentDef } from './instruments/types';
 import type { JamRoomSound } from './jamRoomProtocol';
 
-// Other players' sounds in a jam room: each player's chosen sound is rendered
-// here, one clip per row like the player's own, and their notes play through
-// the same notes bus (echo and reverb) as this player's.
-
-const POOL_SIZE = 4;
+// Other players' sounds in a jam room: each player's chosen instrument, as
+// they set it, played live here through its own channel (effects and level)
+// into the same notes bus as this player's.
 
 interface Voice {
   key: string;
-  players: Map<number, Tone.Player[]>;
-  next: Map<number, number>;
-  blobs: string[];
-  boostDb: number; // rendered sounds play louder than recorded ones
+  channel: InstrumentChannel;
+  instrument: InstrumentDef;
+  ready: boolean;
 }
-
-const audioPath = (file: string) => (/^(blob|data|https?):|^\//.test(file) ? file : `/audio/${file}`);
 
 export class JamRemoteVoices {
   private voices = new Map<string, Voice>();
-  private pending = new Map<string, string>();
+  private level = 0;
 
   constructor(private output: Tone.InputNode) {}
 
-  // Renders `sound` for player `id` unless it already has it
-  async set(
-    id: string,
-    sound: JamRoomSound | null,
-    notes: number[],
-    presets: JamSoundPreset[],
-    references: JamSampleSound[]
-  ): Promise<void> {
-    const key = JSON.stringify([sound, notes]);
-    if (this.voices.get(id)?.key === key || this.pending.get(id) === key) return;
-    this.pending.set(id, key);
-    const preset = sound ? presets.find((candidate) => candidate.id === sound.id) : undefined;
-    const reference = sound ? references.find((candidate) => candidate.id === sound.id) : undefined;
-    let samples: { [note: number]: string };
-    let blobs: string[] = [];
-    if (preset && 'sounds' in preset) {
-      // Recorded sounds play on the rows from the lowest up
-      const rows = [...notes].sort((a, b) => a - b);
-      samples = Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(preset.sounds[row % preset.sounds.length].file)]));
-    } else if (preset) {
-      samples = await renderJamSound(
-        'kit' in preset ? { kit: preset.kit } : 'sample' in preset ? { sample: preset.sample } : { patch: sound?.patch ?? preset.patch },
-        notes
-      );
-      blobs = Object.values(samples);
-    } else if (reference) {
-      samples = reference.samples;
-    } else {
-      this.pending.delete(id);
-      throw new Error(`Player ${id} plays a sound this device does not have: ${sound?.id ?? 'none'}`);
-    }
-    if (this.pending.get(id) !== key) {
-      blobs.forEach((url) => URL.revokeObjectURL(url));
+  // Sets player `id`'s instrument as they chose it
+  set(id: string, sound: JamRoomSound | null, instruments: InstrumentDef[], bpm: number): void {
+    const instrument = sound ? findInstrument(instruments, sound.instrument) : undefined;
+    if (!sound || !instrument) {
+      this.remove(id);
+      if (sound) console.warn(`[JamRemoteVoices] Player ${id} plays an instrument this device does not have: ${sound.instrument}`);
       return;
     }
-    this.pending.delete(id);
-    const players = new Map<number, Tone.Player[]>();
-    await Promise.all(
-      Object.entries(samples).map(async ([note, file]) => {
-        const pool = Array.from({ length: POOL_SIZE }, () => new Tone.Player().connect(this.output));
-        await Promise.all(pool.map((player) => player.load(audioPath(file))));
-        players.set(Number(note), pool);
-      })
+    const key = JSON.stringify([sound, bpm]);
+    let voice = this.voices.get(id);
+    if (voice?.key === key) return;
+    if (!voice) {
+      const channel = new InstrumentChannel(this.output);
+      channel.level = this.level;
+      voice = { key, channel, instrument, ready: false };
+      this.voices.set(id, voice);
+    }
+    const current = voice;
+    if (current.instrument.id !== instrument.id) current.ready = false;
+    current.key = key;
+    current.instrument = instrument;
+    current.channel.set(instrument, sound, bpm).then(
+      () => {
+        if (this.voices.get(id) === current) current.ready = true;
+      },
+      (err) => console.error(`[JamRemoteVoices] Could not load ${instrument.name} for player ${id}:`, err)
     );
-    this.remove(id);
-    this.voices.set(id, { key, players, next: new Map(), blobs, boostDb: blobs.length ? JAM_RENDERED_BOOST_DB : 0 });
   }
 
-  // Plays player `id`'s row `note` at audio time `time`; false when its sound
-  // is still being prepared
-  play(id: string, note: number, time: number, volume: number): boolean {
+  // Every remote player's level, in dB
+  setLevel(db: number): void {
+    this.level = db;
+    for (const voice of this.voices.values()) voice.channel.level = db;
+  }
+
+  // Plays player `id`'s row `row` (of the song's `rows`) at audio time
+  // `time`, for `length` seconds or until released; false while their
+  // instrument is still loading
+  play(id: string, row: number, rows: number[], time: number, velocity: number, length?: number): boolean {
     const voice = this.voices.get(id);
-    const pool = voice?.players.get(note);
-    if (!voice || !pool) return false;
-    const index = voice.next.get(note) ?? 0;
-    voice.next.set(note, index + 1);
-    const player = pool.find((candidate) => candidate.state !== 'started') ?? pool[index % pool.length];
-    if (player.state === 'started') player.stop(time);
-    player.volume.value =
-      volume === 0 ? -Infinity : -6 + (volume - 1) * 20 + voice.boostDb;
-    player.start(time);
+    if (!voice?.ready) return false;
+    const note = jamRowNote(voice.instrument, row, rows);
+    voice.channel.noteOn(note, velocity, time);
+    if (length !== undefined) voice.channel.noteOff(note, time + length);
     return true;
+  }
+
+  release(id: string, row: number, rows: number[], time: number): void {
+    const voice = this.voices.get(id);
+    if (voice) voice.channel.noteOff(jamRowNote(voice.instrument, row, rows), time);
   }
 
   // Drops the sounds of players no longer in the room
   keepOnly(ids: string[]): void {
-    for (const id of [...this.voices.keys(), ...this.pending.keys()]) {
-      if (ids.includes(id)) continue;
-      this.pending.delete(id);
-      this.remove(id);
-    }
+    for (const id of [...this.voices.keys()]) if (!ids.includes(id)) this.remove(id);
   }
 
   remove(id: string): void {
     const voice = this.voices.get(id);
     if (!voice) return;
     this.voices.delete(id);
-    for (const pool of voice.players.values()) pool.forEach((player) => player.dispose());
-    voice.blobs.forEach((url) => URL.revokeObjectURL(url));
+    voice.channel.allOff();
+    setTimeout(() => voice.channel.dispose(), 300);
   }
 
   dispose(): void {
     for (const id of [...this.voices.keys()]) this.remove(id);
-    this.pending.clear();
   }
 }
