@@ -294,10 +294,35 @@ describe('jam rooms', () => {
     b.send({ t: 'track', file: 'empty-128.wav', edit });
     await a.next('state');
 
+    // A new tempo keeps the notes, on the track at that tempo; out of range it is refused
+    a.send({ t: 'tempo', bpm: 400 });
+    a.send({ t: 'tempo', bpm: 140 });
+    for (;;) {
+      const { state } = await b.next('state');
+      if (state.song.bpm !== 140) continue;
+      expect(state.song.file).toBe('empty-140.wav');
+      expect(state.tracks).toEqual({ 'empty-140.wav': edit });
+      break;
+    }
+
     [a, b, jam, lobby].forEach((p) => p.socket.close());
     rooms.close();
     const kept = createJamSongStore(songsDir);
-    expect(kept.get(id!)).toMatchObject({ title: 'Night', offered: true, edit });
+    expect(kept.get(id!)).toMatchObject({ title: 'Night', offered: true, edit, bpm: 140, file: 'empty-140.wav' });
     expect(kept.get(copy)).toMatchObject({ edit: null });
+  });
+
+  it('plays a copy of a built-in song at another tempo, and back at its own', async () => {
+    const lobby = await player(url);
+    lobby.send({ t: 'newSong', c: 1, title: 'Fast chip', from: 'chip-run-jam', bpm: 0 });
+    const id = (await lobby.next('songMade')).id!;
+    const a = await player(url);
+    a.send({ t: 'edit', song: id, name: '', sound: null, need: 0 });
+    await a.next('welcome');
+    a.send({ t: 'tempo', bpm: 130 });
+    expect((await a.next('state')).state.song).toMatchObject({ bpm: 130, file: `${CHIP.file}@130` });
+    a.send({ t: 'tempo', bpm: CHIP.bpm });
+    expect((await a.next('state')).state.song).toMatchObject({ bpm: CHIP.bpm, file: CHIP.file });
+    [a, lobby].forEach((p) => p.socket.close());
   });
 });

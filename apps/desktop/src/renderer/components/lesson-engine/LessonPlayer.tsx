@@ -7,7 +7,7 @@ import { NoteHighway, HighwayMode, JamNote, JamShip } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
 import { BackIcon, SidebarIcon } from './JamIcons';
-import { JAM_TRACK_BARS, jamTrackByFile, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
+import { JAM_TRACK_BARS, jamTrackBaseFile, jamTrackByFile, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
 import { validJamTrackEdit, type JamTrackEdit } from './jamTrackEdits';
 import { renderJamBackingPart, renderJamSound } from './jamRenderer';
 import { jamAddedInstrument, jamPartKey } from './jamAddedParts';
@@ -1013,7 +1013,9 @@ export function LessonPlayer({
   }, [jamTrack, jamTrackNotes, jamTrackAdded, backingTrackLoaded]);
 
   // The grid's mixer settings: levels, mutes and solos per part
-  const jamSavedMix = jamTrack ? jamSettings?.mixes[jamTrack.file] : undefined;
+  // Mixer settings are kept by track, whatever its tempo
+  const jamMixKey = jamTrack ? jamTrackBaseFile(jamTrack.file) : '';
+  const jamSavedMix = jamTrack ? jamSettings?.mixes[jamMixKey] : undefined;
   const jamPartCount = jamTrackNotes?.length ?? 0;
   const jamTrackMix = useMemo(
     () =>
@@ -2657,11 +2659,13 @@ export function LessonPlayer({
             notes={jamTrackNotes}
             added={jamTrackAdded}
             bars={jamTrackBars}
-            edited={!!jamTrackEdit || !!jamSettings.mixes[jamTrack.file]}
+            edited={!!jamTrackEdit || !!jamSettings.mixes[jamMixKey]}
             lanesOpen={jamSettings.lanesOpen}
             onLanesOpenChange={(lanesOpen) => setJamSettings({ ...jamSettings, lanesOpen })}
             mix={jamTrackMix!}
-            onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamTrack.file]: mix } })}
+            onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamMixKey]: mix } })}
+            tempo={jamSection === 'daw' && jamRoom && jamRoomState ? lesson.bpm : undefined}
+            onTempoChange={(bpm) => jamRoom?.setTempo(bpm)}
             paused={jamIsPaused}
             onTogglePause={toggleJamPause}
             onChange={(parts, added, bars) => {
@@ -2675,7 +2679,7 @@ export function LessonPlayer({
             }}
             onReset={() => {
               const mixes = { ...jamSettings.mixes };
-              delete mixes[jamTrack.file];
+              delete mixes[jamMixKey];
               if (jamRoom && jamRoomState) {
                 const tracks = { ...jamRoomState.tracks };
                 delete tracks[jamTrack.file];

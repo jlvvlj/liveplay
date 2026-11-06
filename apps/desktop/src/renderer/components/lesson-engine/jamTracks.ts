@@ -292,19 +292,39 @@ const emptyTracks = new Map<string, JamTrack>();
 export const jamEmptyTrackFile = (bpm: number): string => `empty-${bpm}.wav`;
 export const jamTrackIsEmpty = (track: JamTrack): boolean => EMPTY_TRACK_FILE.test(track.file);
 
-// The track a file names: one of JAM_TRACKS, or an empty one
+// A built-in track played at another tempo, for a Daw song: `<file>@<bpm>`
+const TEMPO_FILE = /^(.+)@(\d+)$/;
+const tempoTracks = new Map<string, JamTrack>();
+
+// The track a file names: one of JAM_TRACKS, an empty one, or one of
+// JAM_TRACKS at another tempo
 export function jamTrackByFile(file: string): JamTrack | undefined {
   const builtIn = JAM_TRACKS.find((track) => track.file === file);
   if (builtIn) return builtIn;
-  const bpm = Number(EMPTY_TRACK_FILE.exec(file)?.[1]);
+  const tempo = TEMPO_FILE.exec(file);
+  const bpm = Number(tempo ? tempo[2] : EMPTY_TRACK_FILE.exec(file)?.[1]);
   if (!(bpm >= JAM_DAW_MIN_BPM && bpm <= JAM_DAW_MAX_BPM)) return undefined;
-  let track = emptyTracks.get(file);
+  const made = tempo ? tempoTracks : emptyTracks;
+  let track = made.get(file);
   if (!track) {
-    track = { file, bpm, chords: [], layers: [], drums: [] };
-    emptyTracks.set(file, track);
+    const base = tempo ? JAM_TRACKS.find((candidate) => candidate.file === tempo[1]) : undefined;
+    if (tempo && !base) return undefined;
+    track = base ? { ...base, file, bpm } : { file, bpm, chords: [], layers: [], drums: [] };
+    made.set(file, track);
   }
   return track;
 }
+
+// The file of the same track at `bpm` (its own file at its own tempo)
+export function jamTrackFileAtTempo(file: string, bpm: number): string {
+  if (EMPTY_TRACK_FILE.test(file)) return jamEmptyTrackFile(bpm);
+  const base = TEMPO_FILE.exec(file)?.[1] ?? file;
+  return JAM_TRACKS.find((track) => track.file === base)?.bpm === bpm ? base : `${base}@${bpm}`;
+}
+
+// The track a file plays, whatever its tempo: where its mixer settings are kept
+export const jamTrackBaseFile = (file: string): string =>
+  EMPTY_TRACK_FILE.test(file) ? 'empty.wav' : (TEMPO_FILE.exec(file)?.[1] ?? file);
 
 // A track's backing track file name, as in a song's `backingTrack` path
 export const jamTrackFor = (backingTrack: string | undefined): JamTrack | undefined =>

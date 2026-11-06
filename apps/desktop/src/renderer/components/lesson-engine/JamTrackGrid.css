@@ -52,6 +52,31 @@
   background: var(--ds-raised);
 }
 
+/* A Daw song's tempo: a white slider like the zoom's, and its BPM */
+.jam-grid-tempo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 11px;
+  color: var(--ds-text-dim);
+  cursor: pointer;
+}
+
+.jam-grid-tempo input {
+  width: 110px;
+  accent-color: var(--ds-text);
+  cursor: pointer;
+}
+
+.jam-grid-tempo-value {
+  min-width: 1.6rem;
+  color: var(--ds-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 /* Instrument Lab's track zoom (TrackZoom), its slider white here like the grid's levels */
 .jam-grid .mix-zoom input {
   accent-color: var(--ds-text);
@@ -382,34 +407,39 @@
   overflow: hidden;
 }
 
-/* Dragged taller by its grip: its own height, over the tracks' space */
+/* Dragged taller by its top edge: its own height, over the tracks' space */
 .jam-editor.sized {
   flex: none;
   max-height: none;
 }
 
-/* The grip at the top edge: drag up for a taller editor */
-.jam-editor-grip {
+/* The top edge: drag up for a taller editor, down for a shorter one */
+.jam-editor-edge {
   position: absolute;
   top: 0;
-  left: 50%;
+  left: 0;
+  right: 0;
   z-index: 6;
-  width: 48px;
-  height: 14px;
-  margin-left: -24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0 0 8px 8px;
-  background: var(--ds-panel-2);
-  color: var(--ds-text-dim);
+  height: 7px;
   cursor: ns-resize;
   touch-action: none;
 }
 
-.jam-editor-grip:hover {
-  color: var(--ds-text);
-  background: var(--ds-raised);
+.jam-editor-edge:hover,
+.jam-editor-edge:active {
+  box-shadow: inset 0 2px 0 var(--ds-border-strong);
+}
+
+/* Full height: the editor fills the grid, the tracks keep their least height */
+.jam-grid.editor-expanded .jam-timeline {
+  flex: none;
+  height: 7rem;
+  min-height: 0;
+}
+
+.jam-grid.editor-expanded .jam-editor {
+  flex: 1 1 0;
+  max-height: none;
 }
 
 .jam-editor-top {
@@ -703,7 +733,6 @@
       transparent 0 calc(4 * var(--jam-step)),
       var(--ds-raised) calc(4 * var(--jam-step)) calc(8 * var(--jam-step))
     );
-  cursor: crosshair;
   touch-action: none;
 }
 
@@ -798,6 +827,16 @@
 }
 
 @media (max-width: 700px), (max-height: 500px) {
+  /* The header's controls go on as many lines as they need */
+  .jam-grid-head {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+
+  .jam-grid-tempo input {
+    width: 80px;
+  }
+
   .jam-grid {
     --jam-head: 8rem;
     padding: 0.75rem;

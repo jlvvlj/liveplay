@@ -116,8 +116,9 @@ export type JamClientMessage =
   | { t: 'check'; id: string; code: string; c: number }
   | { t: 'ping'; c: number }
   | { t: 'state'; state: Omit<JamRoomState, 'song' | 'tracks'> }
-  // A Daw song's grid as edited (a Jam room's song stays as it was opened)
+  // A Daw song's grid as edited, and its tempo (a Jam room's song stays as it was opened)
   | { t: 'track'; file: string; edit: JamTrackEdit | null }
+  | { t: 'tempo'; bpm: number }
   | { t: 'peer'; name: string; sound: JamRoomSound | null; need: number }
   | { t: 'signal'; to: string; data: JamSignal }
   | { t: 'note'; note: JamRoomNote }

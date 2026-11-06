@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
-import { JAM_MAX_BARS, JAM_SECTION_BARS, jamTrackParts, type JamTrack, type JamTrackNote, type JamTrackPart } from './jamTracks';
+import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM, JAM_MAX_BARS, JAM_SECTION_BARS, jamTrackParts, type JamTrack, type JamTrackNote, type JamTrackPart } from './jamTracks';
 import type { JamTrackMix } from './jamBackingMixer';
 import { JamLaneStrip } from './JamLaneStrip';
 import { auditionJamPart } from './jamAudition';
@@ -25,7 +25,7 @@ import {
 } from './jamAddedParts';
 import TrackZoom from '../../../../../../instrument-lab/client/TrackZoom.jsx';
 import { zoomWindow } from '../../../../../../instrument-lab/client/timeline.mjs';
-import { LanesIcon } from './JamIcons';
+import { CollapseIcon, ExpandIcon, LanesIcon } from './JamIcons';
 import { SOUND_COLORS } from '../../styles/palette';
 import './JamTrackGrid.css';
 
@@ -146,6 +146,9 @@ interface JamTrackGridProps {
   onTogglePause: () => void;
   // 16ths since the backing track started, or null while it is not playing
   getStep: () => number | null;
+  // The song's tempo, when it can be changed here (a Daw song)
+  tempo?: number;
+  onTempoChange?: (bpm: number) => void;
 }
 
 // One row of the editor: a pitch of an instrument, or a drum of a kit (its
@@ -186,6 +189,35 @@ const TrashIcon = () => (
   </svg>
 );
 
+// The song's tempo: its value follows the slider while it moves, and the
+// song changes tempo once it is let go (each change renders the track again)
+function TempoControl({ tempo, onChange }: { tempo: number; onChange: (bpm: number) => void }) {
+  const [draft, setDraft] = useState<number | null>(null);
+  const shown = draft ?? tempo;
+  const commit = () => {
+    if (draft !== null && draft !== tempo) onChange(draft);
+    setDraft(null);
+  };
+  return (
+    <label className="jam-grid-tempo">
+      <input
+        type="range"
+        min={JAM_DAW_MIN_BPM}
+        max={JAM_DAW_MAX_BPM}
+        step={1}
+        value={shown}
+        aria-label="Tempo"
+        onChange={(event) => setDraft(Number(event.target.value))}
+        onPointerUp={commit}
+        onKeyUp={commit}
+        onBlur={commit}
+      />
+      <span className="jam-grid-tempo-value">{shown}</span>
+      <span className="jam-grid-tempo-unit">BPM</span>
+    </label>
+  );
+}
+
 export function JamTrackGrid({
   track,
   notes,
@@ -202,6 +234,8 @@ export function JamTrackGrid({
   onReset,
   onTogglePause,
   getStep,
+  tempo,
+  onTempoChange,
 }: JamTrackGridProps) {
   const own = useMemo(() => jamTrackParts(track), [track]);
   // Every part: the track's own, then the ones added here (no notes of their own)
@@ -245,6 +279,8 @@ export function JamTrackGrid({
   const timelineRef = useRef<HTMLDivElement>(null);
   // The editor's height once dragged taller (or shorter) by its grip, else its own
   const [editorHeight, setEditorHeight] = useState<number | null>(null);
+  // The editor over the whole height, the tracks down to a few rows
+  const [expanded, setExpanded] = useState(false);
   const editorRef = useRef<HTMLElement>(null);
   const resizeRef = useRef<{ startY: number; from: number; min: number; max: number } | null>(null);
   const timelinePlayheadRef = useRef<HTMLDivElement>(null);
@@ -450,26 +486,54 @@ export function JamTrackGrid({
   // The grid: pressing on a note drags its start or its end (near them) or
   // the whole note, and a click on it (no drag) removes it; pressing on an
   // empty spot adds a 16th note there, whose end the drag then draws out
-  const pressGrid = (event: ReactPointerEvent<HTMLDivElement>, rows: GridRow[]) => {
+  // What a press at this point of the grid does: add a note on its row, or
+  // move the note under it, or drag its start or its end; null off the rows
+  const gridHit = (event: ReactPointerEvent<HTMLDivElement>, rows: GridRow[]) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const at = first + x / step;
     const row = rows[clamp(Math.floor((event.clientY - rect.top) / step), 0, rows.length - 1)];
-    if (!row) return;
-    const { part, pitch } = row;
-    const under = notes[part].find((note) => note.pitch === pitch && note.step <= at && note.step + note.length > at);
+    if (!row) return null;
+    const under = notes[row.part].find((note) => note.pitch === row.pitch && note.step <= at && note.step + note.length > at);
+    if (!under) return { row, at, under, mode: 'add' as const };
+    const left = (Math.max(under.step, first) - first) * step;
+    const right = (Math.min(under.step + under.length, first + PAGE_STEPS) - first) * step - CELL_GAP_PX;
+    const edge = Math.min(EDGE_PX, (right - left) / 3);
+    const mode: NoteDrag['mode'] = x - left <= edge && under.step >= first ? 'start' : right - x <= edge ? 'length' : 'move';
+    return { row, at, under, mode };
+  };
+
+  // The pointer shows what a press does there, and what a drag is doing
+  const DRAG_CURSORS: Record<NoteDrag['mode'], string> = {
+    move: 'grabbing',
+    start: 'ew-resize',
+    length: 'ew-resize',
+    velocity: 'ns-resize',
+  };
+  const HOVER_CURSORS: Record<'add' | NoteDrag['mode'], string> = {
+    add: 'copy',
+    move: 'grab',
+    start: 'ew-resize',
+    length: 'ew-resize',
+    velocity: 'ns-resize',
+  };
+  const hoverGrid = (event: ReactPointerEvent<HTMLDivElement>, rows: GridRow[]) => {
+    if (noteDragRef.current) return;
+    const hit = gridHit(event, rows);
+    event.currentTarget.style.cursor = hit ? HOVER_CURSORS[hit.mode] : 'default';
+  };
+
+  const pressGrid = (event: ReactPointerEvent<HTMLDivElement>, rows: GridRow[]) => {
+    const hit = gridHit(event, rows);
+    if (!hit) return;
+    const { part, pitch } = hit.row;
+    const { at, under } = hit;
     event.currentTarget.setPointerCapture(event.pointerId);
     let note = under;
-    let mode: NoteDrag['mode'] = 'move';
-    if (under) {
-      const left = (Math.max(under.step, first) - first) * step;
-      const right = (Math.min(under.step + under.length, first + PAGE_STEPS) - first) * step - CELL_GAP_PX;
-      const edge = Math.min(EDGE_PX, (right - left) / 3);
-      if (x - left <= edge && under.step >= first) mode = 'start';
-      else if (right - x <= edge) mode = 'length';
-    } else {
+    // A new note is stretched by dragging, like a note's end
+    const mode: NoteDrag['mode'] = hit.mode === 'add' ? 'length' : hit.mode;
+    if (!under) {
       note = { pitch, step: clamp(Math.floor(at), first, first + PAGE_STEPS - 1), length: 1, velocity: NEW_VELOCITY };
-      mode = 'length';
       setPart(part, [...notes[part], note]);
       audition(part, pitch);
     }
@@ -484,14 +548,21 @@ export function JamTrackGrid({
       moved: false,
       added: !under,
     };
+    event.currentTarget.style.cursor = DRAG_CURSORS[mode];
     setSelected({ part, key: noteKey(note!) });
   };
 
   // The velocity strip: pressing on a note's bar sets its velocity to that height
+  const notesStartingAt = (event: ReactPointerEvent<HTMLDivElement>, part: number) => {
+    const column = first + Math.floor((event.clientX - event.currentTarget.getBoundingClientRect().left) / step);
+    return notes[part].filter((note) => Math.floor(note.step) === column);
+  };
+  const hoverVelocity = (event: ReactPointerEvent<HTMLDivElement>, part: number) => {
+    if (!noteDragRef.current) event.currentTarget.style.cursor = notesStartingAt(event, part).length ? 'ns-resize' : 'default';
+  };
   const pressVelocity = (event: ReactPointerEvent<HTMLDivElement>, part: number) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    const column = first + Math.floor((event.clientX - rect.left) / step);
-    const starting = notes[part].filter((note) => Math.floor(note.step) === column);
+    const starting = notesStartingAt(event, part);
     const note = starting.find((candidate) => selected?.part === part && noteKey(candidate) === selected.key) ?? starting[0];
     if (!note) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -548,7 +619,8 @@ export function JamTrackGrid({
     setSelected({ part, key });
   };
 
-  const releaseNote = () => {
+  const releaseNote = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.style.cursor = '';
     const current = noteDragRef.current;
     noteDragRef.current = null;
     if (!current || current.moved || current.added || current.mode === 'velocity') return;
@@ -606,8 +678,8 @@ export function JamTrackGrid({
     return runs;
   };
 
-  // The editor's grip: its height follows the pointer, between a short editor
-  // and the tracks keeping their least height
+  // The editor's top edge: its height follows the pointer, between a short
+  // editor and the tracks keeping their least height
   const TIMELINE_MIN_PX = 112;
   const EDITOR_MIN_PX = 150;
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -615,6 +687,7 @@ export function JamTrackGrid({
     const timeline = timelineRef.current;
     if (!editor || !timeline) return;
     event.currentTarget.setPointerCapture(event.pointerId);
+    setExpanded(false);
     const from = editor.getBoundingClientRect().height;
     resizeRef.current = {
       startY: event.clientY,
@@ -735,8 +808,14 @@ export function JamTrackGrid({
             className={`jam-editor-roll ${!drum && silent(gridTrack.parts[0]) ? 'silent' : ''}`}
             style={{ height: rows.length * step - CELL_GAP_PX }}
             onPointerDown={(event) => pressGrid(event, rows)}
-            onPointerMove={dragNote}
-            onPointerUp={releaseNote}
+            onPointerMove={(event) => {
+              dragNote(event);
+              hoverGrid(event, rows);
+            }}
+            onPointerUp={(event) => {
+              releaseNote(event);
+              hoverGrid(event, rows);
+            }}
             onPointerCancel={releaseNote}
           >
             {rows.map((row, index) => {
@@ -777,8 +856,14 @@ export function JamTrackGrid({
           <div
             className="jam-editor-velocities"
             onPointerDown={(event) => pressVelocity(event, stripPart)}
-            onPointerMove={(event) => dragNote(event)}
-            onPointerUp={releaseNote}
+            onPointerMove={(event) => {
+              dragNote(event);
+              hoverVelocity(event, stripPart);
+            }}
+            onPointerUp={(event) => {
+              releaseNote(event);
+              hoverVelocity(event, stripPart);
+            }}
             onPointerCancel={releaseNote}
           >
             {notes[stripPart]
@@ -820,7 +905,7 @@ export function JamTrackGrid({
     });
 
   return (
-    <div className={`jam-grid ${lanesOpen ? '' : 'heads-closed'}`}>
+    <div className={`jam-grid ${lanesOpen ? '' : 'heads-closed'} ${open && expanded ? 'editor-expanded' : ''}`}>
       <div className="jam-grid-head">
         {toolbar}
         <button
@@ -833,6 +918,7 @@ export function JamTrackGrid({
         <button className={`jam-grid-play ${paused ? '' : 'playing'}`} onClick={togglePause} aria-label={paused ? 'Play' : 'Pause'}>
           {paused ? '▶' : '❚❚'}
         </button>
+        {tempo !== undefined && onTempoChange && <TempoControl tempo={tempo} onChange={onTempoChange} />}
         <TrackZoom view={view} duration={LOOP_STEPS} focus={zoomFocus()} minSpan={MIN_SPAN} onView={setView} />
         {edited && (
           <button className="jam-grid-reset" onClick={blurAfter(onReset)}>
@@ -954,20 +1040,20 @@ export function JamTrackGrid({
       {open && (
         <section
           ref={editorRef}
-          className={`jam-editor ${rowsOpen ? '' : 'heads-closed'} ${editorHeight === null ? '' : 'sized'}`}
+          className={`jam-editor ${rowsOpen ? '' : 'heads-closed'} ${editorHeight === null || expanded ? '' : 'sized'}`}
           style={
             {
               '--track-color': open.color,
               '--cell': `${cell}px`,
               '--steps': PAGE_STEPS,
               '--beats': PAGE_STEPS / 4,
-              ...(editorHeight === null ? {} : { height: editorHeight }),
+              ...(editorHeight === null || expanded ? {} : { height: editorHeight }),
             } as CSSProperties
           }
         >
-          {/* Dragged up, the editor grows over the tracks' space (they keep a few rows) */}
+          {/* Its top edge, dragged up, grows the editor over the tracks' space (they keep a few rows) */}
           <div
-            className="jam-editor-grip"
+            className="jam-editor-edge"
             role="separator"
             aria-orientation="horizontal"
             aria-label="Resize the editor"
@@ -975,11 +1061,7 @@ export function JamTrackGrid({
             onPointerMove={resize}
             onPointerUp={endResize}
             onPointerCancel={endResize}
-          >
-            <svg viewBox="0 0 24 10" width="24" height="10" aria-hidden="true">
-              <path d="M7 6.5l5-4 5 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
+          />
           <div className="jam-editor-top">
             <button
               className={`jam-editor-icon-btn ${rowsOpen ? 'on' : ''}`}
@@ -1030,6 +1112,14 @@ export function JamTrackGrid({
                 <TrashIcon />
               </button>
             )}
+            <button
+              className={`jam-editor-icon-btn ${expanded ? 'on' : ''}`}
+              onClick={blurAfter(() => setExpanded(!expanded))}
+              aria-label={expanded ? 'Back to its size' : 'Full height'}
+              title={expanded ? 'Back to its size' : 'Full height'}
+            >
+              {expanded ? <CollapseIcon /> : <ExpandIcon />}
+            </button>
           </div>
           <div className="jam-editor-body" ref={bodyRef}>
             <div className="jam-editor-content">{renderGrid(open)}</div>

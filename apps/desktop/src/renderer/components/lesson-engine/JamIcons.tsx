@@ -29,3 +29,9 @@ export const LanesIcon = () =>
   );
 
 export const BackIcon = () => icon(<path d="M19 12H5M11 6l-6 6 6 6" />);
+
+// Arrows out to the corners: the editor takes the whole height
+export const ExpandIcon = () => icon(<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" />);
+
+// Arrows in from the corners: the editor goes back to its size
+export const CollapseIcon = () => icon(<path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7" />);

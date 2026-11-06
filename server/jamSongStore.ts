@@ -61,7 +61,7 @@ export function createJamSongStore(dir: string) {
       write(made.id);
       return made;
     },
-    update(id: string, change: Partial<Pick<JamDawSong, 'edit' | 'offered'>>): void {
+    update(id: string, change: Partial<Pick<JamDawSong, 'edit' | 'offered' | 'bpm' | 'file'>>): void {
       const song = songs.get(id);
       if (!song) return;
       songs.set(id, { ...song, ...change });
