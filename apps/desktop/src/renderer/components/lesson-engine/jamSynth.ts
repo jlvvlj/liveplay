@@ -1,4 +1,4 @@
-import { matchJamLoudness } from './jamLoudness';
+import { JAM_SOUND_LOUDNESS, jamLoudness, matchJamLoudness } from './jamLoudness';
 import { SOFTER_DRUMS, SOFTER_INSTRUMENTS } from './jamSofter';
 import { SOFTER_JAM_DRUMS, SOFTER_JAM_INSTRUMENTS } from './jamSofterJam';
 import { JAM_PACK_SOUNDS } from './jamPacks';
@@ -116,6 +116,9 @@ const JAM_EXTRAS: JamSynthExtras = {
   vowel: 0,
   keyDecay: 0,
 };
+
+// Every setting of a Jam synth patch at its default
+export const JAM_DEFAULT_PATCH: JamSynthPatch = { ...DEFAULT_PATCH, detune: 0, ...JAM_EXTRAS };
 
 const preset = (id: string, label: string, patch: Partial<JamSynthPatch>): JamSoundPreset => ({
   id,
@@ -483,37 +486,27 @@ export function renderJamWavs(
   return Object.fromEntries(rows.map((pitch, row) => [pitch, encodeWav(clips[row], SAMPLE_RATE)]));
 }
 
+// What the live Melodics Synth needs for a patch: the gain that brings its
+// notes (judged by their median, as matchJamLoudness does) to the reference
+// sounds' level with the Level control at 1, and when asked its wavetables, one
+// per MIDI pitch
+export function prepareJamSynth(patch: JamSynthPatch, sampleRate: number, withTables: boolean): { gain: number; tables?: Float32Array[] } {
+  const levels = [48, 60, 72]
+    .map((pitch) => jamLoudness([renderJamClip({ ...patch, gain: 1 }, pitch)], SAMPLE_RATE))
+    .sort((a, b) => a - b);
+  const gain = 10 ** ((JAM_SOUND_LOUDNESS - levels[1]) / 20);
+  if (!withTables) return { gain };
+  // Copies: makeTable shares and caches its tables, and these are handed over (transferred)
+  return { gain, tables: Array.from({ length: 128 }, (_, pitch) => makeTable(patch, pitch, sampleRate).slice()) };
+}
+
 // Rendered sounds (synths, kits, recorded instruments) play this much louder
 // than the reference sounds, to stand out over the backing track
 export const JAM_RENDERED_BOOST_DB = 16;
 
-// Effects on the played notes (not the backing track)
-export type JamEchoTime = '1/16' | '1/8' | '1/8.' | '1/4';
-
-export interface JamEffects {
-  reverbMix: number; // 0-1
-  reverbSize: number; // decay, seconds
-  echoMix: number; // 0-1, the ping-pong echoes' level next to the full dry sound
-  echoTime: JamEchoTime; // synced to the song's tempo
-  echoFeedback: number; // 0-0.9
-}
-
-export const JAM_ECHO_BEATS: Record<JamEchoTime, number> = {
-  '1/16': 0.25,
-  '1/8': 0.5,
-  '1/8.': 0.75,
-  '1/4': 1,
-};
-
-// As in Plink: no reverb, a dotted-8th ping-pong with echoes at -12 dB, each
-// half the last
-export const DEFAULT_JAM_EFFECTS: JamEffects = {
-  reverbMix: 0,
-  reverbSize: 2.5,
-  echoMix: 0.25,
-  echoTime: '1/8.',
-  echoFeedback: 0.5,
-};
+// The level of played notes (theirs and other players') for the Notes volume
+// control (0-1, 0 silent)
+export const jamNotesDb = (volume: number): number => (volume === 0 ? -Infinity : -6 + (volume - 1) * 20 + JAM_RENDERED_BOOST_DB);
 
 // Recorded sample sets kept on this machine only (git-ignored audio folder),
 // listed by scripts/make-jam-reference-sounds.mjs; shown as "Reference" sounds

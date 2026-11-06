@@ -1,4 +1,4 @@
-import { renderJamWavs, type JamSoundSource } from './jamSynth';
+import { prepareJamSynth, renderJamWavs, type JamSoundSource, type JamSynthPatch } from './jamSynth';
 import { jamTrackByFile, type JamTrackNote } from './jamTracks';
 import { decodeWav16, renderJamAddedLoop, renderJamPartLoop, renderJamSampleWavs, renderJamSampledLoop } from './jamTrackRender';
 import type { JamAddedInstrument } from './jamAddedParts';
@@ -7,6 +7,7 @@ import { jamSoundUrl } from './jamSoundFiles';
 // Renders Jam sounds and pieces of backing-track parts off the main thread (see jamRenderer.ts)
 type Request =
   | { id: number; source: JamSoundSource; notes: number[] }
+  | { id: number; synth: JamSynthPatch; sampleRate: number; tables: boolean }
   | { id: number; trackFile: string; part: number; notes: JamTrackNote[]; added?: JamAddedInstrument; bars?: number };
 
 const SAMPLE_RATE = 44100;
@@ -33,6 +34,11 @@ const post = (message: unknown, transfer: Transferable[] = []) =>
 self.onmessage = async (event: MessageEvent<Request>) => {
   const request = event.data;
   try {
+    if ('synth' in request) {
+      const synth = prepareJamSynth(request.synth, request.sampleRate, request.tables);
+      post({ id: request.id, synth }, (synth.tables ?? []).map((table) => table.buffer));
+      return;
+    }
     if ('source' in request) {
       const { source } = request;
       const clips =

@@ -6,12 +6,12 @@ import { MidiEvent, DeviceMapping } from '../../types/electron';
 import { NoteHighway, HighwayMode, JamNote, JamShip } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
-import { BackIcon, SidebarIcon } from './JamIcons';
+import { BackIcon, InstrumentsIcon, SidebarIcon } from './JamIcons';
+import { InstrumentPanel } from './instruments/InstrumentPanel';
 import { JAM_TRACK_BARS, jamTrackBaseFile, jamTrackByFile, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
 import { validJamTrackEdit, type JamTrackEdit } from './jamTrackEdits';
-import { renderJamBackingPart, renderJamSound } from './jamRenderer';
+import { renderJamBackingPart } from './jamRenderer';
 import { jamAddedInstrument, jamPartKey } from './jamAddedParts';
-import { jamSoundUrl } from './jamSoundFiles';
 import {
   JamBackingMixer,
   defaultJamTrackMix,
@@ -21,23 +21,18 @@ import {
   type BackingPlayer,
   type JamTrackMix,
 } from './jamBackingMixer';
-import {
-  loadJamReferenceSounds,
-  DEFAULT_JAM_EFFECTS,
-  JAM_ECHO_BEATS,
-  JAM_RENDERED_BOOST_DB,
-  type JamSoundPreset,
-  type JamSampleSound,
-  type JamSynthPatch,
-  type JamEffects,
-} from './jamSynth';
+import { loadJamReferenceSounds, jamNotesDb, type JamSoundPreset, type JamSampleSound, type JamSynthPatch } from './jamSynth';
+import { InstrumentChannel } from './instruments/channel';
+import { INSTRUMENTS, findInstrument, jamRowNote, presetChoice, referenceInstruments } from './instruments/catalog';
+import { paramsPatch, patchParams } from './instruments/engines/melodicsSynth';
+import type { InstrumentChoice } from './instruments/types';
 import { audioTimeAt, hitSlot, remoteNoteSlot, swungPosition } from './jamClock';
-import { JamPingPong } from './jamPingPong';
 import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
 import { jamRoomSongLesson } from './jamSongs';
 import type { JamRoomNote, JamRoomSound, JamRoomState, JamRoomVisibility } from './jamRoomProtocol';
 import { JamRemoteVoices } from './jamRemoteVoices';
 import { holdToleranceMs, isHoldStep, stepDurationMs } from './holdNotes';
+import { useWebMidi } from '../../utils/useWebMidi';
 import { ACCENT, DANGER, SUCCESS, TEXT, WARNING } from '../../styles/palette';
 import './LessonPlayer.css';
 
@@ -79,6 +74,10 @@ const DEFAULT_JAM_HOLD_DIVISION = 16;
 const JAM_HOLD_LOOKAHEAD_S = 0.1;
 // Notes are scheduled at least this far ahead of the audio clock
 const JAM_SCHEDULE_MARGIN_S = 0.01;
+// Computer keys and the screen play at this velocity
+const JAM_KEY_VELOCITY = 100;
+// A note let go at once still sounds this long (s)
+const JAM_SHORTEST_NOTE_S = 0.03;
 // Jam rooms: a player must have a note this long before it sounds, on top of
 // its audio output latency, to schedule it (message handling, scheduling)
 const JAM_ROOM_RECEIVE_MARGIN_S = 0.02;
@@ -96,14 +95,13 @@ const JAM_ROOM_RESYNC_MS = 1000;
 const JAM_BACKING_TOP_DB = 4 + 20 * Math.log10(1.3);
 const DEFAULT_JAM_NOTES_VOLUME = 0.75;
 
-// Jam tab settings remembered in this browser: chosen song, chosen sound,
-// edited synth settings per sound, and the effects. Only edited patches are
-// stored, so changes to the presets reach every browser.
+// Jam tab settings remembered in this browser: chosen song, the instrument
+// played (its preset, parameters and effects as edited), and each other
+// instrument as it was last left
 interface JamSettings {
   songId: string;
-  soundId: string;
-  patches: Record<string, JamSynthPatch>;
-  effects: JamEffects;
+  instrument: InstrumentChoice;
+  instruments: Record<string, InstrumentChoice>;
   // Backing tracks edited in the grid, and their mixer settings, by file
   tracks: Record<string, JamTrackEdit>;
   mixes: Record<string, JamTrackMix>;
@@ -173,32 +171,54 @@ function keepUnchangedTracks(prev: JamRoomState | null, next: JamRoomState): Jam
   return { ...next, tracks };
 }
 
-const presetPatches = (sounds: JamSoundPreset[]): Record<string, JamSynthPatch> =>
-  Object.fromEntries(sounds.flatMap((sound) => ('patch' in sound ? [[sound.id, sound.patch]] : [])));
+// A choice as saved, if it still names an instrument; reference sounds (on this
+// machine only) are checked once their list loads
+function savedChoice(saved: unknown): InstrumentChoice | null {
+  const choice = saved as Partial<InstrumentChoice> | null;
+  if (!choice || typeof choice.instrument !== 'string' || typeof choice.preset !== 'string') return null;
+  if (!choice.params || typeof choice.params !== 'object' || !Array.isArray(choice.effects)) return null;
+  return choice as InstrumentChoice;
+}
 
-function loadJamSettings(sounds: JamSoundPreset[], songIds: string[]): JamSettings {
-  const presets = presetPatches(sounds);
+// Settings saved before instruments: the chosen sound was a synth patch (now a
+// Melodics Synth preset, with its edits) or a kit or recorded sound (now an
+// instrument of the same id)
+function choiceFromSound(soundId: unknown, patches: unknown): InstrumentChoice | null {
+  if (typeof soundId !== 'string') return null;
+  const synth = INSTRUMENTS[0];
+  if (synth.presets.some((preset) => preset.id === soundId)) {
+    const choice = presetChoice(synth, soundId);
+    const edited = (patches as Record<string, JamSynthPatch> | undefined)?.[soundId];
+    return edited ? { ...choice, params: { ...choice.params, ...patchParams({ ...paramsPatch(choice.params), ...edited }) } } : choice;
+  }
+  const instrument = findInstrument(INSTRUMENTS, soundId);
+  return instrument ? presetChoice(instrument) : { instrument: soundId, preset: 'natural', params: {}, effects: [] };
+}
+
+function loadJamSettings(songIds: string[]): JamSettings {
   const defaults: JamSettings = {
     songId: songIds[0],
-    soundId: sounds[0].id,
-    patches: presets,
-    effects: DEFAULT_JAM_EFFECTS,
+    instrument: presetChoice(INSTRUMENTS[0]),
+    instruments: {},
     tracks: {},
     mixes: {},
     lanesOpen: true,
     swings: {},
   };
   try {
-    const saved = JSON.parse(localStorage.getItem(JAM_SETTINGS_KEY) ?? 'null') as Partial<JamSettings> | null;
+    const saved = JSON.parse(localStorage.getItem(JAM_SETTINGS_KEY) ?? 'null') as
+      | (Partial<JamSettings> & { soundId?: unknown; patches?: unknown })
+      | null;
     if (!saved) return defaults;
     return {
       songId: typeof saved.songId === 'string' && songIds.includes(saved.songId) ? saved.songId : defaults.songId,
-      // A reference sound id is kept too; it is checked once the reference list loads
-      soundId: typeof saved.soundId === 'string' ? saved.soundId : defaults.soundId,
-      patches: Object.fromEntries(
-        Object.entries(presets).map(([id, patch]) => [id, { ...patch, ...saved.patches?.[id] }])
+      instrument: savedChoice(saved.instrument) ?? choiceFromSound(saved.soundId, saved.patches) ?? defaults.instrument,
+      instruments: Object.fromEntries(
+        Object.entries(saved.instruments ?? {}).flatMap(([id, choice]) => {
+          const valid = savedChoice(choice);
+          return valid ? [[id, valid]] : [];
+        })
       ),
-      effects: { ...DEFAULT_JAM_EFFECTS, ...saved.effects },
       tracks: validTrackEdits(saved.tracks),
       mixes: validTrackMixes(saved.mixes),
       lanesOpen: typeof saved.lanesOpen === 'boolean' ? saved.lanesOpen : defaults.lanesOpen,
@@ -212,13 +232,9 @@ function loadJamSettings(sounds: JamSoundPreset[], songIds: string[]): JamSettin
   }
 }
 
-function saveJamSettings(settings: JamSettings, sounds: JamSoundPreset[]) {
-  const presets = presetPatches(sounds);
-  const edited = Object.entries(settings.patches).filter(
-    ([id, patch]) => JSON.stringify(patch) !== JSON.stringify(presets[id])
-  );
+function saveJamSettings(settings: JamSettings) {
   try {
-    localStorage.setItem(JAM_SETTINGS_KEY, JSON.stringify({ ...settings, patches: Object.fromEntries(edited) }));
+    localStorage.setItem(JAM_SETTINGS_KEY, JSON.stringify(settings));
   } catch {
     // storage unavailable: settings last for this visit only
   }
@@ -275,7 +291,7 @@ export function LessonPlayer({
   // Jam tab: the chosen song, synth sound, its (editable) settings and the
   // effects, remembered between visits
   const [jamSettings, setJamSettings] = useState<JamSettings | null>(() =>
-    jamSounds?.length ? loadJamSettings(jamSounds, [lessonArg.id, ...(jamSongs ?? []).map((song) => song.id)]) : null
+    jamSounds?.length ? loadJamSettings([lessonArg.id, ...(jamSongs ?? []).map((song) => song.id)]) : null
   );
   // Jam room (playing together online): the room, its jam once joined and
   // synced, its players, and why the last one ended if it ended by itself.
@@ -305,17 +321,8 @@ export function LessonPlayer({
   const jamWaitingForRoom = !!jamRoomJoin && !jamRoomState;
   const lessonProp = jamRoomLesson ?? jamSongs?.find((song) => song.id === jamSettings?.songId) ?? lessonArg;
   useEffect(() => {
-    if (jamSettings && jamSounds) saveJamSettings(jamSettings, jamSounds);
-  }, [jamSettings, jamSounds]);
-  const jamPatch = jamSettings ? jamSettings.patches[jamSettings.soundId] : undefined;
-  const jamKitPreset = jamSounds?.find((sound) => sound.id === jamSettings?.soundId);
-  const jamKit = jamKitPreset && 'kit' in jamKitPreset ? jamKitPreset.kit : undefined;
-  const jamRecorded = jamKitPreset && 'sounds' in jamKitPreset ? jamKitPreset.sounds : undefined;
-  const jamInstrument = jamKitPreset && 'sample' in jamKitPreset ? jamKitPreset.sample : undefined;
-  // Our rendered sounds play louder than recorded ones (JAM_RENDERED_BOOST_DB)
-  const jamRenderedRef = useRef(false);
-  jamRenderedRef.current = !!(jamKit || jamPatch || jamInstrument);
-
+    if (jamSettings) saveJamSettings(jamSettings);
+  }, [jamSettings]);
   // Jam tab: recorded reference sounds on this machine, if any
   const [jamReferenceSounds, setJamReferenceSounds] = useState<JamSampleSound[] | null>(null);
   useEffect(() => {
@@ -333,66 +340,21 @@ export function LessonPlayer({
       cancelled = true;
     };
   }, [jamOnly]);
-  const jamReference = jamReferenceSounds?.find((sound) => sound.id === jamSettings?.soundId);
-  // A remembered reference sound that is no longer on this machine: back to the first preset
-  useEffect(() => {
-    if (!jamSettings || !jamSounds?.length || jamReferenceSounds === null) return;
-    if (!jamSettings.patches[jamSettings.soundId] && !jamKit && !jamRecorded && !jamInstrument && !jamReference) {
-      setJamSettings({ ...jamSettings, soundId: jamSounds[0].id });
-    }
-  }, [jamSettings, jamSounds, jamReferenceSounds, jamReference, jamKit, jamRecorded, jamInstrument]);
-
-  // The chosen synth sound or kit is rendered into one clip per note,
-  // re-rendered shortly after its settings stop changing
-  const [jamSamples, setJamSamples] = useState<{ [note: number]: string } | undefined>(undefined);
-  useEffect(() => {
-    if (jamReference) setJamSamples(jamReference.samples);
-  }, [jamReference]);
-  // Recorded sounds play on the rows from the lowest up
-  useEffect(() => {
-    if (!jamRecorded) return;
-    const rows = Array.from(new Set(lessonProp.steps.map((s) => s.note))).sort((a, b) => a - b);
-    setJamSamples(Object.fromEntries(rows.map((note, row) => [note, jamSoundUrl(jamRecorded[row % jamRecorded.length].file)])));
-  }, [jamRecorded, lessonProp.steps]);
-  useEffect(() => {
-    const source = jamKit
-      ? { kit: jamKit }
-      : jamPatch
-        ? { patch: jamPatch }
-        : jamInstrument
-          ? { sample: jamInstrument }
-          : null;
-    if (!source) return;
-    const notes = Array.from(new Set(lessonProp.steps.map((s) => s.note)));
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      renderJamSound(source, notes).then(
-        (samples) => {
-          if (cancelled) Object.values(samples).forEach((url) => URL.revokeObjectURL(url));
-          else setJamSamples(samples);
-        },
-        (err) => console.error('[LessonPlayer] Could not render the jam sound:', err)
-      );
-    }, 120);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [jamPatch, jamKit, jamInstrument, lessonProp.steps]);
-  // Free replaced clips once their players have been swapped out
-  useEffect(
-    () => () => {
-      if (jamSamples) {
-        const blobs = Object.values(jamSamples).filter((url) => url.startsWith('blob:'));
-        setTimeout(() => blobs.forEach((url) => URL.revokeObjectURL(url)), 2000);
-      }
-    },
-    [jamSamples]
+  // Every instrument there is to play, the one chosen and how it is set
+  const jamInstruments = useMemo(
+    () => [...INSTRUMENTS, ...referenceInstruments(jamReferenceSounds ?? [])],
+    [jamReferenceSounds]
   );
-  const fullLesson = useMemo<Lesson>(
-    () => (jamSamples ? { ...lessonProp, samples: jamSamples } : lessonProp),
-    [lessonProp, jamSamples]
-  );
+  const jamChoice = jamSettings?.instrument;
+  const jamInstrument = jamChoice ? findInstrument(jamInstruments, jamChoice.instrument) : undefined;
+  const jamInstrumentRef = useRef(jamInstrument);
+  jamInstrumentRef.current = jamInstrument;
+  // A remembered reference sound that is no longer on this machine: back to the first instrument
+  useEffect(() => {
+    if (!jamSettings || jamReferenceSounds === null || jamInstrument) return;
+    setJamSettings({ ...jamSettings, instrument: presetChoice(INSTRUMENTS[0]) });
+  }, [jamSettings, jamReferenceSounds, jamInstrument]);
+  const fullLesson = lessonProp;
 
   // Sounds (lanes) the player switched off are removed from the practice
   // entirely: off the highway, not scored, never auto-played, and their pad
@@ -505,6 +467,14 @@ export function LessonPlayer({
   const [jamNotesVolume, setJamNotesVolume] = useState<number>(DEFAULT_JAM_NOTES_VOLUME);
   // The Jam's sidebar starts folded away, leaving the room to the highway or the grid
   const [showJamSettings, setShowJamSettings] = useState<boolean>(false);
+  // The instruments panel, down the left side
+  const [showInstruments, setShowInstruments] = useState(false);
+  // A new instrument or a changed setting, remembered for that instrument too
+  const setJamChoice = useCallback((choice: InstrumentChoice) => {
+    setJamSettings((settings) =>
+      settings ? { ...settings, instrument: choice, instruments: { ...settings.instruments, [choice.instrument]: choice } } : settings
+    );
+  }, []);
 
   // Default keys for note assignments (in order of preference)
   // Expanded to support lessons with many unique notes (up to 36 keys)
@@ -723,46 +693,45 @@ export function LessonPlayer({
     };
   }, []);
 
-  // Jam tab: played notes run through an echo and a reverb before the output
+  // Jam tab: played notes go through the chosen instrument's channel (its
+  // effects and level) into one bus, as remote players' notes do
   const jamNotesBusRef = useRef<Tone.Gain | null>(null);
-  const jamEchoRef = useRef<JamPingPong | null>(null);
-  const jamReverbRef = useRef<Tone.Reverb | null>(null);
+  const jamChannelRef = useRef<InstrumentChannel | null>(null);
   useEffect(() => {
     if (!jamOnly) return;
-    const bus = new Tone.Gain(1);
-    const echo = new JamPingPong();
-    const reverb = new Tone.Reverb();
-    bus.connect(echo.input);
-    echo.output.chain(reverb, Tone.getDestination());
+    const bus = new Tone.Gain(1).connect(Tone.getDestination());
     // The notes and the backing together stay under 0 dBFS
     const limiter = new Tone.Limiter(-1);
     Tone.getDestination().chain(limiter);
     jamNotesBusRef.current = bus;
-    jamEchoRef.current = echo;
-    jamReverbRef.current = reverb;
+    jamChannelRef.current = new InstrumentChannel(bus);
     return () => {
       Tone.getDestination().chain();
       limiter.dispose();
+      jamChannelRef.current?.dispose();
       bus.dispose();
-      echo.dispose();
-      reverb.dispose();
       jamNotesBusRef.current = null;
-      jamEchoRef.current = null;
-      jamReverbRef.current = null;
+      jamChannelRef.current = null;
     };
   }, [jamOnly]);
 
-  const jamEffects = jamSettings?.effects;
+  // The chosen instrument, as its parameters and effects are set; the id of
+  // the one that is loaded and can sound
+  const [jamReadyInstrument, setJamReadyInstrument] = useState('');
   useEffect(() => {
-    const echo = jamEchoRef.current;
-    const reverb = jamReverbRef.current;
-    if (!echo || !reverb || !jamEffects) return;
-    echo.wet = jamEffects.echoMix;
-    echo.feedback = jamEffects.echoFeedback;
-    echo.delayTime = (JAM_ECHO_BEATS[jamEffects.echoTime] * 60) / lessonProp.bpm;
-    reverb.wet.value = jamEffects.reverbMix;
-    if (reverb.decay !== jamEffects.reverbSize) reverb.decay = jamEffects.reverbSize;
-  }, [jamEffects, lessonProp.bpm, jamOnly]);
+    const channel = jamChannelRef.current;
+    if (!channel || !jamInstrument || !jamChoice) return;
+    let current = true;
+    channel.set(jamInstrument, jamChoice, lessonProp.bpm).then(
+      () => {
+        if (current) setJamReadyInstrument(jamInstrument.id);
+      },
+      (err) => console.error(`[LessonPlayer] Could not load the instrument ${jamInstrument.name}:`, err)
+    );
+    return () => {
+      current = false;
+    };
+  }, [jamInstrument, jamChoice, lessonProp.bpm]);
 
   // Load audio samples when lesson has samples defined
   useEffect(() => {
@@ -1539,17 +1508,18 @@ export function LessonPlayer({
 
   // Plays the row nearest `note` at the given position in 16ths (default: the
   // next point of a grid `grid` 16ths apart from where the music is heard) and
-  // returns that position, or null when the jam clock isn't running. In a room
-  // the note also goes to the other players, and lands no sooner than they
-  // can all play it on the same 16th.
-  const playJamNote = useCallback((note: number, atSlot?: number, grid = 1): number | null => {
+  // returns that position, or null when the jam clock isn't running. A note
+  // with a `length` (in 16ths) ends by itself; one without is held until
+  // releaseJamNote. In a room the note also goes to the other players, and
+  // lands no sooner than they can all play it on the same 16th.
+  const jamHeldRef = useRef(new Map<number, { note: number; at: number; slot: number }>());
+  const playJamNote = useCallback((note: number, atSlot?: number, grid = 1, velocity = JAM_KEY_VELOCITY, length?: number): number | null => {
     const start = jamStartRef.current;
     if (start === null || jamRows.length === 0) return null;
 
     const row = jamRows.reduce((nearest, candidate) =>
       Math.abs(candidate - note) < Math.abs(nearest - note) ? candidate : nearest
     );
-    const step = lesson.steps.find((s) => s.note === row);
     const sixteenth = 60 / lesson.bpm / 4;
     const context = rawAudioContext();
     const heard = audioTimeAt(context) - start;
@@ -1562,12 +1532,40 @@ export function LessonPlayer({
     // The same pitch twice on one 16th sounds once
     if (jamNotesRef.current.some((n) => !n.peer && n.note === row && n.timeMs === timeMs)) return slot;
     const at = Math.max(start + sounds, context.currentTime + JAM_SCHEDULE_MARGIN_S);
-    const player = playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, at, step?.semitones);
-    if (player && jamRenderedRef.current) player.volume.value += JAM_RENDERED_BOOST_DB;
-    room?.sendNote({ song: lesson.id, slot, note: row });
+    const channel = jamChannelRef.current;
+    const instrument = jamInstrumentRef.current;
+    if (channel && instrument) {
+      const played = jamRowNote(instrument, row, jamRows);
+      // A row played again while held starts over
+      const held = jamHeldRef.current.get(row);
+      if (held) channel.noteOff(held.note, at);
+      channel.noteOn(played, velocity, at);
+      if (length !== undefined) channel.noteOff(played, at + length * sixteenth);
+      else jamHeldRef.current.set(row, { note: played, at, slot });
+    }
+    room?.sendNote({ song: lesson.id, slot, note: row, velocity, ...(length !== undefined ? { length } : {}) });
     addJamNote({ note: row, timeMs }, heard * 1000);
     return slot;
-  }, [jamRows, lesson.steps, lesson.bpm, lesson.id, jamOnly, jamNotesVolume, allLaneNotes, addJamNote]);
+  }, [jamRows, lesson.bpm, lesson.id, addJamNote]);
+
+  // A held row let go: it ends now, never before it started
+  const releaseJamNote = useCallback((note: number) => {
+    const start = jamStartRef.current;
+    if (start === null || jamRows.length === 0) return;
+    const row = jamRows.reduce((nearest, candidate) =>
+      Math.abs(candidate - note) < Math.abs(nearest - note) ? candidate : nearest
+    );
+    const held = jamHeldRef.current.get(row);
+    if (!held) return;
+    jamHeldRef.current.delete(row);
+    const context = rawAudioContext();
+    const off = Math.max(context.currentTime + JAM_SCHEDULE_MARGIN_S, held.at + JAM_SHORTEST_NOTE_S);
+    jamChannelRef.current?.noteOff(held.note, off);
+    const sixteenth = 60 / lesson.bpm / 4;
+    const length = Math.max(JAM_SHORTEST_NOTE_S, off - held.at) / sixteenth;
+    const room = jamRoomRef.current?.ready ? jamRoomRef.current : null;
+    room?.sendNote({ song: lesson.id, slot: held.slot, note: row, off: length });
+  }, [jamRows, lesson.bpm, lesson.id]);
 
   // Another player's note: on its own 16th when it came in time, else like a late hit
   const remoteVoicesRef = useRef<JamRemoteVoices | null>(null);
@@ -1579,20 +1577,23 @@ export function LessonPlayer({
     const earliest = (context.currentTime + JAM_SCHEDULE_MARGIN_S - start) / sixteenth;
     const slot = remoteNoteSlot(note.slot, earliest, JAM_LATE_GRACE_S / sixteenth);
     const sounds = swungPosition(slot, jamSwingRef.current) * sixteenth;
-    if (!remoteVoicesRef.current?.play(from, note.note, start + sounds, jamNotesVolume)) {
-      console.warn('[LessonPlayer] A jam room player\'s sound is still being prepared; their note was not played.', { from });
+    const voices = remoteVoicesRef.current;
+    if (note.off !== undefined) {
+      // A held note let go: as long as it was held, never before now
+      voices?.release(from, note.note, jamRows, Math.max(context.currentTime + JAM_SCHEDULE_MARGIN_S, start + sounds + note.off * sixteenth));
+      return;
+    }
+    const length = note.length !== undefined ? note.length * sixteenth : undefined;
+    if (!voices?.play(from, note.note, jamRows, start + sounds, note.velocity ?? JAM_KEY_VELOCITY, length)) {
+      console.warn('[LessonPlayer] A jam room player\'s instrument is still loading; their note was not played.', { from });
     }
     addJamNote({ note: note.note, timeMs: sounds * 1000, peer: from }, (audioTimeAt(context) - start) * 1000);
-  }, [lesson.id, lesson.bpm, jamNotesVolume, allLaneNotes, addJamNote]);
+  }, [lesson.id, lesson.bpm, jamRows, addJamNote]);
   const playRemoteJamNoteRef = useRef(playRemoteJamNote);
   playRemoteJamNoteRef.current = playRemoteJamNote;
 
-  // Jam rooms. This player's sound, as the others render it
-  const jamRoomPatch = jamSettings?.patches[jamSettings.soundId];
-  const jamRoomSound = useMemo<JamRoomSound | null>(
-    () => (jamSettings ? { id: jamSettings.soundId, ...(jamRoomPatch ? { patch: jamRoomPatch } : {}) } : null),
-    [jamSettings?.soundId, jamRoomPatch] // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  // Jam rooms. This player's instrument, as the others play it
+  const jamRoomSound: JamRoomSound | null = jamChoice ?? null;
   // How long before a note sounds this device must have it (s)
   const jamRoomNeed = (): number => {
     const context = rawAudioContext();
@@ -1668,20 +1669,20 @@ export function LessonPlayer({
   );
   const handleJamCursorMove = useCallback((row: number) => jamRoomRef.current?.setCursor(row), []);
 
-  // The other players' sounds, rendered here
+  // The other players' instruments, played here
   useEffect(() => {
     const bus = jamNotesBusRef.current;
-    if (!jamRoom || !jamSounds || !bus) return;
+    if (!jamRoom || !bus) return;
     const voices = (remoteVoicesRef.current ??= new JamRemoteVoices(bus));
-    const notes = Array.from(new Set(lessonProp.steps.map((s) => s.note)));
+    voices.setLevel(jamNotesDb(jamNotesVolume));
     const others = jamRoomPlayers.filter((player) => !player.you);
     voices.keepOnly(others.map((player) => player.id));
-    for (const player of others) {
-      voices
-        .set(player.id, player.sound, notes, jamSounds, jamReferenceSounds ?? [])
-        .catch((err) => console.error('[LessonPlayer] Could not prepare a jam room player\'s sound:', err));
-    }
-  }, [jamRoom, jamRoomPlayers, jamSounds, jamReferenceSounds, lessonProp.steps]);
+    for (const player of others) voices.set(player.id, player.sound, jamInstruments, lessonProp.bpm);
+  }, [jamRoom, jamRoomPlayers, jamInstruments, lessonProp.bpm, jamNotesVolume]);
+  // This player's own level
+  useEffect(() => {
+    if (jamChannelRef.current) jamChannelRef.current.level = jamNotesDb(jamNotesVolume);
+  }, [jamNotesVolume, jamOnly]);
 
   // Repeat spacing in 16ths: the latest held number key's rate, else the chosen one
   const jamHoldStep = useCallback(() => {
@@ -1708,7 +1709,8 @@ export function LessonPlayer({
     const step = jamHoldStep();
     // Swung, 8ths and slower start on an 8th: from an odd 16th they would not swing
     const grid = jamHoldTripletRef.current ? Math.min(step, 2 / 3) : jamSwingRef.current > 0.5 && step >= 2 ? 2 : 1;
-    const slot = playJamNote(note, undefined, grid);
+    // Each repeat lasts nearly to the next
+    const slot = playJamNote(note, undefined, grid, JAM_KEY_VELOCITY, step * 0.9);
     if (slot === null) return;
     jamHoldRef.current = { note, step, nextSlot: slot + step };
     jamHoldTimerRef.current = setInterval(() => {
@@ -1724,7 +1726,7 @@ export function LessonPlayer({
         hold.step = step;
       }
       while (start + hold.nextSlot * sixteenth < Tone.now() + JAM_HOLD_LOOKAHEAD_S) {
-        playJamNote(hold.note, hold.nextSlot);
+        playJamNote(hold.note, hold.nextSlot, 1, JAM_KEY_VELOCITY, hold.step * 0.9);
         hold.nextSlot += hold.step;
       }
     }, 25);
@@ -1756,7 +1758,7 @@ export function LessonPlayer({
   );
 
   // Shared function to handle note input from both MIDI and keyboard
-  const handleNoteInput = useCallback((hardwareNote: number, timestamp: number) => {
+  const handleNoteInput = useCallback((hardwareNote: number, timestamp: number, velocity = JAM_KEY_VELOCITY) => {
     // Translate note
     let translatedNote = hardwareNote;
     if (deviceMapping) {
@@ -1887,7 +1889,7 @@ export function LessonPlayer({
       }
       // Wrong note - do nothing (no sound, no feedback)
     } else if (currentMode === 'jam') {
-      playJamNote(translatedNote);
+      playJamNote(translatedNote, undefined, 1, velocity);
     } else {
       // Process note if engine is playing
       if (engineRef.current && engineRef.current.getState() === 'playing') {
@@ -1931,10 +1933,21 @@ export function LessonPlayer({
         if (held.stepIndex !== null) setHolding(held.stepIndex, false);
       }
     }
+    if (currentMode === 'jam') releaseJamNote(note);
     engineRef.current?.processNoteOff(note);
-  }, [deviceMapping]);
+  }, [deviceMapping, currentMode, releaseJamNote]);
   const handleNoteReleaseRef = useRef(handleNoteRelease);
   handleNoteReleaseRef.current = handleNoteRelease;
+
+  // MIDI keyboards in the browser play the Jam with their velocity, and their
+  // keys are held until let go
+  const handleNoteInputRef = useRef(handleNoteInput);
+  handleNoteInputRef.current = handleNoteInput;
+  useWebMidi(
+    ({ note, velocity }) => handleNoteInputRef.current(note, 0, velocity),
+    ({ note }) => handleNoteReleaseRef.current(note),
+    jamOnly && !window.electronAPI
+  );
 
   useEffect(() => {
     // Initialize engine
@@ -2342,6 +2355,11 @@ export function LessonPlayer({
         <button className="jam-corner-btn" onClick={() => setShowJamSettings(true)} title="Show sidebar">
           <SidebarIcon />
         </button>
+        {jamSection !== 'daw' && (
+          <button className="jam-corner-btn" onClick={() => setShowInstruments(true)} title="Instruments">
+            <InstrumentsIcon />
+          </button>
+        )}
       </>
     ) : null;
 
@@ -2745,20 +2763,18 @@ export function LessonPlayer({
             onRoomNameChange={setJamName}
             view={jamView}
             onViewChange={jamTrack && !jamSection ? setJamView : undefined}
-            sounds={jamSounds}
-            referenceSounds={jamReferenceSounds ?? []}
-            soundId={jamSettings.soundId}
-            onSoundChange={(soundId) => setJamSettings({ ...jamSettings, soundId })}
-            patch={jamSettings.patches[jamSettings.soundId]}
-            onPatchChange={(patch) =>
-              setJamSettings({ ...jamSettings, patches: { ...jamSettings.patches, [jamSettings.soundId]: patch } })
+            instrument={
+              jamInstrument && jamChoice
+                ? {
+                    name: jamInstrument.name,
+                    category: jamInstrument.category,
+                    preset: jamInstrument.presets.find((preset) => preset.id === jamChoice.preset)?.name ?? '',
+                    tag: jamInstrument.presets.find((preset) => preset.id === jamChoice.preset)?.tag,
+                    art: jamInstruments.indexOf(jamInstrument),
+                  }
+                : null
             }
-            onPatchReset={() => {
-              const preset = jamSounds.find((sound) => sound.id === jamSettings.soundId);
-              if (preset && 'patch' in preset) {
-                setJamSettings({ ...jamSettings, patches: { ...jamSettings.patches, [preset.id]: preset.patch } });
-              }
-            }}
+            onOpenInstruments={() => setShowInstruments(true)}
             holdDivisions={JAM_HOLD_DIVISIONS}
             holdDivision={jamKeyDivisions.length ? jamKeyDivisions[jamKeyDivisions.length - 1] : jamHoldDivision}
             onHoldDivisionChange={setJamHoldDivision}
@@ -2770,8 +2786,6 @@ export function LessonPlayer({
             onNotesVolumeChange={setJamNotesVolume}
             backingVolume={backingTrackVolume}
             onBackingVolumeChange={setBackingTrackVolume}
-            effects={jamSettings.effects}
-            onEffectsChange={(effects) => setJamSettings({ ...jamSettings, effects })}
             title={lesson.title}
             bpm={lesson.bpm}
             midiActive={midiActivity}
@@ -2782,6 +2796,17 @@ export function LessonPlayer({
             onLabelModeChange={setLabelMode}
             onBack={onComplete}
             onClose={() => setShowJamSettings(false)}
+          />
+        )}
+
+        {jamOnly && showInstruments && jamSettings && jamChoice && (
+          <InstrumentPanel
+            instruments={jamInstruments}
+            choice={jamChoice}
+            loading={jamReadyInstrument !== jamChoice.instrument}
+            saved={jamSettings.instruments}
+            onChange={setJamChoice}
+            onClose={() => setShowInstruments(false)}
           />
         )}
 

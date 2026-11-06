@@ -1,18 +1,7 @@
-import { Fragment, useState } from 'react';
-import {
-  JAM_FILTER_OPEN,
-  JAM_SYNTH_CONTROLS,
-  JAM_ECHO_BEATS,
-  SYNTH_FAMILIES,
-  type JamSoundPreset,
-  type JamSampleSound,
-  type JamSynthPatch,
-  type JamSynthControl,
-  type JamEffects,
-  type JamEchoTime,
-} from './jamSynth';
+import { useState } from 'react';
 import type { Lesson } from '../../types/lesson';
-import { BackIcon, SidebarIcon } from './JamIcons';
+import { BackIcon, SYNTH_TAG_ICONS, SidebarIcon } from './JamIcons';
+import { CategoryArt } from './instruments/CategoryArt';
 import type { JamRoomPlayer } from './jamRoom';
 import { JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
 
@@ -33,14 +22,10 @@ interface JamSettingsPanelProps {
   // Switches between the highway and the backing track's grid; none when the
   // song's backing track has no grid
   onViewChange?: (view: 'highway' | 'grid') => void;
-  sounds: JamSoundPreset[];
-  referenceSounds: JamSampleSound[];
-  soundId: string;
-  onSoundChange: (id: string) => void;
-  // Settings of the chosen synth sound; none for a recorded reference sound
-  patch: JamSynthPatch | undefined;
-  onPatchChange: (patch: JamSynthPatch) => void;
-  onPatchReset: () => void;
+  // The instrument played: its name, category and preset (a synth's preset
+  // shown by its kind of sound); it opens the instruments panel
+  instrument: { name: string; category: string; preset: string; tag?: string; art: number } | null;
+  onOpenInstruments: () => void;
   holdDivisions: number[];
   holdDivision: number;
   onHoldDivisionChange: (division: number) => void;
@@ -53,8 +38,6 @@ interface JamSettingsPanelProps {
   onNotesVolumeChange: (volume: number) => void;
   backingVolume: number;
   onBackingVolumeChange: (volume: number) => void;
-  effects: JamEffects;
-  onEffectsChange: (effects: JamEffects) => void;
   title: string;
   bpm: number;
   midiActive: boolean;
@@ -66,29 +49,6 @@ interface JamSettingsPanelProps {
   // Leaves the Jam; none in the standalone jam app
   onBack?: () => void;
   onClose: () => void;
-}
-
-const FAMILY_LABELS: Record<string, string> = {
-  sine: 'Sine',
-  triangle: 'Triangle',
-  saw: 'Saw',
-  square: 'Square',
-  pulse: 'Pulse',
-  fm: 'FM',
-};
-
-const SECONDS = new Set(['attack', 'decay', 'hold', 'release', 'sweepTime']);
-
-function formatControl(control: JamSynthControl, value: number): string {
-  if (SECONDS.has(control.key)) return value < 0.1 ? `${Math.round(value * 1000)} ms` : `${value.toFixed(2)} s`;
-  if (control.key === 'octave') return value > 0 ? `+${value}` : `${value}`;
-  if (control.key === 'cutoff' || control.key === 'cutoffEnd') return value >= JAM_FILTER_OPEN ? 'Open' : `×${value.toFixed(1)}`;
-  if (control.key === 'vibrato') return `${value} ct`;
-  if (control.key === 'ratio') return `×${value}`;
-  if (control.key === 'detune') return `${value} ct`;
-  if (control.key === 'odd') return `${Math.round((0.12 + 0.32 * value) * 100)}%`; // pulse duty cycle
-  if (control.key === 'fm') return value.toFixed(2);
-  return `${Math.round(value * 100)}%`;
 }
 
 function Slider({
@@ -137,13 +97,8 @@ export function JamSettingsPanel({
   onRoomNameChange,
   view,
   onViewChange,
-  sounds,
-  referenceSounds,
-  soundId,
-  onSoundChange,
-  patch,
-  onPatchChange,
-  onPatchReset,
+  instrument,
+  onOpenInstruments,
   holdDivisions,
   holdDivision,
   onHoldDivisionChange,
@@ -155,8 +110,6 @@ export function JamSettingsPanel({
   onNotesVolumeChange,
   backingVolume,
   onBackingVolumeChange,
-  effects,
-  onEffectsChange,
   title,
   bpm,
   midiActive,
@@ -170,26 +123,6 @@ export function JamSettingsPanel({
 }: JamSettingsPanelProps) {
   const playing = section !== 'daw';
   const [linkCopied, setLinkCopied] = useState(false);
-  const setEffect = <K extends keyof JamEffects>(key: K, value: JamEffects[K]) =>
-    onEffectsChange({ ...effects, [key]: value });
-  // Songs with recorded sounds, each listed under its name: drums & FX, then instruments
-  const soundSongs = [...new Set(sounds.flatMap((sound) => ('song' in sound ? [sound.song] : [])))];
-  // Sound packs, each listed under its name
-  const soundPacks = [...new Set(sounds.flatMap((sound) => ('pack' in sound ? [sound.pack] : [])))];
-
-  const soundGrid = (choices: { id: string; label: string }[]) => (
-    <div className="jam-sound-grid">
-      {choices.map((sound) => (
-        <button
-          key={sound.id}
-          className={`jam-sound-option ${sound.id === soundId ? 'active' : ''}`}
-          onClick={() => onSoundChange(sound.id)}
-        >
-          {sound.label}
-        </button>
-      ))}
-    </div>
-  );
 
   return (
     <div className="game-settings-sidebar">
@@ -400,126 +333,23 @@ export function JamSettingsPanel({
         <div className="setting-group">
           <label className="setting-label">
             <span className="setting-icon">&#127927;</span>
-            Sound
+            Instrument
           </label>
-          <div className="jam-subhead">Instruments</div>
-          {soundGrid(sounds.filter((sound) => 'patch' in sound))}
-          <div className="jam-subhead">Drums</div>
-          {soundGrid(sounds.filter((sound) => 'kit' in sound))}
-          {soundPacks.map((pack) => (
-            <Fragment key={pack}>
-              <div className="jam-subhead">{pack}</div>
-              {soundGrid(sounds.filter((sound) => 'pack' in sound && sound.pack === pack))}
-            </Fragment>
-          ))}
-          {soundSongs.map((song) => (
-            <Fragment key={song}>
-              <div className="jam-subhead">{song}</div>
-              {soundGrid(sounds.filter((sound) => 'song' in sound && sound.song === song))}
-            </Fragment>
-          ))}
-          {referenceSounds.length > 0 && (
-            <>
-              <div className="jam-subhead">Reference</div>
-              {soundGrid(referenceSounds)}
-            </>
-          )}
-        </div>
-
-        {patch && (
-        <div className="setting-group">
-          <label className="setting-label">
-            <span className="setting-icon">&#127899;</span>
-            Synth
-            <button className="jam-reset" onClick={onPatchReset}>
-              Reset
+          {instrument && (
+            <button className="jam-instrument-current" onClick={onOpenInstruments}>
+              <span className="instrument-detail-art">
+                {instrument.tag ? (
+                  <span className="instrument-card-icon">{SYNTH_TAG_ICONS[instrument.tag]?.()}</span>
+                ) : (
+                  <CategoryArt seed={instrument.art} />
+                )}
+              </span>
+              <span className="instrument-detail-title">
+                <span className="instrument-card-name">{instrument.tag ? instrument.preset : instrument.name}</span>
+                <span className="instrument-card-detail">{instrument.tag ? instrument.name : `${instrument.category} · ${instrument.preset}`}</span>
+              </span>
             </button>
-          </label>
-          <div className="jam-family-options">
-            {SYNTH_FAMILIES.map((family) => (
-              <button
-                key={family}
-                className={`jam-sound-option ${family === patch.family ? 'active' : ''}`}
-                onClick={() => onPatchChange({ ...patch, family })}
-              >
-                {FAMILY_LABELS[family] ?? family}
-              </button>
-            ))}
-          </div>
-          {JAM_SYNTH_CONTROLS.filter((control) => !control.families || control.families.includes(patch.family)).map(
-            (control) => (
-              <Slider
-                key={control.key}
-                label={control.label}
-                value={patch[control.key]}
-                display={formatControl(control, patch[control.key])}
-                min={control.min}
-                max={control.max}
-                step={control.step}
-                onChange={(value) => onPatchChange({ ...patch, [control.key]: value })}
-              />
-            )
           )}
-        </div>
-        )}
-
-        <div className="setting-group">
-          <label className="setting-label">
-            <span className="setting-icon">&#127754;</span>
-            Effects
-          </label>
-          <div className="jam-subhead">Reverb</div>
-          <Slider
-            label="Mix"
-            value={effects.reverbMix}
-            display={`${Math.round(effects.reverbMix * 100)}%`}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={(value) => setEffect('reverbMix', value)}
-          />
-          <Slider
-            label="Size"
-            value={effects.reverbSize}
-            display={`${effects.reverbSize.toFixed(1)} s`}
-            min={0.5}
-            max={8}
-            step={0.1}
-            onChange={(value) => setEffect('reverbSize', value)}
-          />
-          <div className="jam-subhead">Ping-pong echo</div>
-          <Slider
-            label="Mix"
-            value={effects.echoMix}
-            display={`${Math.round(effects.echoMix * 100)}%`}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={(value) => setEffect('echoMix', value)}
-          />
-          <div className="jam-slider-head">
-            <span>Time</span>
-          </div>
-          <div className="jam-sound-options jam-hold-options">
-            {(Object.keys(JAM_ECHO_BEATS) as JamEchoTime[]).map((time) => (
-              <button
-                key={time}
-                className={`jam-sound-option ${time === effects.echoTime ? 'active' : ''}`}
-                onClick={() => setEffect('echoTime', time)}
-              >
-                {time}
-              </button>
-            ))}
-          </div>
-          <Slider
-            label="Feedback"
-            value={effects.echoFeedback}
-            display={`${Math.round(effects.echoFeedback * 100)}%`}
-            min={0}
-            max={0.9}
-            step={0.01}
-            onChange={(value) => setEffect('echoFeedback', value)}
-          />
         </div>
         </>
         )}

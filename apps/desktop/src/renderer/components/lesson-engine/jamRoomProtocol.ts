@@ -1,4 +1,4 @@
-import type { JamSynthPatch } from './jamSynth';
+import type { InstrumentChoice } from './instruments/types';
 import type { JamTrackEdit } from './jamTrackEdits';
 
 // Messages between jam players and the room server (server/jamRooms.ts), as
@@ -61,12 +61,9 @@ export interface JamRoomState {
   tracks: Record<string, JamTrackEdit>;
 }
 
-// The sound a player plays: a preset, kit or reference sound id, and its
-// edited settings for a synth preset
-export interface JamRoomSound {
-  id: string;
-  patch?: JamSynthPatch;
-}
+// The sound a player plays: an instrument, the preset it started from, and
+// its parameters and effects as the player set them
+export type JamRoomSound = InstrumentChoice;
 
 export interface JamRoomPeer {
   id: string;
@@ -82,12 +79,18 @@ export interface JamRoomPeer {
   row: number | null;
 }
 
-// A note on the room's grid: its 16th since the song's first, and its row
+// A note on the room's grid: its 16th since the song's first, its row and velocity
+// (velocity 1-127). A note with a `length` (16ths) ends by itself; one
+// without is held until a note with `off` comes: the same slot and row, and
+// how long it was held (16ths).
 export interface JamRoomNote {
   seq: number;
   song: string;
   slot: number;
   note: number;
+  velocity?: number;
+  length?: number;
+  off?: number;
 }
 
 export type JamClientMessage =
