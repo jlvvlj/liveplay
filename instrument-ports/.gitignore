@@ -1,0 +1,5 @@
+# Upstream sources fetched at their pinned commits by each port's fetch.sh
+upstream/
+# Build outputs (uploaded separately)
+dist/
+build/
