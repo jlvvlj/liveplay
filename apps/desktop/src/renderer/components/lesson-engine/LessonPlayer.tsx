@@ -7,7 +7,15 @@ import { NoteHighway, HighwayMode, JamNote, JamShip } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
 import { BackIcon, SidebarIcon } from './JamIcons';
-import { JAM_TRACKS, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
+import {
+  JAM_MAX_BARS,
+  JAM_SECTION_BARS,
+  JAM_TRACK_BARS,
+  JAM_TRACKS,
+  jamTrackFor,
+  jamTrackParts,
+  type JamTrackNote,
+} from './jamTracks';
 import { renderJamBackingPart, renderJamSound } from './jamRenderer';
 import { jamAddedInstrument, jamPartKey, validJamAddedPart, type JamAddedPart } from './jamAddedParts';
 import { jamSoundUrl } from './jamSoundFiles';
@@ -88,10 +96,6 @@ const JAM_ROOM_RESYNC_MS = 1000;
 // below it, so the groove stays clearly audible
 const JAM_BACKING_TOP_DB = 4 + 20 * Math.log10(1.3);
 const DEFAULT_JAM_NOTES_VOLUME = 0.75;
-// Phone screens, upright (narrow) or sideways (short), in px: match the media
-// query in LessonPlayer.css
-const JAM_PHONE_WIDTH = 700;
-const JAM_PHONE_HEIGHT = 500;
 
 // Jam tab settings remembered in this browser: chosen song, chosen sound,
 // edited synth settings per sound, and the effects. Only edited patches are
@@ -111,10 +115,12 @@ interface JamSettings {
 }
 
 // An edited backing track: its notes, one list per part (its own parts, then
-// the ones added in the grid, played by `added`)
+// the ones added in the grid, played by `added`), and its length in bars when
+// the grid made it longer than its own 8
 export interface JamTrackEdit {
   parts: JamTrackNote[][];
   added?: JamAddedPart[];
+  bars?: number;
 }
 
 // Edits that no longer match their track's parts are left out
@@ -125,7 +131,11 @@ function validTrackEdits(saved: unknown): Record<string, JamTrackEdit> {
       const track = JAM_TRACKS.find((candidate) => candidate.file === file);
       const partCount = track ? jamTrackParts(track).length : -1;
       const added = edit?.added ?? [];
+      const bars = edit?.bars ?? JAM_TRACK_BARS;
       return (
+        Number.isInteger(bars / JAM_SECTION_BARS) &&
+        bars >= JAM_TRACK_BARS &&
+        bars <= JAM_MAX_BARS &&
         Array.isArray(added) &&
         added.every(validJamAddedPart) &&
         Array.isArray(edit?.parts) &&
@@ -512,10 +522,8 @@ export function LessonPlayer({
   const [metronomeVolume, setMetronomeVolume] = useState<number>(0);
   // Jam tab: volume of the notes you play, and its settings sidebar
   const [jamNotesVolume, setJamNotesVolume] = useState<number>(DEFAULT_JAM_NOTES_VOLUME);
-  // On a phone the sidebar would cover most of the highway, so it starts closed there
-  const [showJamSettings, setShowJamSettings] = useState<boolean>(
-    () => !(jamOnly && (window.innerWidth <= JAM_PHONE_WIDTH || window.innerHeight <= JAM_PHONE_HEIGHT))
-  );
+  // The Jam's sidebar starts folded away, leaving the room to the highway or the grid
+  const [showJamSettings, setShowJamSettings] = useState<boolean>(false);
 
   // Default keys for note assignments (in order of preference)
   // Expanded to support lessons with many unique notes (up to 36 keys)
@@ -964,6 +972,9 @@ export function LessonPlayer({
   const jamTrackOriginal = useMemo(() => (jamTrack ? jamTrackParts(jamTrack).map((part) => part.notes) : null), [jamTrack]);
   const jamTrackNotes = jamTrackEdit?.parts ?? jamTrackOriginal;
   const jamTrackAdded = useMemo(() => jamTrackEdit?.added ?? [], [jamTrackEdit]);
+  const jamTrackBars = jamTrackEdit?.bars ?? JAM_TRACK_BARS;
+  const jamTrackBarsRef = useRef(jamTrackBars);
+  jamTrackBarsRef.current = jamTrackBars;
   const jamTrackNotesRef = useRef(jamTrackNotes);
   jamTrackNotesRef.current = jamTrackNotes;
   const jamTrackAddedRef = useRef(jamTrackAdded);
@@ -1004,7 +1015,7 @@ export function LessonPlayer({
         const added = addedAt(part);
         const instrument = added ? jamAddedInstrument(added) : null;
         if (added && !instrument) continue;
-        renderJamBackingPart(jamTrack.file, part, notes, instrument ?? undefined).then(
+        renderJamBackingPart(jamTrack.file, part, notes, instrument ?? undefined, jamTrackBarsRef.current).then(
           (audio) => {
             if (cancelled || backingTrackRef.current !== mixer) return;
             mixer.replace(part, audio);
@@ -1045,15 +1056,18 @@ export function LessonPlayer({
       }
       backingTrackRef.current = null;
     }
+    // A jam playing on its own carries on from where it is once the track is back
+    // (a song change starts it from the top; a room keeps its own time)
+    if (jamStartRef.current !== null && !jamRoomRef.current) jamResumeAtRef.current = jamHeardPosition();
     setBackingTrackLoaded(false);
 
-    // Jam backing tracks are rendered from their notes
+    // Jam backing tracks are rendered from their notes, as long as the grid made them
     const jamTrackToLoad = jamOnly ? jamTrackFor(lesson.backingTrack) : undefined;
     if (jamTrackToLoad) {
       let cancelled = false;
       const notes = jamTrackNotesRef.current!;
       const added = jamTrackAddedRef.current;
-      loadJamBackingMixer(jamTrackToLoad, notes, added).then(
+      loadJamBackingMixer(jamTrackToLoad, notes, added, jamTrackBarsRef.current).then(
         (mixer) => {
           if (cancelled) {
             mixer.dispose();
@@ -1124,7 +1138,7 @@ export function LessonPlayer({
         }
       }
     };
-  }, [lesson.id, lesson.backingTrack, jamOnly]);
+  }, [lesson.id, lesson.backingTrack, jamOnly, jamTrackBars]);
 
   // Update metronome volume when slider changes
   useEffect(() => {
@@ -2663,6 +2677,7 @@ export function LessonPlayer({
             track={jamTrack}
             notes={jamTrackNotes}
             added={jamTrackAdded}
+            bars={jamTrackBars}
             edited={!!jamTrackEdit || !!jamSettings.mixes[jamTrack.file]}
             lanesOpen={jamSettings.lanesOpen}
             onLanesOpenChange={(lanesOpen) => setJamSettings({ ...jamSettings, lanesOpen })}
@@ -2670,8 +2685,8 @@ export function LessonPlayer({
             onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamTrack.file]: mix } })}
             paused={jamIsPaused}
             onTogglePause={toggleJamPause}
-            onChange={(parts, added) => {
-              const edit = { parts, ...(added.length ? { added } : {}) };
+            onChange={(parts, added, bars) => {
+              const edit = { parts, ...(added.length ? { added } : {}), ...(bars > JAM_TRACK_BARS ? { bars } : {}) };
               if (jamRoom && jamRoomState) {
                 setJamRoomState({ ...jamRoomState, tracks: { ...jamRoomState.tracks, [jamTrack.file]: edit } });
                 jamRoom.setTrack(jamTrack.file, edit);

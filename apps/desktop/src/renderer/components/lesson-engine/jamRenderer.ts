@@ -62,16 +62,17 @@ export async function renderJamSound(source: JamSoundSource, notes: number[]): P
 // One part of a backing track's loop, unscaled (as jamTrackParts orders the
 // parts, then the parts added in the grid, played by `added`). Its distinct
 // notes are dealt out to the workers, longest first. A recorded or added part
-// is done by one worker.
+// is done by one worker. The loop is `bars` long (the track's own 8 if unset).
 export async function renderJamBackingPart(
   trackFile: string,
   part: number,
   notes: JamTrackNote[],
-  added?: JamAddedInstrument
+  added?: JamAddedInstrument,
+  bars?: number
 ): Promise<JamPartAudio> {
   const track = JAM_TRACKS.find((candidate) => candidate.file === trackFile);
   if (added || (track?.sampled && part >= track.drums.length + track.layers.length)) {
-    const reply = await request({ trackFile, part, notes, ...(added ? { added } : {}) });
+    const reply = await request({ trackFile, part, notes, ...(added ? { added } : {}), ...(bars ? { bars } : {}) });
     if (!reply.part) throw new Error(`No audio for ${trackFile} part ${part}`);
     return reply.part;
   }
@@ -87,7 +88,9 @@ export async function renderJamBackingPart(
     piece.cost += group[0].length + 1;
   }
   const used = pieces.filter((piece) => piece.notes.length);
-  const replies = await Promise.all((used.length ? used : [pieces[0]]).map((piece) => request({ trackFile, part, notes: piece.notes })));
+  const replies = await Promise.all(
+    (used.length ? used : [pieces[0]]).map((piece) => request({ trackFile, part, notes: piece.notes, ...(bars ? { bars } : {}) }))
+  );
   const [first, ...rest] = replies.map((reply) => {
     if (!reply.part) throw new Error(`No audio for ${trackFile} part ${part}`);
     return reply.part;

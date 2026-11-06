@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
-import { JAM_TRACK_BARS, jamTrackParts, type JamTrack, type JamTrackNote, type JamTrackPart } from './jamTracks';
+import { JAM_MAX_BARS, JAM_SECTION_BARS, jamTrackParts, type JamTrack, type JamTrackNote, type JamTrackPart } from './jamTracks';
 import type { JamTrackMix } from './jamBackingMixer';
 import { JamLaneStrip } from './JamLaneStrip';
 import { auditionJamPart } from './jamAudition';
@@ -38,10 +38,11 @@ import './JamTrackGrid.css';
 // the strip under it sets velocities. The page follows the playhead unless
 // one is picked.
 
-// The editor's page: 4 bars of a piano roll, 2 of the drums' step grid (its cells twice as big)
-const ROLL_PAGE_BARS = 4;
-const DRUM_PAGE_BARS = 2;
-const LOOP_STEPS = JAM_TRACK_BARS * 16;
+// The editor's page: a section of the track, its bars in 16ths
+const PAGE_BARS = JAM_SECTION_BARS;
+const PAGE_STEPS = PAGE_BARS * 16;
+// The drums' step grid is at least this many rows tall
+const MIN_DRUM_ROWS = 8;
 const NEW_VELOCITY = 127; // a new hit or note: full velocity, a fully coloured square
 // Dragging a hit this far (px) changes its velocity by the full range; less
 // than DRAG_SLOP_PX counts as a click
@@ -138,7 +139,9 @@ interface JamTrackGridProps {
   onLanesOpenChange: (open: boolean) => void;
   edited: boolean;
   paused: boolean;
-  onChange: (notes: JamTrackNote[][], added: JamAddedPart[]) => void;
+  // The track's length in bars (its own 8, or more with sections added)
+  bars: number;
+  onChange: (notes: JamTrackNote[][], added: JamAddedPart[], bars: number) => void;
   onMixChange: (mix: JamTrackMix) => void;
   onReset: () => void;
   onTogglePause: () => void;
@@ -192,6 +195,7 @@ export function JamTrackGrid({
   track,
   notes,
   added,
+  bars,
   mix,
   toolbar,
   lanesOpen,
@@ -237,6 +241,10 @@ export function JamTrackGrid({
   const [adding, setAdding] = useState(false);
   const [cell, setCell] = useState(MIN_CELL_PX);
   // The timeline's view: from `start`, `span` 16ths of the loop
+  // The loop: the track's bars, its own 8 or more sections added here
+  const LOOP_STEPS = bars * 16;
+  const loopRef = useRef(LOOP_STEPS);
+  loopRef.current = LOOP_STEPS;
   const [view, setView] = useState<[number, number]>([0, LOOP_STEPS]);
   const [viewStart, viewSpan] = view;
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -247,9 +255,7 @@ export function JamTrackGrid({
   const noteDragRef = useRef<NoteDrag | null>(null);
   const open = tracks.find((candidate) => candidate.id === openId) ?? null;
   const page = pinned ?? playing;
-  const pageBars = open?.kind === 'drum' ? DRUM_PAGE_BARS : ROLL_PAGE_BARS;
-  const PAGE_STEPS = pageBars * 16;
-  const PAGES = JAM_TRACK_BARS / pageBars;
+  const PAGES = bars / PAGE_BARS;
   const first = page * PAGE_STEPS;
   const step = cell + CELL_GAP_PX;
   const soloing = mix.solos.some(Boolean);
@@ -261,6 +267,14 @@ export function JamTrackGrid({
     setSelected(null);
     setView([0, LOOP_STEPS]);
   }, [track]);
+
+  // A longer loop: a view of the whole loop grows with it, a closer one stays put
+  const viewLoopRef = useRef(LOOP_STEPS);
+  useEffect(() => {
+    const before = viewLoopRef.current;
+    viewLoopRef.current = LOOP_STEPS;
+    setView(([start, span]) => (span >= before ? [0, LOOP_STEPS] : [clamp(start, 0, LOOP_STEPS - span), span]));
+  }, [LOOP_STEPS]);
 
   // Over the clips or the bars, a pinch (or a wheel with Ctrl) zooms around
   // the pointer and a sideways scroll pans; a plain scroll still scrolls the
@@ -275,7 +289,7 @@ export function JamTrackGrid({
       if (event.ctrlKey) {
         event.preventDefault();
         setView(([start, span]) =>
-          zoomWindow(start, span, LOOP_STEPS, start + clamp((event.clientX - rect.left) / rect.width, 0, 1) * span, event.deltaY > 0 ? 1.25 : 0.8, MIN_SPAN)
+          zoomWindow(start, span, loopRef.current, start + clamp((event.clientX - rect.left) / rect.width, 0, 1) * span, event.deltaY > 0 ? 1.25 : 0.8, MIN_SPAN)
         );
         return;
       }
@@ -283,7 +297,7 @@ export function JamTrackGrid({
       if (!delta) return;
       event.preventDefault();
       const pixels = delta * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.width : 1);
-      setView(([start, span]) => [clamp(start + (pixels * span) / rect.width, 0, LOOP_STEPS - span), span]);
+      setView(([start, span]) => [clamp(start + (pixels * span) / rect.width, 0, loopRef.current - span), span]);
     };
     node.addEventListener('wheel', wheel, { passive: false });
     return () => node.removeEventListener('wheel', wheel);
@@ -298,7 +312,7 @@ export function JamTrackGrid({
     const observer = new ResizeObserver(measure);
     observer.observe(area);
     return () => observer.disconnect();
-  }, [open?.id, PAGE_STEPS]);
+  }, [open?.id]);
 
   // The playheads move every frame without re-rendering; the playing page is tracked for the editor
   const stepRef = useRef(step);
@@ -327,20 +341,27 @@ export function JamTrackGrid({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [getStep, page, PAGE_STEPS]);
+  }, [getStep, page, LOOP_STEPS]);
 
   const setPart = (part: number, next: JamTrackNote[]) =>
     onChange(
       notes.map((current, p) => (p === part ? [...next].sort((a, b) => a.step - b.step || a.pitch - b.pitch) : current)),
-      added
+      added,
+      bars
     );
+
+  // A section more at the end, silent, shown in the editor
+  const addSection = () => {
+    onChange(notes, added, bars + PAGE_BARS);
+    setPinned(bars / PAGE_BARS);
+  };
 
   // A new track: its sound's parts after the others, empty, and its editor open
   const addTrack = (sound: string) => {
     const id = Date.now().toString(36);
     const parts = jamNewAddedParts(sound, id);
     if (!parts.length) return;
-    onChange([...notes, ...parts.map(() => [])], [...added, ...parts]);
+    onChange([...notes, ...parts.map(() => [])], [...added, ...parts], bars);
     setAdding(false);
     setOpenId(`added-${id}`);
     setPinned(null);
@@ -350,7 +371,7 @@ export function JamTrackGrid({
   // An added track taken out, with its notes and its mix
   const removeTrack = (gridTrack: GridTrack) => {
     const keep = (_: unknown, part: number) => !gridTrack.parts.includes(part);
-    onChange(notes.filter(keep), added.filter((_, index) => keep(null, own.length + index)));
+    onChange(notes.filter(keep), added.filter((_, index) => keep(null, own.length + index)), bars);
     onMixChange({ levels: mix.levels.filter(keep), mutes: mix.mutes.filter(keep), solos: mix.solos.filter(keep) });
     setOpenId(null);
     setSelected(null);
@@ -553,7 +574,7 @@ export function JamTrackGrid({
   const ruler = (
     <div className="jam-editor-ruler">
       {Array.from({ length: PAGE_STEPS / 4 }, (_, beat) => {
-        const bar = page * pageBars + Math.floor(beat / 4) + 1;
+        const bar = page * PAGE_BARS + Math.floor(beat / 4) + 1;
         return (
           <span key={beat} className={beat % 4 === 0 ? 'bar' : undefined}>
             {beat % 4 === 0 ? bar : `${bar}.${(beat % 4) + 1}`}
@@ -582,6 +603,9 @@ export function JamTrackGrid({
                 onLevel={(level) => setMixOf([part], 'levels', level)}
               />
             </div>
+          ))}
+          {Array.from({ length: Math.max(0, MIN_DRUM_ROWS - gridTrack.parts.length) }, (_, row) => (
+            <div key={`empty-${row}`} className="jam-editor-head" />
           ))}
         </div>
       )}
@@ -615,6 +639,14 @@ export function JamTrackGrid({
             </div>
           );
         })}
+        {/* Under a kit's rows, empty ones up to the grid's least height */}
+        {Array.from({ length: Math.max(0, MIN_DRUM_ROWS - gridTrack.parts.length) }, (_, row) => (
+          <div key={`empty-${row}`} className="jam-editor-cells empty" aria-hidden="true">
+            {Array.from({ length: PAGE_STEPS }, (_, index) => (
+              <span key={index} className={`jam-editor-cell ${Math.floor(index / 4) % 2 === 1 ? 'off-beat' : ''}`} />
+            ))}
+          </div>
+        ))}
         <div ref={editorPlayheadRef} className="jam-editor-playhead" />
       </div>
     </>
@@ -882,9 +914,14 @@ export function JamTrackGrid({
                   className={`${pinned === index ? 'active' : ''} ${playing === index ? 'playing' : ''}`}
                   onClick={blurAfter(() => setPinned(index))}
                 >
-                  {index * pageBars + 1}–{(index + 1) * pageBars}
+                  {index * PAGE_BARS + 1}–{(index + 1) * PAGE_BARS}
                 </button>
               ))}
+              {bars < JAM_MAX_BARS && (
+                <button className="jam-grid-add-section" onClick={blurAfter(addSection)} aria-label="Add 4 bars" title="Add 4 bars">
+                  +
+                </button>
+              )}
             </div>
             {open.added && (
               <button className="jam-editor-remove" onClick={blurAfter(() => removeTrack(open))}>

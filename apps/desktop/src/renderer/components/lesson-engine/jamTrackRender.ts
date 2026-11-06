@@ -13,7 +13,8 @@ import type { JamAddedInstrument } from './jamAddedParts';
 
 export const JAM_TRACK_TARGET_RMS_DB = -20; // loudness of every original track over its whole loop
 
-export const jamLoopSeconds = (track: JamTrack) => JAM_TRACK_BARS * 16 * (60 / track.bpm / 4);
+// A loop of `bars` bars: the track's own 8, or as many as the grid gave it
+export const jamLoopSeconds = (track: JamTrack, bars = JAM_TRACK_BARS) => bars * 16 * (60 / track.bpm / 4);
 
 // A part's loop from some or all of its notes. Notes ringing past the loop
 // point fold back onto its start, so the loop is seamless. A note sounds the
@@ -22,10 +23,11 @@ export function renderJamPartLoop(
   track: JamTrack,
   part: number,
   notes: JamTrackNote[],
-  sampleRate: number
+  sampleRate: number,
+  bars = JAM_TRACK_BARS
 ): [Float32Array, Float32Array] {
   const sixteenth = 60 / track.bpm / 4;
-  const loopLength = Math.round(jamLoopSeconds(track) * sampleRate);
+  const loopLength = Math.round(jamLoopSeconds(track, bars) * sampleRate);
   const loop: [Float32Array, Float32Array] = [new Float32Array(loopLength), new Float32Array(loopLength)];
   const offsetOf = (step: number) => Math.round(swung(track, step) * sixteenth * sampleRate);
   const mixIn = (sound: Float32Array[], offset: number, gains: number[]) => {
@@ -69,10 +71,11 @@ export function renderJamAddedLoop(
   track: JamTrack,
   instrument: JamAddedInstrument,
   notes: JamTrackNote[],
-  sampleRate: number
+  sampleRate: number,
+  bars = JAM_TRACK_BARS
 ): [Float32Array, Float32Array] {
   const sixteenth = 60 / track.bpm / 4;
-  const loopLength = Math.round(jamLoopSeconds(track) * sampleRate);
+  const loopLength = Math.round(jamLoopSeconds(track, bars) * sampleRate);
   const loop: [Float32Array, Float32Array] = [new Float32Array(loopLength), new Float32Array(loopLength)];
   const rendered = new Map<string, Float32Array>();
   for (const { pitch, step, length, velocity } of notes) {
@@ -178,11 +181,12 @@ export function renderJamSampledLoop(
   part: number,
   notes: JamTrackNote[],
   sounds: Float32Array[][],
-  sampleRate: number
+  sampleRate: number,
+  bars = JAM_TRACK_BARS
 ): [Float32Array, Float32Array] {
   const sixteenth = 60 / track.bpm / 4;
-  const loopLength = Math.round(jamLoopSeconds(track) * sampleRate);
-  const loopSteps = JAM_TRACK_BARS * 16;
+  const loopLength = Math.round(jamLoopSeconds(track, bars) * sampleRate);
+  const loopSteps = bars * 16;
   const loop: [Float32Array, Float32Array] = [new Float32Array(loopLength), new Float32Array(loopLength)];
   const { kind, sounds: recorded } = track.sampled![part - track.drums.length - track.layers.length];
   const fade = Math.round(0.01 * sampleRate);

@@ -7,7 +7,7 @@ import { jamSoundUrl } from './jamSoundFiles';
 // Renders Jam sounds and pieces of backing-track parts off the main thread (see jamRenderer.ts)
 type Request =
   | { id: number; source: JamSoundSource; notes: number[] }
-  | { id: number; trackFile: string; part: number; notes: JamTrackNote[]; added?: JamAddedInstrument };
+  | { id: number; trackFile: string; part: number; notes: JamTrackNote[]; added?: JamAddedInstrument; bars?: number };
 
 const SAMPLE_RATE = 44100;
 
@@ -46,10 +46,10 @@ self.onmessage = async (event: MessageEvent<Request>) => {
     if (!track) throw new Error(`No backing track ${request.trackFile}`);
     const recorded = request.added ? undefined : track.sampled?.[request.part - track.drums.length - track.layers.length];
     const channels = request.added
-      ? renderJamAddedLoop(track, request.added, request.notes, SAMPLE_RATE)
+      ? renderJamAddedLoop(track, request.added, request.notes, SAMPLE_RATE, request.bars)
       : recorded
-      ? renderJamSampledLoop(track, request.part, request.notes, await Promise.all(recorded.sounds.map((sound) => loadSound(sound.file))), SAMPLE_RATE)
-      : renderJamPartLoop(track, request.part, request.notes, SAMPLE_RATE);
+      ? renderJamSampledLoop(track, request.part, request.notes, await Promise.all(recorded.sounds.map((sound) => loadSound(sound.file))), SAMPLE_RATE, request.bars)
+      : renderJamPartLoop(track, request.part, request.notes, SAMPLE_RATE, request.bars);
     post({ id: request.id, part: { channels, sampleRate: SAMPLE_RATE } }, channels.map((c) => c.buffer));
   } catch (error) {
     post({ id: request.id, error: String(error) });

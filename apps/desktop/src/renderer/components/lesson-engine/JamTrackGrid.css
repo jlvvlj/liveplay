@@ -564,6 +564,24 @@
   border-color: var(--ds-text-dim);
 }
 
+/* The empty rows under a short kit: drawn like cells, never pressed */
+.jam-editor-cells.empty .jam-editor-cell {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.jam-editor-cells.empty .jam-editor-cell:hover {
+  border-color: transparent;
+}
+
+/* The section switch's + : 4 more bars */
+.jam-grid-sections .jam-grid-add-section {
+  padding: 0.25rem 0.6rem;
+  color: var(--ds-text);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
 /* A muted row, or one left out by a solo, is drawn dimmed */
 .jam-editor-cells.silent,
 .jam-editor-roll.silent {

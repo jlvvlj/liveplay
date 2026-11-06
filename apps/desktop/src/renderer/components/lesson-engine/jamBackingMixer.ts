@@ -1,6 +1,6 @@
 import * as Tone from 'tone';
 import { renderJamBackingPart, type JamPartAudio } from './jamRenderer';
-import { jamTrackParts, type JamTrack, type JamTrackNote } from './jamTracks';
+import { JAM_TRACK_BARS, jamTrackParts, type JamTrack, type JamTrackNote } from './jamTracks';
 import { jamAddedInstrument, type JamAddedPart } from './jamAddedParts';
 import { jamLoopScale, jamLoopSeconds } from './jamTrackRender';
 
@@ -156,27 +156,31 @@ export function jamTrackLevels(mix: JamTrackMix): number[] {
 const scales = new Map<string, number>();
 
 // Renders every part of a track (its own, then the ones `added` in the grid)
-// and returns them in a mixer, scaled by the original track's loudness (parts
-// the player edited are rendered as they were too, once, for that)
+// as a loop of `bars` bars and returns them in a mixer, scaled by the
+// original track's loudness (its 8 bars as they were are rendered too, once,
+// for that)
 export async function loadJamBackingMixer(
   track: JamTrack,
   notes: JamTrackNote[][],
-  added: JamAddedPart[]
+  added: JamAddedPart[],
+  bars = JAM_TRACK_BARS
 ): Promise<JamBackingMixer> {
   const own = notes.length - added.length;
   const parts = await Promise.all(
     notes.map((part, p) =>
-      renderJamBackingPart(track.file, p, part, p < own ? undefined : (jamAddedInstrument(added[p - own]) ?? undefined))
+      renderJamBackingPart(track.file, p, part, p < own ? undefined : (jamAddedInstrument(added[p - own]) ?? undefined), bars)
     )
   );
   if (!scales.has(track.file)) {
     const original = jamTrackParts(track).map((part) => part.notes);
     const originals = await Promise.all(
       original.map((part, p) =>
-        JSON.stringify(part) === JSON.stringify(notes[p]) ? parts[p] : renderJamBackingPart(track.file, p, part)
+        bars === JAM_TRACK_BARS && JSON.stringify(part) === JSON.stringify(notes[p])
+          ? parts[p]
+          : renderJamBackingPart(track.file, p, part)
       )
     );
     scales.set(track.file, jamLoopScale(originals.map((audio) => audio.channels)));
   }
-  return new JamBackingMixer(parts, scales.get(track.file)!, jamLoopSeconds(track));
+  return new JamBackingMixer(parts, scales.get(track.file)!, jamLoopSeconds(track, bars));
 }
