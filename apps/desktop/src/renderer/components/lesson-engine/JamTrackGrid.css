@@ -588,42 +588,6 @@
   border-left-color: var(--ds-text-dim);
 }
 
-/* The step grid: square 16ths, every other beat shaded */
-.jam-editor-cells {
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(var(--steps), var(--cell));
-  column-gap: var(--jam-cell-gap);
-  height: var(--cell);
-}
-
-.jam-editor-cell {
-  min-width: 0;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  background: var(--ds-panel-2);
-  cursor: pointer;
-}
-
-.jam-editor-cell.off-beat {
-  background: var(--ds-raised);
-}
-
-.jam-editor-cell:hover {
-  border-color: var(--ds-text-dim);
-}
-
-/* The empty rows under a short kit: drawn like cells, never pressed */
-.jam-editor-cells.empty .jam-editor-cell {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.jam-editor-cells.empty .jam-editor-cell:hover {
-  border-color: transparent;
-}
-
 /* A section's button, with an x at its top right on hover that deletes it */
 .jam-grid-section {
   position: relative;
@@ -666,13 +630,13 @@
   line-height: 1;
 }
 
-/* A muted row, or one left out by a solo, is drawn dimmed */
-.jam-editor-cells.silent,
-.jam-editor-roll.silent {
+/* A muted part, or one left out by a solo, is drawn dimmed */
+.jam-editor-roll.silent,
+.jam-editor-note.silent {
   filter: saturate(0.25) brightness(0.55);
 }
 
-/* The piano roll: a key per row, the black keys' rows darker, each C's lighter */
+/* The rows' headers: a key per pitch, or a drum's controls */
 .jam-editor-keys {
   display: flex;
   flex-direction: column;
@@ -705,13 +669,20 @@
   color: var(--ds-on-accent);
 }
 
+/* The grid, for a kit as for an instrument: square 16ths with gaps between
+   rows and columns, every other beat shaded, beat and bar lines */
 .jam-editor-roll {
+  --jam-step: calc(var(--cell) + var(--jam-cell-gap));
   position: relative;
   flex: none;
   border-radius: 4px;
   background-color: var(--ds-panel-2);
-  /* 16ths, beats and bars */
   background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 var(--cell),
+      var(--ds-panel) var(--cell) var(--jam-step)
+    ),
     repeating-linear-gradient(
       to right,
       transparent 0 calc(16 * (var(--cell) + var(--jam-cell-gap)) - var(--jam-cell-gap)),
@@ -727,7 +698,12 @@
     repeating-linear-gradient(
       to right,
       transparent 0 var(--cell),
-      var(--ds-panel) var(--cell) calc(var(--cell) + var(--jam-cell-gap))
+      var(--ds-panel) var(--cell) var(--jam-step)
+    ),
+    repeating-linear-gradient(
+      to right,
+      transparent 0 calc(4 * var(--jam-step)),
+      var(--ds-raised) calc(4 * var(--jam-step)) calc(8 * var(--jam-step))
     );
   cursor: crosshair;
   touch-action: none;
@@ -746,10 +722,36 @@
   background: var(--ds-raised);
 }
 
+/* The empty rows under a short kit, and a muted drum's row */
+.jam-editor-roll-row.empty,
+.jam-editor-roll-row.silent {
+  background: var(--ds-panel);
+  opacity: 0.5;
+}
+
 .jam-editor-note {
   position: absolute;
   border-radius: 3px;
   pointer-events: none;
+}
+
+/* A note's start and end, to drag */
+.jam-editor-note-edge {
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--ds-on-light);
+  opacity: 0.45;
+}
+
+.jam-editor-note-edge.start {
+  left: 2px;
+}
+
+.jam-editor-note-edge.end {
+  right: 2px;
 }
 
 .jam-editor-note.selected {
