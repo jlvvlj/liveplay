@@ -84,6 +84,9 @@ export class LessonEngine {
   private timeoutIds: number[] = [];
   private playbackStartRealTime: number | null = null;
   private playbackStartLessonTime: number = 0;
+  // A lesson room's song: the lesson follows its clock (lesson seconds, back
+  // to 0 at each loop) instead of its own, at the song's own speed
+  private clock: (() => number) | null = null;
 
   constructor(callbacks: LessonEngineCallbacks = {}) {
     this.callbacks = callbacks;
@@ -158,6 +161,22 @@ export class LessonEngine {
   }
 
   /**
+   * Plays the lesson on an outside clock, looping with it: from where that
+   * clock is now. pause() and resume() follow it too.
+   */
+  startOnClock(clock: () => number): void {
+    if (!this.lesson) {
+      throw new Error('No lesson loaded');
+    }
+    this.clock = clock;
+    this.practiceMode = { ...this.practiceMode, loopEnabled: true, speedMultiplier: 1, waitModeEnabled: false };
+    this.processedSteps.clear();
+    this.playbackStartRealTime = Tone.now();
+    this.scheduleSteps(clock());
+    this.setState('playing');
+  }
+
+  /**
    * Pause the lesson
    */
   pause(): void {
@@ -180,7 +199,7 @@ export class LessonEngine {
     }
 
     this.playbackStartRealTime = Tone.now();
-    this.scheduleSteps(this.playbackStartLessonTime);
+    this.scheduleSteps(this.clock ? this.clock() : this.playbackStartLessonTime);
     this.setState('playing');
   }
 
@@ -188,6 +207,7 @@ export class LessonEngine {
    * Stop the lesson
    */
   stop(): void {
+    this.clock = null;
     this.scheduleVersion++;
     Tone.Transport.stop();
     Tone.Transport.cancel();
@@ -247,7 +267,10 @@ export class LessonEngine {
 
     // Right note, but only counts near the hit line.
     // delta > 0 = pressed after the note's time (late), delta < 0 = before (early).
-    const delta = (currentTime - target.time) * 1000;
+    // On a looping clock a note near the loop's start can be hit just before it wraps.
+    const loopMs = this.ticksToSeconds(this.loopEndTick - this.loopStartTick) * 1000;
+    const raw = (currentTime - target.time) * 1000;
+    const delta = this.clock && loopMs > 0 ? raw - loopMs * Math.round(raw / loopMs) : raw;
     const withinWindow = delta <= TIMING_WINDOWS.late && delta >= -TIMING_WINDOWS.early;
     if (!withinWindow) {
       console.log(`[LessonEngine] Note ${note} matches next step ${targetIndex} but OUTSIDE timing window. Delta: ${delta.toFixed(0)}ms, Window: [-${TIMING_WINDOWS.early}, +${TIMING_WINDOWS.late}]ms`);
@@ -354,6 +377,7 @@ export class LessonEngine {
   }
 
   getCurrentTimeSeconds(): number {
+    if (this.clock) return this.state === 'playing' ? this.clock() : this.playbackStartLessonTime;
     if (this.state === 'playing' && this.playbackStartRealTime !== null) {
       return this.playbackStartLessonTime + (Tone.now() - this.playbackStartRealTime) * this.getEffectiveSpeed();
     }
@@ -461,7 +485,10 @@ export class LessonEngine {
 
     this.playbackStartLessonTime = 0;
     this.playbackStartRealTime = Tone.now();
-    this.scheduleSteps(0);
+    // On an outside clock the next loop starts from where that clock is
+    // (the timer may fire a little before or after it wraps)
+    const now = this.clock ? this.clock() : 0;
+    this.scheduleSteps(now > this.ticksToSeconds(this.loopEndTick - this.loopStartTick) / 2 ? 0 : now);
 
     console.log('[LessonEngine] Lesson clock restarted for loop');
 

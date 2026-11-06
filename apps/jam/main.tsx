@@ -7,7 +7,8 @@ import { DawLobby } from '../desktop/src/renderer/components/lesson-engine/DawLo
 import { JamHome } from '../desktop/src/renderer/components/lesson-engine/JamHome';
 import { JamLobbyConnection } from '../desktop/src/renderer/components/lesson-engine/jamLobbyConnection';
 import type { JamRoomEnd } from '../desktop/src/renderer/components/lesson-engine/jamRoom';
-import { JAM_SONGS } from '../desktop/src/renderer/components/lesson-engine/jamSongs';
+import { JAM_SONGS, jamRoomSongOf } from '../desktop/src/renderer/components/lesson-engine/jamSongs';
+import { jamSongTracks } from '../desktop/src/renderer/components/lesson-engine/jamLessonRooms';
 import { JAM_SOUND_PRESETS } from '../desktop/src/renderer/components/lesson-engine/jamSynth';
 import {
   JAM_ROOM_CODE,
@@ -22,23 +23,25 @@ import '../desktop/src/renderer/styles/index.css';
 const jamRoomServer =
   import.meta.env.VITE_JAM_ROOM_URL ?? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${JAM_ROOM_PATH}`;
 
-// Where the address leads: home, a section's lobby (?daw, ?jam), a Daw song
-// being edited (?song=ID) or a Jam room (?room=KEY)
+// Where the address leads: home, a section's lobby (?daw, ?jam, ?lessons), a
+// Daw song being edited (?song=ID) or a room (?room=KEY), Jam or lesson room
 type Place =
   | { at: 'home' }
   | { at: 'daw' }
   | { at: 'jam' }
+  | { at: 'lessons' }
   | { at: 'song'; id: string }
-  | { at: 'room'; entry: JamRoomEntry };
+  | { at: 'room'; entry: JamRoomEntry; from: 'jam' | 'lessons' };
 
 function placeInAddress(): Place {
   const query = new URLSearchParams(location.search);
   const key = query.get('room')?.toUpperCase();
-  if (key && JAM_ROOM_CODE.test(key)) return { at: 'room', entry: { key } };
+  if (key && JAM_ROOM_CODE.test(key)) return { at: 'room', entry: { key }, from: query.has('lesson') ? 'lessons' : 'jam' };
   const song = query.get('song')?.toUpperCase();
   if (song && JAM_ROOM_CODE.test(song)) return { at: 'song', id: song };
   if (query.has('daw')) return { at: 'daw' };
   if (query.has('jam')) return { at: 'jam' };
+  if (query.has('lessons')) return { at: 'lessons' };
   return { at: 'home' };
 }
 
@@ -48,11 +51,12 @@ const addressOf = (place: Place): string => {
       return location.pathname;
     case 'daw':
     case 'jam':
+    case 'lessons':
       return `?${place.at}`;
     case 'song':
       return `?song=${place.id}`;
     case 'room':
-      return `?room=${place.entry.key}`;
+      return `?room=${place.entry.key}${place.from === 'lessons' ? '&lesson' : ''}`;
   }
 };
 
@@ -96,27 +100,38 @@ function JamApp() {
     setPlace(next);
   };
   // Back from a song or a room to its section's lobby
-  const backTo = (section: 'daw' | 'jam', reason: JamRoomEnd | null = null) => {
+  const backTo = (section: 'daw' | 'jam' | 'lessons', reason: JamRoomEnd | null = null) => {
     history.replaceState(null, '', addressOf({ at: section }));
     setEnded(reason);
     setPlace({ at: section });
   };
 
-  // A new room's tracks: the built-in songs, then the Daw songs offered to rooms
+  // A new room's tracks: the built-in songs, then the Daw songs offered to
+  // rooms, each with its own tracks for a lesson room's lesson
   const tracks = useMemo<JamLobbyTrack[]>(
     () => [
-      ...JAM_SONGS.map((song) => ({ id: song.id, title: song.title, bpm: song.bpm, daw: false })),
-      ...(songs ?? []).filter((song) => song.offered).map((song) => ({ id: song.id, title: song.title, bpm: song.bpm, daw: true })),
+      ...JAM_SONGS.map((song) => ({
+        id: song.id,
+        title: song.title,
+        bpm: song.bpm,
+        daw: false,
+        tracks: jamSongTracks(jamRoomSongOf(song).file, null).map(({ id, name }) => ({ id, name })),
+      })),
+      ...(songs ?? [])
+        .filter((song) => song.offered)
+        .map((song) => ({ id: song.id, title: song.title, bpm: song.bpm, daw: true, tracks: song.tracks })),
     ],
     [songs]
   );
+  const lessonRooms = rooms?.filter((room) => room.lesson !== null) ?? null;
+  const jamRooms = rooms?.filter((room) => room.lesson === null) ?? null;
 
-  const player = (key: string, join: React.ComponentProps<typeof LessonPlayer>['jamRoomJoin'], section: 'daw' | 'jam') => (
+  const player = (key: string, join: React.ComponentProps<typeof LessonPlayer>['jamRoomJoin'], section: 'daw' | 'jam' | 'lessons') => (
     <LessonPlayer
       key={key}
       lesson={JAM_SONGS[0]}
       jamOnly
-      jamSection={section}
+      jamSection={section === 'lessons' ? 'jam' : section}
       jamSounds={JAM_SOUND_PRESETS}
       jamSongs={JAM_SONGS}
       jamRoomServer={jamRoomServer}
@@ -129,7 +144,14 @@ function JamApp() {
   return (
     <div className="app app-jam">
       <main className="app-main">
-        {place.at === 'home' && <JamHome songs={songs?.length ?? null} rooms={rooms?.length ?? null} onOpen={(at) => go({ at })} />}
+        {place.at === 'home' && (
+          <JamHome
+            songs={songs?.length ?? null}
+            rooms={jamRooms?.length ?? null}
+            lessons={lessonRooms?.length ?? null}
+            onOpen={(at) => go({ at })}
+          />
+        )}
         {place.at === 'daw' && (
           <DawLobby
             songs={songs}
@@ -142,19 +164,21 @@ function JamApp() {
             ended={ended}
           />
         )}
-        {place.at === 'jam' && (
+        {(place.at === 'jam' || place.at === 'lessons') && (
           <JamLobby
+            key={place.at}
+            lessons={place.at === 'lessons'}
             rooms={rooms}
             unreachable={unreachable}
             check={(id, code) => lobby?.check(id, code) ?? Promise.resolve(null)}
             tracks={tracks}
-            onEnter={(entry) => go({ at: 'room', entry })}
+            onEnter={(entry) => go({ at: 'room', entry, from: place.at === 'lessons' ? 'lessons' : 'jam' })}
             onBack={() => go({ at: 'home' })}
             ended={ended}
           />
         )}
         {place.at === 'song' && player(`song-${place.id}`, { key: place.id, edit: true }, 'daw')}
-        {place.at === 'room' && player(`room-${place.entry.key}`, place.entry, 'jam')}
+        {place.at === 'room' && player(`room-${place.entry.key}`, place.entry, place.from)}
       </main>
     </div>
   );

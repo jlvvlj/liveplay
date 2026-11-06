@@ -4,7 +4,8 @@ import type { JamAddedInstrument } from './jamAddedParts';
 
 // A backing-track part's sound on one pitch, played once: what a drum row's
 // name or a piano key sounds like in the Jam tab's grid. Each sound is
-// rendered the first time it is asked for, then kept.
+// rendered the first time it is asked for, then kept. Lesson rooms play their
+// lesson track's hits with the same sounds (jamLessonVoices.ts).
 
 const AUDITION_SECONDS = 1.5;
 const FADE_SECONDS = 0.03;
@@ -15,7 +16,7 @@ let output: Tone.Volume | null = null;
 // Parts render unscaled: held under 0 dBFS, like the mixer's parts
 const auditionOutput = () => (output ??= new Tone.Volume(-6).connect(new Tone.Limiter(-1).toDestination()));
 
-function renderSound(trackFile: string, part: number, pitch: number, added?: JamAddedInstrument): Promise<Tone.ToneAudioBuffer> {
+export function renderJamPartSound(trackFile: string, part: number, pitch: number, added?: JamAddedInstrument): Promise<Tone.ToneAudioBuffer> {
   return renderJamBackingPart(trackFile, part, [{ pitch, step: 0, length: 2, velocity: 100 }], added).then((audio) => {
     const length = Math.min(audio.channels[0].length, Math.round(AUDITION_SECONDS * audio.sampleRate));
     const fade = Math.round(FADE_SECONDS * audio.sampleRate);
@@ -34,7 +35,7 @@ export function auditionJamPart(trackFile: string, part: number, pitch: number, 
   const key = added ? `${added.id}|${pitch}` : `${trackFile}|${part}|${pitch}`;
   let sound = sounds.get(key);
   if (!sound) {
-    sound = renderSound(trackFile, part, pitch, added?.instrument);
+    sound = renderJamPartSound(trackFile, part, pitch, added?.instrument);
     sounds.set(key, sound);
   }
   sound

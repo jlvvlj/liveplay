@@ -92,7 +92,7 @@ export class JamRoom {
     // room `code`, opened with `create` when it is new
     join: {
       edit?: boolean;
-      create?: { visibility: JamRoomVisibility; song: string };
+      create?: { visibility: JamRoomVisibility; song: string; lesson?: string };
       name: string;
       sound: JamRoomSound | null;
       need: number;
@@ -146,7 +146,7 @@ export class JamRoom {
     });
   }
 
-  setState(state: Omit<JamRoomState, 'song' | 'tracks'>): void {
+  setState(state: Omit<JamRoomState, 'song' | 'lesson' | 'tracks'>): void {
     this.send({ t: 'state', state });
   }
 

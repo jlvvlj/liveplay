@@ -29,6 +29,7 @@ import {
   jamTrackIsEmpty,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamTracks';
 import { validJamTrackEdit, type JamTrackEdit } from '../apps/desktop/src/renderer/components/lesson-engine/jamTrackEdits';
+import { jamSongTracks } from '../apps/desktop/src/renderer/components/lesson-engine/jamLessonRooms';
 import type { JamSongStore } from './jamSongStore';
 
 // Jam rooms: players who join the same room key play one jam together. The
@@ -108,14 +109,16 @@ export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: 
         visibility: room.visibility,
         key: room.visibility === 'open' ? room.key : null,
         song: room.state.song,
+        lesson: room.state.lesson,
         playing: room.state.startAt !== null,
         players: players(room),
         full: room.members.size >= JAM_ROOM_MAX_PLAYERS,
       }));
   const songSummaries = (): JamDawSongSummary[] =>
-    songs.list().map(({ edit: _edit, ...song }) => {
+    songs.list().map(({ edit, ...song }) => {
       const room = dawRooms.get(song.id);
-      return { ...song, editors: room ? players(room) : [] };
+      const tracks = jamSongTracks(song.file, edit).map(({ id, name }) => ({ id, name }));
+      return { ...song, editors: room ? players(room) : [], tracks };
     });
   // The song a new Jam room plays: a built-in one, or a Daw song offered to rooms
   const roomSong = (id: string): { song: JamRoomSong; tracks: Record<string, JamTrackEdit> } | null => {
@@ -242,14 +245,20 @@ export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: 
             opener: id,
             host: '',
             opened: nextRoom++,
-            state: { song: dawRoomSong(song), startAt: null, position: 0, tracks: songTracks(song) },
+            state: { song: dawRoomSong(song), lesson: null, startAt: null, position: 0, tracks: songTracks(song) },
             members: new Map(),
             closing: null,
           };
         } else {
           joining = rooms.get(message.room);
           const opening = !joining && message.create ? roomSong(message.create.song) : null;
-          if (!joining && !opening) {
+          // A lesson room's lesson is one of its song's tracks
+          const lessonId = message.create?.lesson;
+          const lessonTrack =
+            opening && lessonId !== undefined
+              ? jamSongTracks(opening.song.file, opening.tracks[opening.song.file]).find((track) => track.id === lessonId)
+              : undefined;
+          if (!joining && (!opening || (lessonId !== undefined && !lessonTrack))) {
             send(socket, { t: 'missing' });
             socket.close(1000, 'No such room');
             return;
@@ -264,7 +273,13 @@ export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: 
               opener: id,
               host: '',
               opened: nextRoom++,
-              state: { song: opening!.song, startAt: null, position: 0, tracks: opening!.tracks },
+              state: {
+                song: opening!.song,
+                lesson: lessonTrack ? { track: lessonTrack.id, name: lessonTrack.name } : null,
+                startAt: null,
+                position: 0,
+                tracks: opening!.tracks,
+              },
               members: new Map(),
               closing: null,
             };
@@ -337,6 +352,7 @@ export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: 
           const now = performance.now();
           const at = (startAt === null ? position : (now - startAt) / 1000) * scale;
           room.state = {
+            ...room.state,
             song: { ...song, bpm, file },
             startAt: startAt === null ? null : now - at * 1000,
             position: at,
