@@ -1,6 +1,7 @@
 /* Jam tab: the backing track as tracks and clips, with the open clip's editor below */
 .jam-grid {
   --jam-head: 13rem; /* the track and row headers: name, solo, mute, level */
+  --jam-timeline-head: var(--jam-head);
   --jam-cell-gap: 2px;
   flex: 1;
   min-width: 0;
@@ -79,7 +80,7 @@
 
 .jam-timeline-row {
   display: grid;
-  grid-template-columns: var(--jam-head) 1fr;
+  grid-template-columns: var(--jam-timeline-head) 1fr;
   height: 3.4rem;
   border-bottom: 1px solid var(--ds-border);
 }
@@ -123,6 +124,17 @@
 .jam-timeline-head .jam-lane-level {
   flex: 1 1 auto;
   margin-left: 0.25rem;
+}
+
+/* Folded away: the clips take the headers' place */
+.jam-grid.heads-closed {
+  --jam-timeline-head: 0px;
+}
+
+.jam-grid.heads-closed .jam-timeline-head {
+  padding: 0;
+  border-right: none;
+  box-shadow: none;
 }
 
 .jam-timeline-bars {
@@ -203,7 +215,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: var(--jam-head);
+  left: var(--jam-timeline-head);
   right: 0;
   pointer-events: none;
   z-index: 4;

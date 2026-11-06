@@ -13,6 +13,7 @@ import { JAM_TRACK_BARS, jamTrackParts, type JamTrack, type JamTrackNote, type J
 import type { JamTrackMix } from './jamBackingMixer';
 import { JamLaneStrip } from './JamLaneStrip';
 import { auditionJamPart } from './jamAudition';
+import { LanesIcon } from './JamIcons';
 import { SOUND_COLORS } from '../../styles/palette';
 import './JamTrackGrid.css';
 
@@ -95,6 +96,9 @@ interface JamTrackGridProps {
   mix: JamTrackMix;
   // Buttons shown first in the header (back, the sidebar's)
   toolbar?: ReactNode;
+  // The track headers shown, or folded away
+  lanesOpen: boolean;
+  onLanesOpenChange: (open: boolean) => void;
   edited: boolean;
   paused: boolean;
   onChange: (notes: JamTrackNote[][]) => void;
@@ -152,6 +156,8 @@ export function JamTrackGrid({
   notes,
   mix,
   toolbar,
+  lanesOpen,
+  onLanesOpenChange,
   edited,
   paused,
   onChange,
@@ -578,9 +584,16 @@ export function JamTrackGrid({
   };
 
   return (
-    <div className="jam-grid">
+    <div className={`jam-grid ${lanesOpen ? '' : 'heads-closed'}`}>
       <div className="jam-grid-head">
         {toolbar}
+        <button
+          className={`jam-corner-btn ${lanesOpen ? 'on' : ''}`}
+          onClick={blurAfter(() => onLanesOpenChange(!lanesOpen))}
+          title={lanesOpen ? 'Hide track headers' : 'Show track headers'}
+        >
+          <LanesIcon />
+        </button>
         <button className={`jam-grid-play ${paused ? '' : 'playing'}`} onClick={togglePause} aria-label={paused ? 'Play' : 'Pause'}>
           {paused ? '▶' : '❚❚'}
         </button>
@@ -608,16 +621,18 @@ export function JamTrackGrid({
           return (
             <div key={gridTrack.id} className="jam-timeline-row" style={{ '--track-color': gridTrack.color } as CSSProperties}>
               <div className="jam-timeline-head">
-                <JamLaneStrip
-                  name={gridTrack.name}
-                  tag=""
-                  solo={solo}
-                  mute={mute}
-                  level={level}
-                  onSolo={() => setMixOf(gridTrack.parts, 'solos', !solo)}
-                  onMute={() => setMixOf(gridTrack.parts, 'mutes', !mute)}
-                  onLevel={(next) => setMixOf(gridTrack.parts, 'levels', next)}
-                />
+                {lanesOpen && (
+                  <JamLaneStrip
+                    name={gridTrack.name}
+                    tag=""
+                    solo={solo}
+                    mute={mute}
+                    level={level}
+                    onSolo={() => setMixOf(gridTrack.parts, 'solos', !solo)}
+                    onMute={() => setMixOf(gridTrack.parts, 'mutes', !mute)}
+                    onLevel={(next) => setMixOf(gridTrack.parts, 'levels', next)}
+                  />
+                )}
               </div>
               <div className="jam-timeline-lane">
                 <button

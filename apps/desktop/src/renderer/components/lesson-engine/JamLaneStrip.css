@@ -1,5 +1,5 @@
-/* Jam tab: a lane's controls (name, solo, mute, level), beside the step grid
-   and on the highway. Each strip fills the box its view gives it. */
+/* Jam tab: a track's or a row's controls (name, solo, mute, level) in the
+   grid. Each strip fills the box the grid gives it. */
 .jam-lane-strip {
   display: flex;
   align-items: stretch;
@@ -81,7 +81,7 @@ button.jam-lane-name:hover {
   flex: 0 0 4rem;
   min-width: 0;
   align-self: center;
-  accent-color: var(--ds-accent);
+  accent-color: var(--ds-text);
   cursor: pointer;
 }
 

@@ -102,9 +102,7 @@ interface JamSettings {
   // Backing tracks edited in the grid, and their mixer settings, by file
   tracks: Record<string, JamTrackEdit>;
   mixes: Record<string, JamTrackMix>;
-  // The highway's rows' solo, mute and levels, by sound, and whether the
-  // lane controls (grid and highway) are shown
-  rowMixes: Record<string, JamTrackMix>;
+  // Whether the grid's track headers are shown
   lanesOpen: boolean;
   // How swung the played notes are, by song (0.5 straight); unset follows the backing track
   swings: Record<string, number>;
@@ -191,7 +189,6 @@ function loadJamSettings(sounds: JamSoundPreset[], songIds: string[]): JamSettin
     effects: DEFAULT_JAM_EFFECTS,
     tracks: {},
     mixes: {},
-    rowMixes: {},
     lanesOpen: true,
     swings: {},
   };
@@ -208,7 +205,6 @@ function loadJamSettings(sounds: JamSoundPreset[], songIds: string[]): JamSettin
       effects: { ...DEFAULT_JAM_EFFECTS, ...saved.effects },
       tracks: validTrackEdits(saved.tracks),
       mixes: validTrackMixes(saved.mixes),
-      rowMixes: saved.rowMixes && typeof saved.rowMixes === 'object' ? saved.rowMixes : {},
       lanesOpen: typeof saved.lanesOpen === 'boolean' ? saved.lanesOpen : defaults.lanesOpen,
       swings:
         saved.swings && typeof saved.swings === 'object'
@@ -408,28 +404,6 @@ export function LessonPlayer({
     [fullLesson.steps]
   );
 
-  // Jam tab: each highway row's name (its recorded sound's, else its pitch's)
-  // and its solo, mute and level, kept per sound
-  const jamRowNames = useMemo(
-    () =>
-      Object.fromEntries(
-        allLaneNotes.map((note, row) => [
-          note,
-          jamRecorded ? jamRecorded[row % jamRecorded.length].name : Tone.Frequency(note, 'midi').toNote(),
-        ])
-      ),
-    [allLaneNotes, jamRecorded]
-  );
-  const savedRowMix = jamSettings?.rowMixes[jamSettings.soundId];
-  const jamRowMix = useMemo(
-    () =>
-      savedRowMix && savedRowMix.levels.length === allLaneNotes.length
-        ? savedRowMix
-        : defaultJamTrackMix(allLaneNotes.length),
-    [savedRowMix, allLaneNotes.length]
-  );
-  const jamRowLevelsRef = useRef<number[]>([]);
-  jamRowLevelsRef.current = jamTrackLevels(jamRowMix);
   const [disabledNotes, setDisabledNotes] = useState<Set<number>>(() =>
     loadDisabledNotes(fullLesson, allLaneNotes)
   );
@@ -1549,14 +1523,9 @@ export function LessonPlayer({
 
     // The same pitch twice on one 16th sounds once
     if (jamNotesRef.current.some((n) => !n.peer && n.note === row && n.timeMs === timeMs)) return slot;
-    // A muted row (or one left out by a solo) still draws its note, silently
-    const level = jamOnly ? jamRowLevelsRef.current[allLaneNotes.indexOf(row)] ?? 1 : 1;
-    if (level > 0) {
-      const at = Math.max(start + sounds, context.currentTime + JAM_SCHEDULE_MARGIN_S);
-      const player = playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, at, step?.semitones);
-      const gainDb = (level < 1 ? 20 * Math.log10(level) : 0) + (jamRenderedRef.current ? JAM_RENDERED_BOOST_DB : 0);
-      if (player && gainDb) player.volume.value += gainDb;
-    }
+    const at = Math.max(start + sounds, context.currentTime + JAM_SCHEDULE_MARGIN_S);
+    const player = playSound(row, step?.note, jamOnly ? jamNotesVolume : undefined, step?.slice, at, step?.semitones);
+    if (player && jamRenderedRef.current) player.volume.value += JAM_RENDERED_BOOST_DB;
     room?.sendNote({ song: lesson.id, slot, note: row });
     addJamNote({ note: row, timeMs }, heard * 1000);
     return slot;
@@ -1571,10 +1540,8 @@ export function LessonPlayer({
     const context = rawAudioContext();
     const earliest = (context.currentTime + JAM_SCHEDULE_MARGIN_S - start) / sixteenth;
     const slot = remoteNoteSlot(note.slot, earliest, JAM_LATE_GRACE_S / sixteenth);
-    // This player's row levels (mutes, solos) apply to everyone's notes
-    const level = jamRowLevelsRef.current[allLaneNotes.indexOf(note.note)] ?? 1;
     const sounds = swungPosition(slot, jamSwingRef.current) * sixteenth;
-    if (!remoteVoicesRef.current?.play(from, note.note, start + sounds, jamNotesVolume, level)) {
+    if (!remoteVoicesRef.current?.play(from, note.note, start + sounds, jamNotesVolume)) {
       console.warn('[LessonPlayer] A jam room player\'s sound is still being prepared; their note was not played.', { from });
     }
     addJamNote({ note: note.note, timeMs: sounds * 1000, peer: from }, (audioTimeAt(context) - start) * 1000);
@@ -2656,6 +2623,8 @@ export function LessonPlayer({
             track={jamTrack}
             notes={jamTrackNotes}
             edited={!!jamTrackEdit || !!jamSettings.mixes[jamTrack.file]}
+            lanesOpen={jamSettings.lanesOpen}
+            onLanesOpenChange={(lanesOpen) => setJamSettings({ ...jamSettings, lanesOpen })}
             mix={jamTrackMix!}
             onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamTrack.file]: mix } })}
             paused={jamIsPaused}
@@ -2708,19 +2677,6 @@ export function LessonPlayer({
             holdingSteps={holdingSteps}
             onNoteReached={isGameMode ? handleNoteReached : undefined}
             jamToolbar={jamToolbar}
-            jamLanes={
-              currentMode === 'jam' && jamSettings
-                ? {
-                    open: jamSettings.lanesOpen,
-                    onOpenChange: (lanesOpen) => setJamSettings({ ...jamSettings, lanesOpen }),
-                    names: jamRowNames,
-                    rows: allLaneNotes,
-                    mix: jamRowMix,
-                    onMixChange: (mix) =>
-                      setJamSettings({ ...jamSettings, rowMixes: { ...jamSettings.rowMixes, [jamSettings.soundId]: mix } }),
-                  }
-                : undefined
-            }
           />
         )}
 
