@@ -69,19 +69,19 @@ const SYNTH_TAGS: Record<string, string> = {
   'bee-drone': 'Pad',
   'wah-sweep': 'Pad',
   'dist-bass': 'Bass',
-  epiano: 'Keys',
-  'night-rhodes': 'Keys',
-  vibes: 'Keys',
-  kalimba: 'Keys',
-  musicbox: 'Keys',
-  'sine-wood': 'Keys',
+  epiano: 'Mallets & Keys',
+  'night-rhodes': 'Mallets & Keys',
+  vibes: 'Mallets & Keys',
+  kalimba: 'Mallets & Keys',
+  musicbox: 'Mallets & Keys',
+  'sine-wood': 'Mallets & Keys',
   'square-stab': 'Pluck & Stab',
   pluck: 'Pluck & Stab',
   'jazz-guitar': 'Pluck & Stab',
   bell: 'Bell',
   'bell-stab': 'Bell',
 };
-export const SYNTH_TAG_ORDER = ['Lead', 'Pad', 'Bass', 'Keys', 'Pluck & Stab', 'Bell'];
+export const SYNTH_TAG_ORDER = ['Lead', 'Pad', 'Bass', 'Mallets & Keys', 'Pluck & Stab', 'Bell'];
 // Sampled categories in this order; songs' sounds and others after them
 export const CATEGORY_ORDER = ['Keys', 'Orchestra', 'Band', 'General MIDI', 'Drums', 'Drum machines'];
 
@@ -155,6 +155,15 @@ export const presetChoice = (instrument: InstrumentDef, presetId?: string): Inst
     effects: chosen.effects.map((slot) => ({ ...slot, params: { ...slot.params } })),
   };
 };
+
+// The instrument a Jam sound id plays: a synth sound is a Melodics Synth
+// preset, a kit or recorded sound the instrument of the same id
+export function choiceForSound(soundId: string): InstrumentChoice | null {
+  const synth = INSTRUMENTS[0];
+  if (synth.presets.some((preset) => preset.id === soundId)) return presetChoice(synth, soundId);
+  const instrument = findInstrument(INSTRUMENTS, soundId);
+  return instrument ? presetChoice(instrument) : null;
+}
 
 // Whether a choice still differs from the preset it started from
 export const choiceEdited = (instrument: InstrumentDef, choice: InstrumentChoice): boolean => {
