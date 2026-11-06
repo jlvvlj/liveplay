@@ -235,8 +235,8 @@ export function JamTrackGrid({
   const [pinned, setPinned] = useState<number | null>(null);
   const [playing, setPlaying] = useState(0);
   const [selected, setSelected] = useState<{ part: number; key: string } | null>(null);
-  // The editor's row headers (each drum's controls, the piano keys) shown, or folded away
-  const [rowsOpen, setRowsOpen] = useState(true);
+  // The editor's row headers (each drum's controls, the piano keys) shown, or folded away (at first)
+  const [rowsOpen, setRowsOpen] = useState(false);
   // The sounds to add a track with, shown
   const [adding, setAdding] = useState(false);
   const [cell, setCell] = useState(MIN_CELL_PX);
@@ -248,6 +248,10 @@ export function JamTrackGrid({
   const [view, setView] = useState<[number, number]>([0, LOOP_STEPS]);
   const [viewStart, viewSpan] = view;
   const timelineRef = useRef<HTMLDivElement>(null);
+  // The editor's height once dragged taller (or shorter) by its grip, else its own
+  const [editorHeight, setEditorHeight] = useState<number | null>(null);
+  const editorRef = useRef<HTMLElement>(null);
+  const resizeRef = useRef<{ startY: number; from: number; min: number; max: number } | null>(null);
   const timelinePlayheadRef = useRef<HTMLDivElement>(null);
   const editorPlayheadRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
@@ -602,6 +606,32 @@ export function JamTrackGrid({
     return runs;
   };
 
+  // The editor's grip: its height follows the pointer, between a short editor
+  // and the tracks keeping their least height
+  const TIMELINE_MIN_PX = 112;
+  const EDITOR_MIN_PX = 150;
+  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const editor = editorRef.current;
+    const timeline = timelineRef.current;
+    if (!editor || !timeline) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const from = editor.getBoundingClientRect().height;
+    resizeRef.current = {
+      startY: event.clientY,
+      from,
+      min: EDITOR_MIN_PX,
+      max: from + Math.max(0, timeline.getBoundingClientRect().height - TIMELINE_MIN_PX),
+    };
+  };
+  const resize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const current = resizeRef.current;
+    if (!current) return;
+    setEditorHeight(clamp(current.from + (current.startY - event.clientY), current.min, Math.max(current.min, current.max)));
+  };
+  const endResize = () => {
+    resizeRef.current = null;
+  };
+
   // A track's editor, at the section clicked on its lane; the open track's lane closes it
   const openAt = (gridTrack: GridTrack, event: ReactMouseEvent<HTMLElement>) => {
     event.currentTarget.blur();
@@ -664,7 +694,8 @@ export function JamTrackGrid({
       <div className="jam-editor-area" ref={areaRef}>
         {ruler}
         {gridTrack.parts.map((part) => {
-          const color = partColor(part);
+          // Every row in its track's color, as its clip and name
+          const color = gridTrack.color;
           return (
             <div key={part} className={`jam-editor-cells ${silent(part) ? 'silent' : ''}`}>
               {Array.from({ length: PAGE_STEPS }, (_, index) => {
@@ -944,9 +975,33 @@ export function JamTrackGrid({
 
       {open && (
         <section
-          className={`jam-editor ${rowsOpen ? '' : 'heads-closed'}`}
-          style={{ '--track-color': open.color, '--cell': `${cell}px`, '--steps': PAGE_STEPS, '--beats': PAGE_STEPS / 4 } as CSSProperties}
+          ref={editorRef}
+          className={`jam-editor ${rowsOpen ? '' : 'heads-closed'} ${editorHeight === null ? '' : 'sized'}`}
+          style={
+            {
+              '--track-color': open.color,
+              '--cell': `${cell}px`,
+              '--steps': PAGE_STEPS,
+              '--beats': PAGE_STEPS / 4,
+              ...(editorHeight === null ? {} : { height: editorHeight }),
+            } as CSSProperties
+          }
         >
+          {/* Dragged up, the editor grows over the tracks' space (they keep a few rows) */}
+          <div
+            className="jam-editor-grip"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize the editor"
+            onPointerDown={startResize}
+            onPointerMove={resize}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+          >
+            <svg viewBox="0 0 24 10" width="24" height="10" aria-hidden="true">
+              <path d="M7 6.5l5-4 5 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
           <div className="jam-editor-top">
             <button
               className={`jam-editor-icon-btn ${rowsOpen ? 'on' : ''}`}

@@ -52,6 +52,11 @@
   background: var(--ds-raised);
 }
 
+/* Instrument Lab's track zoom (TrackZoom), its slider white here like the grid's levels */
+.jam-grid .mix-zoom input {
+  accent-color: var(--ds-text);
+}
+
 /* Small uppercase labels: the rulers, the clips' names, the editor's rows */
 .jam-timeline-bars,
 .jam-editor-ruler,
@@ -354,6 +359,7 @@
 
 /* The open clip's editor */
 .jam-editor {
+  position: relative;
   flex: 0 1 auto;
   max-height: 62%;
   min-width: 0;
@@ -364,6 +370,36 @@
   border-radius: var(--ds-radius-card);
   background: var(--ds-panel);
   overflow: hidden;
+}
+
+/* Dragged taller by its grip: its own height, over the tracks' space */
+.jam-editor.sized {
+  flex: none;
+  max-height: none;
+}
+
+/* The grip at the top edge: drag up for a taller editor */
+.jam-editor-grip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 6;
+  width: 48px;
+  height: 14px;
+  margin-left: -24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 0 8px 8px;
+  background: var(--ds-panel-2);
+  color: var(--ds-text-dim);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.jam-editor-grip:hover {
+  color: var(--ds-text);
+  background: var(--ds-raised);
 }
 
 .jam-editor-top {
