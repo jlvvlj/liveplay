@@ -1,9 +1,8 @@
-import { type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import './JamLaneStrip.css';
 
-// A lane's controls in the Jam tab, the same beside the step grid and the
-// highway: its name with a tag (the grid's resolution, the highway's key),
-// solo, mute and a level. Folded away, they are not shown at all.
+// A track's or a row's controls in the Jam tab's grid: its name with a tag,
+// solo, mute and a level.
 
 interface JamLaneStripProps {
   name: string;
@@ -18,7 +17,7 @@ interface JamLaneStripProps {
   onLevel: (level: number) => void;
 }
 
-// The strip sits over the highway's rows, which play on press: its presses are its own
+// The strip's presses are its own, never the grid's under it
 const keepPointer = (event: ReactPointerEvent) => event.stopPropagation();
 // Buttons give focus back, so the keys keep playing notes
 const blurAfter = (action: () => void) => (event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -68,6 +67,7 @@ export function JamLaneStrip({
         max={1}
         step={0.01}
         value={level}
+        style={{ '--level': `${level * 100}%` } as CSSProperties}
         onChange={(event) => onLevel(parseFloat(event.target.value))}
         onPointerUp={(event) => event.currentTarget.blur()}
         aria-label={`${name} level`}

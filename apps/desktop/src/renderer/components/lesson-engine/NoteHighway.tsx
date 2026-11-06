@@ -1,19 +1,14 @@
 import {
   Fragment,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   useMemo,
-  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
 import { LessonStep, HitFeedback } from '../../types/lesson';
 import { HOLD_MIN_MS, stepDurationMs } from './holdNotes';
-import { jamTrackLevels, type JamTrackMix } from './jamBackingMixer';
-import { JamLaneStrip } from './JamLaneStrip';
-import { LanesIcon } from './JamIcons';
 import { SOUND_COLORS } from '../../styles/palette';
 import './NoteHighway.css';
 
@@ -59,19 +54,7 @@ interface NoteHighwayProps {
   jamShips?: JamShip[]; // Jam room: the other players' ships
   holdNotes?: boolean; // long sounds are drawn as long as they last and must be held
   holdingSteps?: Set<number>; // hold notes whose key is down right now
-  jamLanes?: JamLanes; // Jam mode: each row's controls, on its left
   jamToolbar?: ReactNode; // Jam mode: buttons shown first in the toolbar at the top
-}
-
-// Jam mode row controls: names by note, and solo / mute / level for `rows`
-// (the notes the mix's lists follow)
-export interface JamLanes {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  names: { [note: number]: string };
-  rows: number[];
-  mix: JamTrackMix;
-  onMixChange: (mix: JamTrackMix) => void;
 }
 
 interface NoteHitState {
@@ -128,7 +111,6 @@ export function NoteHighway({
   jamShips = NO_JAM_SHIPS,
   holdNotes = false,
   holdingSteps,
-  jamLanes,
   jamToolbar,
 }: NoteHighwayProps) {
   const [noteHitStates, setNoteHitStates] = useState<Map<number, NoteHitState>>(new Map());
@@ -154,20 +136,12 @@ export function NoteHighway({
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
-  // Jam mode: the rows' controls take the left of the highway; the ship, its
-  // notes and the toolbar move right of them
-  const [jamInset, setJamInset] = useState<number>(0);
-  useLayoutEffect(() => {
-    const box = containerRef.current?.querySelector('.jam-lane-box');
-    const container = containerRef.current;
-    setJamInset(box && container ? box.getBoundingClientRect().right - container.getBoundingClientRect().left + 8 : 0);
-  }, [containerWidth, containerHeight, jamLanes?.open]);
-  const jamWidth = containerWidth - jamInset;
+  const jamWidth = containerWidth;
 
   // Calculate hit zone offset based on container width
   const hitZoneOffset = useMemo(() => {
-    return mode === 'jam' ? jamInset + jamWidth * JAM_CURSOR_HOME_PERCENT : containerWidth * HIT_ZONE_PERCENT;
-  }, [containerWidth, mode, jamInset, jamWidth]);
+    return mode === 'jam' ? jamWidth * JAM_CURSOR_HOME_PERCENT : containerWidth * HIT_ZONE_PERCENT;
+  }, [containerWidth, mode, jamWidth]);
 
   // Get unique notes from the lesson (sorted by MIDI value)
   const uniqueNotes = useMemo(() =>
@@ -865,33 +839,6 @@ export function NoteHighway({
       });
   };
 
-  // A row's controls; its mix entry is found by its note
-  const jamLaneSilent = (note: number): boolean => {
-    if (!jamLanes) return false;
-    const index = jamLanes.rows.indexOf(note);
-    return jamTrackLevels(jamLanes.mix)[index] === 0;
-  };
-  const renderJamLaneStrip = (note: number, label: string, color: string) => {
-    if (!jamLanes) return null;
-    const { mix, onMixChange } = jamLanes;
-    const index = jamLanes.rows.indexOf(note);
-    const set = <K extends keyof JamTrackMix>(key: K, value: JamTrackMix[K][number]) =>
-      onMixChange({ ...mix, [key]: mix[key].map((current, i) => (i === index ? value : current)) });
-    return (
-      <JamLaneStrip
-        name={jamLanes.names[note] ?? label}
-        tag={label}
-        tagColor={color}
-        solo={mix.solos[index] ?? false}
-        mute={mix.mutes[index] ?? false}
-        level={mix.levels[index] ?? 1}
-        onSolo={() => set('solos', !mix.solos[index])}
-        onMute={() => set('mutes', !mix.mutes[index])}
-        onLevel={(level) => set('levels', level)}
-      />
-    );
-  };
-
   // Jam mode pointer play: press a row to play its pitch, hold to keep playing,
   // drag up or down to change pitch
   const jamPointerHeldRef = useRef<boolean>(false);
@@ -1046,8 +993,7 @@ export function NoteHighway({
   return (
     <div
       ref={containerRef}
-      className={`note-highway ${isCollapsed ? 'collapsed' : ''} ${mode === 'jam' ? 'jam' : ''} ${jamLanes ? 'jam-strips' : ''}`}
-      style={mode === 'jam' ? ({ '--jam-inset': `${jamInset}px` } as CSSProperties) : undefined}
+      className={`note-highway ${isCollapsed ? 'collapsed' : ''} ${mode === 'jam' ? 'jam' : ''}`}
     >
       {/* Hit zone indicator line - fixed position (for play mode) */}
       {mode === 'play' && (
@@ -1073,21 +1019,12 @@ export function NoteHighway({
           {Array.from({ length: laneCount }).map((_, rowIndex) => {
             const laneIndex = laneCount - 1 - rowIndex;
             const note = uniqueNotes[laneIndex];
-            const label = getNoteLabel(note) ?? getLaneLabel(laneIndex);
             return (
               <div
                 key={laneIndex}
                 data-jam-note={note}
-                className={`lane ${activePads && Array.from(activePads).some(note => noteToLane(note) === laneIndex) ? 'lane-active' : ''} ${jamLanes && jamLaneSilent(note) ? 'silent' : ''}`}
+                className={`lane ${activePads && Array.from(activePads).some(note => noteToLane(note) === laneIndex) ? 'lane-active' : ''}`}
               >
-                {jamLanes ? (
-                  jamLanes.open && <div className="jam-lane-box">{renderJamLaneStrip(note, label, getLaneColor(laneIndex))}</div>
-                ) : (
-                  <div className="lane-label" style={{ color: getLaneColor(laneIndex) }}>
-                    {label}
-                  </div>
-                )}
-
                 <div
                   className="notes-scroll-container"
                   style={{
@@ -1183,23 +1120,11 @@ export function NoteHighway({
         </div>
       )}
 
-      {/* Jam mode: a toolbar at the top (the player's buttons, the lane
-          controls' toggle, the clock) instead of the progress bar */}
+      {/* Jam mode: a toolbar at the top (the player's buttons, the clock)
+          instead of the progress bar */}
       {mode === 'jam' ? (
         <div className="jam-toolbar" onPointerDown={(event) => event.stopPropagation()}>
           {jamToolbar}
-          {jamLanes && (
-            <button
-              className={`jam-corner-btn ${jamLanes.open ? 'on' : ''}`}
-              onClick={(event) => {
-                jamLanes.onOpenChange(!jamLanes.open);
-                event.currentTarget.blur();
-              }}
-              title={jamLanes.open ? 'Hide lane controls' : 'Show lane controls'}
-            >
-              <LanesIcon />
-            </button>
-          )}
           <span className="jam-toolbar-clock">{getProgressLabel()}</span>
         </div>
       ) : (

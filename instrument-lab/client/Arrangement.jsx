@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { LabSoundEditor } from "./sound-editor/LabSoundEditor.tsx";
 import { audibleIds, clamp, zoomWindow } from "./timeline.mjs";
+import TrackZoom from "./TrackZoom.jsx";
 const stamp = (s) => {
   const ticks = Math.round(s * 10);
   return `${Math.floor(ticks / 600)}:${((ticks % 600) / 10).toFixed(1).padStart(4, "0")}`;
@@ -67,8 +68,6 @@ export default function Arrangement({
   const [start, span] = view;
   const position = scrub ?? time;
   const audible = audibleIds(parts, muted, solo);
-  const zoom = (focus, factor) =>
-    setView((v) => zoomWindow(v[0], v[1], duration, focus, factor));
   // A non-passive listener prevents browser zoom and keeps trackpad gestures in this timeline.
   useEffect(() => {
     const node = root.current;
@@ -288,46 +287,7 @@ export default function Arrangement({
             ))}
           </div>
         </div>
-        <div className="mix-zoom">
-          <button
-            aria-label="Zoom out tracks"
-            title="Zoom out"
-            onClick={() => zoom(time, 1.4)}
-            disabled={span >= duration}
-          >
-            −
-          </button>
-          <input
-            aria-label="Track zoom"
-            type="range"
-            min="0"
-            max="100"
-            step="0.1"
-            value={
-              duration <= 0.25
-                ? 0
-                : (1 - (span - 0.25) / (duration - 0.25)) * 100
-            }
-            onChange={(e) => {
-              const next = Math.max(
-                duration -
-                  (Number(e.target.value) / 100) *
-                    (duration - Math.min(0.25, duration)),
-                Math.min(0.25, duration),
-              );
-              setView([clamp(time - next / 2, 0, duration - next), next]);
-            }}
-          />
-          <button
-            aria-label="Zoom in tracks"
-            title="Zoom in"
-            onClick={() => zoom(time, 0.7)}
-            disabled={span <= Math.min(0.25, duration)}
-          >
-            +
-          </button>
-          <button onClick={() => setView([0, duration])}>Fit tracks</button>
-        </div>
+        <TrackZoom view={view} duration={duration} focus={time} onView={setView} />
       </div>
       <div className="mix-ruler mix-grid">
         <span>INSTRUMENT · SOLO / MUTE</span>

@@ -35,3 +35,12 @@
   --ds-radius-pill: 999px;
   --ds-radius-card: 12px;
 }
+
+/* The Jam (its tab, its app and lobby) takes the indigo as its accent, in
+   place of the orange */
+.app-jam,
+.lesson-player.jam-only {
+  --ds-accent: var(--ds-info);
+  --ds-accent-hover: #a5b4fc;
+  --ds-on-accent: var(--ds-on-light);
+}

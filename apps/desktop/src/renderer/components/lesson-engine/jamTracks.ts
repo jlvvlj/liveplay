@@ -12,6 +12,9 @@ import { SOFTER_JAM_TRACK } from './jamSofterJam';
 // must match its song in jamSongs.ts.
 
 export const JAM_TRACK_BARS = 8;
+// The grid adds bars to a track a section at a time, up to JAM_MAX_BARS
+export const JAM_SECTION_BARS = 4;
+export const JAM_MAX_BARS = 64;
 
 export interface JamChord {
   root: number;

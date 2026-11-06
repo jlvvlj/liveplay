@@ -566,7 +566,7 @@
 .jam-toolbar {
   position: absolute;
   top: 16px; /* level with the sidebar's buttons */
-  left: calc(var(--jam-inset, 0px) + 8px);
+  left: 8px;
   z-index: 30;
   display: flex;
   align-items: center;
@@ -579,38 +579,6 @@
   font-variant-numeric: tabular-nums;
   color: rgba(255, 255, 255, 0.7);
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
-}
-
-/* Jam mode row controls (JamLaneStrip) on each row's left; the ship, its
-   notes and the toolbar stay right of them (--jam-inset) */
-.note-highway.jam-strips {
-  --jam-lane-width: 13rem;
-}
-
-.jam-lane-box {
-  position: absolute;
-  left: 0.5rem;
-  top: 1px;
-  bottom: 1px;
-  width: var(--jam-lane-width);
-  z-index: 22;
-}
-
-/* A muted row, or one left out by a solo */
-.jam-lanes .lane.silent .notes-scroll-container {
-  opacity: 0.35;
-}
-
-@media (max-width: 700px), (max-height: 500px) {
-  .note-highway.jam-strips {
-    --jam-lane-width: 6.5rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .note-highway.jam-strips {
-    --jam-lane-width: 3rem;
-  }
 }
 
 /* Jam on a sideways phone: sixteen rows in little height, so no gaps

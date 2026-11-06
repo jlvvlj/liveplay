@@ -1,6 +1,7 @@
 import * as Tone from 'tone';
 import { renderJamBackingPart, type JamPartAudio } from './jamRenderer';
-import { jamTrackParts, type JamTrack, type JamTrackNote } from './jamTracks';
+import { JAM_TRACK_BARS, jamTrackParts, type JamTrack, type JamTrackNote } from './jamTracks';
+import { jamAddedInstrument, type JamAddedPart } from './jamAddedParts';
 import { jamLoopScale, jamLoopSeconds } from './jamTrackRender';
 
 // What the lesson player needs from a backing track: a Tone.Player, or the
@@ -72,6 +73,23 @@ export class JamBackingMixer implements BackingPlayer {
     });
   }
 
+  // A part added in the grid: a new lane, silent until its audio replaces it
+  add(): void {
+    const level = new Tone.Volume().connect(this.trim);
+    const player = partPlayer({ channels: [new Float32Array(1)], sampleRate: Tone.getContext().sampleRate }).connect(level);
+    this.lanes.push({ level, player });
+    if (this.origin !== null) player.start(Tone.now() + 0.05);
+  }
+
+  // A part taken out in the grid; the lanes after it move up
+  remove(part: number): void {
+    const [lane] = this.lanes.splice(part, 1);
+    if (!lane) return;
+    lane.player.stop();
+    lane.player.dispose();
+    lane.level.dispose();
+  }
+
   // An edited part comes in at the same point of the loop
   replace(part: number, audio: JamPartAudio) {
     const lane = this.lanes[part];
@@ -117,6 +135,17 @@ export const defaultJamTrackMix = (parts: number): JamTrackMix => ({
   solos: Array(parts).fill(false),
 });
 
+// A mix for `parts` parts: a part added since starts at full level, and the
+// entries of parts taken out are dropped
+export const fitJamTrackMix = (mix: JamTrackMix, parts: number): JamTrackMix => {
+  const fresh = defaultJamTrackMix(parts);
+  return {
+    levels: fresh.levels.map((level, part) => mix.levels[part] ?? level),
+    mutes: fresh.mutes.map((mute, part) => mix.mutes[part] ?? mute),
+    solos: fresh.solos.map((solo, part) => mix.solos[part] ?? solo),
+  };
+};
+
 // What each part plays at: silent when muted, or when others are soloed and it is not
 export function jamTrackLevels(mix: JamTrackMix): number[] {
   const soloing = mix.solos.some(Boolean);
@@ -126,19 +155,32 @@ export function jamTrackLevels(mix: JamTrackMix): number[] {
 // The original tracks' loudness scales, worked out once per visit
 const scales = new Map<string, number>();
 
-// Renders every part of a track and returns them in a mixer, scaled by the
-// original track's loudness (parts the player edited are rendered as they
-// were too, once, for that)
-export async function loadJamBackingMixer(track: JamTrack, notes: JamTrackNote[][]): Promise<JamBackingMixer> {
-  const parts = await Promise.all(notes.map((part, p) => renderJamBackingPart(track.file, p, part)));
+// Renders every part of a track (its own, then the ones `added` in the grid)
+// as a loop of `bars` bars and returns them in a mixer, scaled by the
+// original track's loudness (its 8 bars as they were are rendered too, once,
+// for that)
+export async function loadJamBackingMixer(
+  track: JamTrack,
+  notes: JamTrackNote[][],
+  added: JamAddedPart[],
+  bars = JAM_TRACK_BARS
+): Promise<JamBackingMixer> {
+  const own = notes.length - added.length;
+  const parts = await Promise.all(
+    notes.map((part, p) =>
+      renderJamBackingPart(track.file, p, part, p < own ? undefined : (jamAddedInstrument(added[p - own]) ?? undefined), bars)
+    )
+  );
   if (!scales.has(track.file)) {
     const original = jamTrackParts(track).map((part) => part.notes);
     const originals = await Promise.all(
       original.map((part, p) =>
-        JSON.stringify(part) === JSON.stringify(notes[p]) ? parts[p] : renderJamBackingPart(track.file, p, part)
+        bars === JAM_TRACK_BARS && JSON.stringify(part) === JSON.stringify(notes[p])
+          ? parts[p]
+          : renderJamBackingPart(track.file, p, part)
       )
     );
     scales.set(track.file, jamLoopScale(originals.map((audio) => audio.channels)));
   }
-  return new JamBackingMixer(parts, scales.get(track.file)!, jamLoopSeconds(track));
+  return new JamBackingMixer(parts, scales.get(track.file)!, jamLoopSeconds(track, bars));
 }

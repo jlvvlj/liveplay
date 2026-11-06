@@ -1353,8 +1353,7 @@
   gap: 18px;
   flex-wrap: wrap;
 }
-.instrument-lab-ui .mix-transport,
-.instrument-lab-ui .mix-zoom {
+.instrument-lab-ui .mix-transport {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1374,19 +1373,6 @@
   height: 32px;
   background: #e7e7e8;
   color: var(--ds-raised);
-}
-.instrument-lab-ui .mix-zoom {
-  margin-left: auto;
-  font-size: 11px;
-}
-.instrument-lab-ui .mix-zoom input {
-  width: 110px;
-  accent-color: var(--lab-accent);
-}
-.instrument-lab-ui .mix-zoom button {
-  padding: 6px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.102);
-  border-radius: 999px;
 }
 .instrument-lab-ui .mix-grid {
   display: grid;

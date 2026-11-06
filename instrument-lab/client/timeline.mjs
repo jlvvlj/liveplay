@@ -1,6 +1,6 @@
 export const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-export function zoomWindow(start, span, duration, focus, factor) {
-  const nextSpan = clamp(span * factor, Math.min(0.25, duration), duration);
+export function zoomWindow(start, span, duration, focus, factor, minSpan = 0.25) {
+  const nextSpan = clamp(span * factor, Math.min(minSpan, duration), duration);
   const ratio = clamp((focus - start) / span, 0, 1);
   return [clamp(focus - ratio * nextSpan, 0, duration - nextSpan), nextSpan];
 }

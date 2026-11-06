@@ -17,7 +17,7 @@ export const SidebarIcon = () =>
     </>
   );
 
-// Three faders: shows or hides the lane controls (name, solo, mute, level)
+// Three faders: shows or hides the grid's track headers (name, solo, mute, level)
 export const LanesIcon = () =>
   icon(
     <>

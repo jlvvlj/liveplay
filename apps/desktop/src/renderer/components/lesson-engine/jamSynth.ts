@@ -56,8 +56,8 @@ export interface JamRecordedInstrument {
 // Instruments play one sound at every row's pitch; drums a different sound per row
 export type JamSoundPreset =
   | { id: string; label: string; patch: JamSynthPatch }
-  // A kit plays one drum per row, from the lowest row up
-  | { id: string; label: string; kit: JamDrum[] }
+  // A kit plays one drum per row, from the lowest row up; `names` are its drums'
+  | { id: string; label: string; kit: JamDrum[]; names?: string[] }
   // A song's recorded sounds, listed under its name: a drum & FX pack, one
   // sound per row from the lowest row up, or an instrument
   | { id: string; label: string; song: string; sounds: { file: string; name: string }[] }
@@ -172,6 +172,7 @@ export const JAM_SOUND_PRESETS: JamSoundPreset[] = [
   {
     id: 'groove-kit',
     label: 'Groove kit',
+    names: ['Kick', 'Kick 2', 'Tom 1', 'Tom 2', 'Tom 3', 'Tom 4', 'Snare', 'Snare 2', 'Clap', 'Wood', 'Block', 'Cowbell', 'Shaker', 'Hat', 'Open hat', 'Crash'],
     kit: [
       drum(0.9, hit({ frequency: 50, sweep: 140, sweepDecay: 0.03, toneLevel: 1, toneDecay: 0.25, noiseLevel: 0.04, noiseDecay: 0.01 })),
       drum(0.85, hit({ frequency: 58, sweep: 220, sweepDecay: 0.02, toneLevel: 1, toneDecay: 0.14, noiseLevel: 0.08, noiseDecay: 0.008 }, { brightness: 0.8 })),
@@ -205,6 +206,7 @@ export const JAM_SOUND_PRESETS: JamSoundPreset[] = [
   {
     id: 'chip-kit',
     label: 'Chip kit',
+    names: ['Kick', 'Kick 2', 'Tom 1', 'Tom 2', 'Tom 3', 'Tom 4', 'Snare', 'Snare 2', 'Clap', 'Blip', 'Blip 2', 'Coin', 'Laser', 'Hat', 'Open hat', 'Crash'],
     kit: [
       drum(0.9, hit({ frequency: 58, sweep: 320, sweepDecay: 0.015, toneLevel: 1, toneDecay: 0.12, noiseLevel: 0.1, noiseDecay: 0.008 }, { drive: 0.3 })),
       drum(0.85, hit({ frequency: 45, sweep: 900, sweepDecay: 0.03, toneLevel: 1, toneDecay: 0.18 }, { drive: 0.5 })),
@@ -239,6 +241,7 @@ export const JAM_SOUND_PRESETS: JamSoundPreset[] = [
   {
     id: 'arcade-kit',
     label: 'Arcade kit',
+    names: ['Kick', 'Snare', 'Hat', 'Open hat', 'Tick', 'Blip', 'Cymbal', 'Shaker', 'Ping', 'Bright hat', 'Bright hat 2', 'Tom', 'Tom 2', 'Snap', 'Low kick', 'Deep tom'],
     kit: [
       gated(0.35, drum(0.9, hit({ frequency: 70, sweep: 260, sweepDecay: 0.02, toneLevel: 1, toneDecay: 0.08, noiseLevel: 0.03, noiseDecay: 0.005 }, { drive: 0.5 }))),
       drum(

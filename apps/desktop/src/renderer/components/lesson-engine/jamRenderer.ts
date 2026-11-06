@@ -1,5 +1,6 @@
 import type { JamSoundSource } from './jamSynth';
 import { JAM_TRACKS, type JamTrackNote } from './jamTracks';
+import type { JamAddedInstrument } from './jamAddedParts';
 
 // Renders Jam sounds and backing-track parts in workers, so long renders never
 // stall the highway. A part's notes are split over several workers and the
@@ -59,13 +60,19 @@ export async function renderJamSound(source: JamSoundSource, notes: number[]): P
 }
 
 // One part of a backing track's loop, unscaled (as jamTrackParts orders the
-// parts). Its distinct notes are dealt out to the workers, longest first. A
-// recorded part is only mixed, and its hits cut each other short, so one
-// worker does all of it.
-export async function renderJamBackingPart(trackFile: string, part: number, notes: JamTrackNote[]): Promise<JamPartAudio> {
+// parts, then the parts added in the grid, played by `added`). Its distinct
+// notes are dealt out to the workers, longest first. A recorded or added part
+// is done by one worker. The loop is `bars` long (the track's own 8 if unset).
+export async function renderJamBackingPart(
+  trackFile: string,
+  part: number,
+  notes: JamTrackNote[],
+  added?: JamAddedInstrument,
+  bars?: number
+): Promise<JamPartAudio> {
   const track = JAM_TRACKS.find((candidate) => candidate.file === trackFile);
-  if (track?.sampled && part >= track.drums.length + track.layers.length) {
-    const reply = await request({ trackFile, part, notes });
+  if (added || (track?.sampled && part >= track.drums.length + track.layers.length)) {
+    const reply = await request({ trackFile, part, notes, ...(added ? { added } : {}), ...(bars ? { bars } : {}) });
     if (!reply.part) throw new Error(`No audio for ${trackFile} part ${part}`);
     return reply.part;
   }
@@ -81,7 +88,9 @@ export async function renderJamBackingPart(trackFile: string, part: number, note
     piece.cost += group[0].length + 1;
   }
   const used = pieces.filter((piece) => piece.notes.length);
-  const replies = await Promise.all((used.length ? used : [pieces[0]]).map((piece) => request({ trackFile, part, notes: piece.notes })));
+  const replies = await Promise.all(
+    (used.length ? used : [pieces[0]]).map((piece) => request({ trackFile, part, notes: piece.notes, ...(bars ? { bars } : {}) }))
+  );
   const [first, ...rest] = replies.map((reply) => {
     if (!reply.part) throw new Error(`No audio for ${trackFile} part ${part}`);
     return reply.part;

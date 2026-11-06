@@ -237,6 +237,70 @@ export function JamSettingsPanel({
           </div>
         )}
 
+        <div className="setting-group">
+          <label className="setting-label">
+            <span className="setting-icon">&#128266;</span>
+            Volume
+          </label>
+          <Slider
+            label="Notes"
+            value={notesVolume}
+            display={`${Math.round(notesVolume * 100)}%`}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={onNotesVolumeChange}
+          />
+          <Slider
+            label="Backing track"
+            value={backingVolume}
+            display={`${Math.round(backingVolume * 100)}%`}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={onBackingVolumeChange}
+          />
+        </div>
+
+        <div className="setting-group">
+          <label className="setting-label">
+            <span className="setting-icon">&#128257;</span>
+            Hold repeat
+            <span className="jam-feel-switch">
+              {[false, true].map((triplet) => (
+                <button
+                  key={String(triplet)}
+                  className={triplet === holdTriplet ? 'active' : ''}
+                  onClick={() => onHoldTripletChange(triplet)}
+                >
+                  {triplet ? 'Triplet' : 'Straight'}
+                </button>
+              ))}
+            </span>
+          </label>
+          <div className="jam-sound-options jam-hold-options">
+            {holdDivisions.map((division) => (
+              <button
+                key={division}
+                className={`jam-sound-option ${division === holdDivision ? 'active' : ''}`}
+                onClick={() => onHoldDivisionChange(division)}
+              >
+                {division}
+                {holdTriplet ? 'T' : ''}
+              </button>
+            ))}
+          </div>
+          <Slider
+            label="Swing"
+            value={swing}
+            display={swing <= 0.5 ? 'Straight' : `${Math.round(swing * 100)}%`}
+            min={0.5}
+            max={0.75}
+            step={0.01}
+            onChange={onSwingChange}
+          />
+        </div>
+
         {room && (
           <div className="setting-group">
             <label className="setting-label">
@@ -382,45 +446,6 @@ export function JamSettingsPanel({
 
         <div className="setting-group">
           <label className="setting-label">
-            <span className="setting-icon">&#128257;</span>
-            Hold repeat
-            <span className="jam-feel-switch">
-              {[false, true].map((triplet) => (
-                <button
-                  key={String(triplet)}
-                  className={triplet === holdTriplet ? 'active' : ''}
-                  onClick={() => onHoldTripletChange(triplet)}
-                >
-                  {triplet ? 'Triplet' : 'Straight'}
-                </button>
-              ))}
-            </span>
-          </label>
-          <div className="jam-sound-options jam-hold-options">
-            {holdDivisions.map((division) => (
-              <button
-                key={division}
-                className={`jam-sound-option ${division === holdDivision ? 'active' : ''}`}
-                onClick={() => onHoldDivisionChange(division)}
-              >
-                {division}
-                {holdTriplet ? 'T' : ''}
-              </button>
-            ))}
-          </div>
-          <Slider
-            label="Swing"
-            value={swing}
-            display={swing <= 0.5 ? 'Straight' : `${Math.round(swing * 100)}%`}
-            min={0.5}
-            max={0.75}
-            step={0.01}
-            onChange={onSwingChange}
-          />
-        </div>
-
-        <div className="setting-group">
-          <label className="setting-label">
             <span className="setting-icon">&#127754;</span>
             Effects
           </label>
@@ -475,31 +500,6 @@ export function JamSettingsPanel({
             max={0.9}
             step={0.01}
             onChange={(value) => setEffect('echoFeedback', value)}
-          />
-        </div>
-
-        <div className="setting-group">
-          <label className="setting-label">
-            <span className="setting-icon">&#128266;</span>
-            Volume
-          </label>
-          <Slider
-            label="Notes"
-            value={notesVolume}
-            display={`${Math.round(notesVolume * 100)}%`}
-            min={0}
-            max={1}
-            step={0.05}
-            onChange={onNotesVolumeChange}
-          />
-          <Slider
-            label="Backing track"
-            value={backingVolume}
-            display={`${Math.round(backingVolume * 100)}%`}
-            min={0}
-            max={1}
-            step={0.05}
-            onChange={onBackingVolumeChange}
           />
         </div>
       </div>
