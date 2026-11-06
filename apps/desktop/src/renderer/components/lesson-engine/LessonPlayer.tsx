@@ -29,7 +29,7 @@ import { loadJamReferenceSounds, jamNotesDb, type JamSoundPreset, type JamSample
 import { InstrumentChannel } from './instruments/channel';
 import { INSTRUMENTS, choiceForSound, findInstrument, jamRowNote, presetChoice, referenceInstruments } from './instruments/catalog';
 import { paramsPatch, patchParams } from './instruments/engines/melodicsSynth';
-import type { InstrumentChoice } from './instruments/types';
+import { PAD_BASE_NOTE, type InstrumentChoice } from './instruments/types';
 import { audioTimeAt, hitSlot, remoteNoteSlot, swungPosition } from './jamClock';
 import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
 import { jamRoomSongLesson } from './jamSongs';
@@ -66,6 +66,10 @@ interface LessonPlayerProps {
 }
 
 const MIN_EFFECTIVE_SPEED = 0.01;
+
+// The mix as heard: in a lesson room without the lesson track, which the hits play
+const jamHeardMix = (mix: JamTrackMix, lesson: { parts: number[] } | null): JamTrackMix =>
+  lesson ? { ...mix, mutes: mix.mutes.map((mute, part) => mute || lesson.parts.includes(part)) } : mix;
 
 // Jam mode quantizes every note to the 16th grid. A hit this soon after a 16th
 // still sounds on it (immediately); later hits wait for the next 16th.
@@ -1069,23 +1073,39 @@ export function LessonPlayer({
   useEffect(() => {
     const mixer = backingTrackRef.current;
     if (!jamTrackMix || !(mixer instanceof JamBackingMixer)) return;
-    const lessonParts = jamLesson?.parts ?? [];
-    const mutes = jamTrackMix.mutes.map((mute, part) => mute || lessonParts.includes(part));
-    mixer.setLevels(jamTrackLevels({ ...jamTrackMix, mutes }));
+    mixer.setLevels(jamTrackLevels(jamHeardMix(jamTrackMix, jamLesson)));
   }, [jamTrackMix, backingTrackLoaded, jamLesson]);
 
-  // A lesson room's hits sound with the lesson track's own sound
+  // A lesson room's hits sound with the lesson track's own sound: its live
+  // instrument when it has one, on the track's own pads or pitches
   const jamLessonVoicesRef = useRef<JamLessonVoices | null>(null);
+  const jamLessonChoice = jamRoomLessonTrack ? jamTrackChoices[jamRoomLessonTrack] : undefined;
   useEffect(() => {
     if (!jamLesson || !jamTrack) return;
-    const voices = new JamLessonVoices(jamTrack.file, jamLesson.lanes, jamTrackAddedRef.current, jamTrackParts(jamTrack).length);
-    voices.ready.catch((err) => console.error('[LessonPlayer] Could not render the lesson track\'s sounds:', err));
+    const instrument = jamLessonChoice && findInstrument(jamInstruments, jamLessonChoice.instrument);
+    const live =
+      jamLessonChoice && instrument
+        ? {
+            instrument,
+            choice: jamLessonChoice,
+            bpm: jamTrack.bpm,
+            notes: new Map(
+              jamLesson.lanes.map((lane) => {
+                const partTrack = jamPartTrackList[lane.part];
+                return [lane.note, partTrack?.kind === 'drum' ? PAD_BASE_NOTE + partTrack.pad : lane.pitch] as const;
+              })
+            ),
+          }
+        : null;
+    const voices = new JamLessonVoices(jamTrack.file, jamLesson.lanes, jamTrackAddedRef.current, jamTrackParts(jamTrack).length, live);
+    voices.ready.catch((err) => console.error('[LessonPlayer] Could not prepare the lesson track\'s sounds:', err));
     jamLessonVoicesRef.current = voices;
     return () => {
       voices.dispose();
       if (jamLessonVoicesRef.current === voices) jamLessonVoicesRef.current = null;
     };
-  }, [jamLesson, jamTrack]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jamLesson, jamTrack, jamLessonChoice]);
 
   // The tracks live instruments play, in time with the backing track's loop
   // and through its mixer (levels, mutes and solos as the grid sets them)
@@ -1109,7 +1129,7 @@ export function LessonPlayer({
       loopSteps: () => jamTrackBarsRef.current * 16,
       swing: (step) => (jamTrackRef.current ? swung(jamTrackRef.current, step) : step),
       notes: () => jamTrackNotesRef.current ?? [],
-      levels: () => (jamTrackMixRef.current ? jamTrackLevels(jamTrackMixRef.current) : []),
+      levels: () => (jamTrackMixRef.current ? jamTrackLevels(jamHeardMix(jamTrackMixRef.current, jamLessonRef.current)) : []),
     });
   }, [jamOnly, backingTrackLoaded]);
   useEffect(
