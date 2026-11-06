@@ -53,7 +53,8 @@ function menu(parent, onPick) {
   const root = el('div', 'menu', parent);
   const button = el('button', 'menu-button', root);
   const label = el('span', 'menu-label', button);
-  el('span', 'menu-caret', button).textContent = '▾';
+  el('span', 'menu-caret', button).innerHTML =
+    '<svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const pop = el('div', 'menu-pop', root);
   const filter = el('input', 'menu-filter', pop);
   filter.type = 'text';

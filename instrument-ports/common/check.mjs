@@ -3,6 +3,7 @@
 // playing.
 //
 // node check.mjs <dist dir> <name> [--effect] [--note 60] [--presets 8|all] [--wav out.wav]
+//   [--preset <id>] [--param key=value ...]   the sound the first second plays
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -171,6 +172,20 @@ function sine(seconds) {
 const wasm = processor.wasm;
 const allocationsBefore = () => (wasm.mp_allocations ? wasm.mp_allocations() : 0);
 const memoryBefore = processor.memory.buffer.byteLength;
+
+// The sound the first second plays
+const presetFirst = option('--preset', null);
+if (presetFirst !== null) {
+  processor.port.receive({ type: 'preset', id: presetFirst });
+  const loaded = await processor.port.next('presetLoaded');
+  if (loaded.type === 'error') fail(`preset ${presetFirst} was not loaded`);
+}
+args.forEach((a, i) => {
+  if (a !== '--param') return;
+  const [key, value] = args[i + 1].split('=');
+  if (!ready.params.some((p) => p.key === key)) fail(`no param ${key}`);
+  processor.port.receive({ type: 'param', key, value: Number(value) });
+});
 
 // Warm up one block: anything lazily prepared by the upstream code happens here
 render(BLOCK / SAMPLE_RATE);

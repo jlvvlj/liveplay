@@ -143,8 +143,9 @@ button {
   white-space: nowrap;
 }
 .menu-caret {
+  display: inline-flex;
   color: var(--muted);
-  font-size: 12px;
+  flex: none;
 }
 .menu-pop {
   display: none;
