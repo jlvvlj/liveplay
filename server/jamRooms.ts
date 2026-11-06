@@ -25,6 +25,7 @@ import {
   JAM_SECTION_BARS,
   jamEmptyTrackFile,
   jamTrackByFile,
+  jamTrackFileAtTempo,
   jamTrackIsEmpty,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamTracks';
 import { validJamTrackEdit, type JamTrackEdit } from '../apps/desktop/src/renderer/components/lesson-engine/jamTrackEdits';
@@ -322,6 +323,28 @@ export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: 
           room.state = { ...room.state, tracks: edit ? { [file]: edit } : {} };
           songs.update(room.id, { edit });
           broadcast(room, { t: 'state', state: room.state });
+          break;
+        }
+        // A Daw song at another tempo: the same notes on its track at that
+        // tempo, carrying on from the same point of the song
+        case 'tempo': {
+          const { bpm } = message;
+          const { song, tracks, startAt, position } = room.state;
+          if (room.kind !== 'daw' || !Number.isInteger(bpm) || bpm < JAM_DAW_MIN_BPM || bpm > JAM_DAW_MAX_BPM || bpm === song.bpm) break;
+          const file = jamTrackFileAtTempo(song.file, bpm);
+          const edit = tracks[song.file];
+          const scale = song.bpm / bpm;
+          const now = performance.now();
+          const at = (startAt === null ? position : (now - startAt) / 1000) * scale;
+          room.state = {
+            song: { ...song, bpm, file },
+            startAt: startAt === null ? null : now - at * 1000,
+            position: at,
+            tracks: edit ? { [file]: edit } : {},
+          };
+          songs.update(room.id, { bpm, file });
+          broadcast(room, { t: 'state', state: room.state });
+          lobbyChanged();
           break;
         }
         case 'peer': {

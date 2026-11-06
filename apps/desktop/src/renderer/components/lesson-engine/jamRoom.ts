@@ -154,6 +154,10 @@ export class JamRoom {
     this.send({ t: 'track', file, edit });
   }
 
+  setTempo(bpm: number): void {
+    this.send({ t: 'tempo', bpm });
+  }
+
   setPeer(name: string, sound: JamRoomSound | null, need: number): void {
     const you = this.id ? this.peers.get(this.id) : undefined;
     if (you) this.peers.set(you.id, { ...you, sound, need });

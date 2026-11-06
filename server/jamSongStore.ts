@@ -29,6 +29,9 @@ export function createJamSongStore(dir: string) {
     songs.set(song.id, song);
   }
   const writes = new Map<string, ReturnType<typeof setTimeout>>();
+  // Every new song is made later than all the others, even within one millisecond,
+  // so newest first is always the order they were made in
+  let lastCreated = Math.max(0, ...[...songs.values()].map((song) => song.created));
 
   const write = (id: string) => {
     writes.delete(id);
@@ -56,12 +59,13 @@ export function createJamSongStore(dir: string) {
     list: (): JamDawSong[] => [...songs.values()].sort((a, b) => b.created - a.created),
     get: (id: string): JamDawSong | undefined => songs.get(id),
     add(song: Omit<JamDawSong, 'id' | 'created'>): JamDawSong {
-      const made: JamDawSong = { ...song, id: newId(), created: Date.now() };
+      lastCreated = Math.max(Date.now(), lastCreated + 1);
+      const made: JamDawSong = { ...song, id: newId(), created: lastCreated };
       songs.set(made.id, made);
       write(made.id);
       return made;
     },
-    update(id: string, change: Partial<Pick<JamDawSong, 'edit' | 'offered'>>): void {
+    update(id: string, change: Partial<Pick<JamDawSong, 'edit' | 'offered' | 'bpm' | 'file'>>): void {
       const song = songs.get(id);
       if (!song) return;
       songs.set(id, { ...song, ...change });
