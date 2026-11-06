@@ -48,6 +48,16 @@ const partColor = (part: number) => SOUND_COLORS[part % SOUND_COLORS.length];
 const noteKey = (note: JamTrackNote) => `${note.step}|${note.pitch}`;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+// The timeline's zoom, as Instrument Lab's tracks (instrument-lab/client/timeline.mjs):
+// it shows `span` 16ths from `start`, never fewer than a beat
+const MIN_SPAN = 4;
+// The view after zooming by `factor` around the 16th `focus`, which stays where it is
+function zoomWindow(start: number, span: number, focus: number, factor: number): [number, number] {
+  const nextSpan = clamp(span * factor, MIN_SPAN, LOOP_STEPS);
+  const ratio = clamp((focus - start) / span, 0, 1);
+  return [clamp(focus - ratio * nextSpan, 0, LOOP_STEPS - nextSpan), nextSpan];
+}
+
 // A note's color, brighter the louder it is (solid, over the panel)
 const velocityColor = (color: string, velocity: number) =>
   `color-mix(in srgb, ${color} ${Math.round(35 + (velocity / 127) * 65)}%, var(--ds-panel))`;
@@ -175,6 +185,10 @@ export function JamTrackGrid({
   // The editor's row headers (each drum's controls, the piano keys) shown, or folded away
   const [rowsOpen, setRowsOpen] = useState(true);
   const [cell, setCell] = useState(MIN_CELL_PX);
+  // The timeline's view: from `start`, `span` 16ths of the loop
+  const [view, setView] = useState<[number, number]>([0, LOOP_STEPS]);
+  const [viewStart, viewSpan] = view;
+  const timelineRef = useRef<HTMLDivElement>(null);
   const timelinePlayheadRef = useRef<HTMLDivElement>(null);
   const editorPlayheadRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
@@ -191,7 +205,35 @@ export function JamTrackGrid({
   useEffect(() => {
     setOpenId(null);
     setSelected(null);
+    setView([0, LOOP_STEPS]);
   }, [track]);
+
+  // Over the clips or the bars, a pinch (or a wheel with Ctrl) zooms around
+  // the pointer and a sideways scroll pans; a plain scroll still scrolls the
+  // tracks. A non-passive listener keeps the pinch from zooming the page.
+  useEffect(() => {
+    const node = timelineRef.current;
+    if (!node) return;
+    const wheel = (event: WheelEvent) => {
+      const lane = (event.target as Element | null)?.closest?.('.jam-timeline-lane, .jam-timeline-bars');
+      if (!lane) return;
+      const rect = lane.getBoundingClientRect();
+      if (event.ctrlKey) {
+        event.preventDefault();
+        setView(([start, span]) =>
+          zoomWindow(start, span, start + clamp((event.clientX - rect.left) / rect.width, 0, 1) * span, event.deltaY > 0 ? 1.25 : 0.8)
+        );
+        return;
+      }
+      const delta = event.deltaX || (event.shiftKey ? event.deltaY : 0);
+      if (!delta) return;
+      event.preventDefault();
+      const pixels = delta * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.width : 1);
+      setView(([start, span]) => [clamp(start + (pixels * span) / rect.width, 0, LOOP_STEPS - span), span]);
+    };
+    node.addEventListener('wheel', wheel, { passive: false });
+    return () => node.removeEventListener('wheel', wheel);
+  }, []);
 
   // Cells fill the editor's width, four bars across, and stay square
   useLayoutEffect(() => {
@@ -207,6 +249,8 @@ export function JamTrackGrid({
   // The playheads move every frame without re-rendering; the playing page is tracked for the editor
   const stepRef = useRef(step);
   stepRef.current = step;
+  const viewRef = useRef(view);
+  viewRef.current = view;
   useEffect(() => {
     let frame = 0;
     const tick = () => {
@@ -216,8 +260,9 @@ export function JamTrackGrid({
       if (now !== null) setPlaying(nowPage);
       const timeline = timelinePlayheadRef.current;
       if (timeline) {
-        timeline.style.visibility = now === null ? 'hidden' : 'visible';
-        timeline.style.left = `${(inLoop / LOOP_STEPS) * 100}%`;
+        const [start, span] = viewRef.current;
+        timeline.style.visibility = now === null || inLoop < start || inLoop > start + span ? 'hidden' : 'visible';
+        timeline.style.left = `${((inLoop - start) / span) * 100}%`;
       }
       const editor = editorPlayheadRef.current;
       if (editor) {
@@ -401,9 +446,9 @@ export function JamTrackGrid({
           <rect
             key={`${part}|${noteKey(note)}`}
             x={note.step + 0.15}
-            y={row + 0.2}
+            y={row + 0.35}
             width={0.7}
-            height={0.6}
+            height={0.3}
           />
         ))
       );
@@ -589,6 +634,26 @@ export function JamTrackGrid({
     );
   };
 
+  // The timeline's zoom: the playhead stays put, or the view's middle while paused
+  const zoomFocus = () => {
+    const now = getStep();
+    return now === null ? viewStart + viewSpan / 2 : ((now % LOOP_STEPS) + LOOP_STEPS) % LOOP_STEPS;
+  };
+  const zoomAround = (factor: number) => setView(zoomWindow(viewStart, viewSpan, zoomFocus(), factor));
+  // 0 shows the whole loop, 100 a beat
+  const zoomLevel = (1 - (viewSpan - MIN_SPAN) / (LOOP_STEPS - MIN_SPAN)) * 100;
+  // A 16th's place across the view
+  const at = (step16: number) => `${((step16 - viewStart) / viewSpan) * 100}%`;
+  // The ruler's marks in view: every bar, and every beat once there is room
+  const markEvery = viewSpan <= 32 ? 4 : 16;
+  const marks = Array.from({ length: LOOP_STEPS / markEvery }, (_, index) => index * markEvery)
+    .filter((mark) => mark >= viewStart - markEvery && mark <= viewStart + viewSpan)
+    .map((mark) => {
+      const bar = Math.floor(mark / 16) + 1;
+      const beat = (mark % 16) / 4 + 1;
+      return { at: mark, bar: beat === 1, label: beat === 1 ? `${bar}` : `${bar}.${beat}` };
+    });
+
   return (
     <div className={`jam-grid ${lanesOpen ? '' : 'heads-closed'}`}>
       <div className="jam-grid-head">
@@ -603,6 +668,33 @@ export function JamTrackGrid({
         <button className={`jam-grid-play ${paused ? '' : 'playing'}`} onClick={togglePause} aria-label={paused ? 'Play' : 'Pause'}>
           {paused ? '▶' : '❚❚'}
         </button>
+        <div className="jam-grid-zoom">
+          <button aria-label="Zoom out tracks" title="Zoom out" onClick={blurAfter(() => zoomAround(1.4))} disabled={viewSpan >= LOOP_STEPS}>
+            −
+          </button>
+          <input
+            className="jam-lane-level"
+            aria-label="Track zoom"
+            type="range"
+            min={0}
+            max={100}
+            step={0.1}
+            value={zoomLevel}
+            style={{ '--level': `${zoomLevel}%` } as CSSProperties}
+            onChange={(event) => {
+              const span = Math.max(LOOP_STEPS - (Number(event.target.value) / 100) * (LOOP_STEPS - MIN_SPAN), MIN_SPAN);
+              const focus = zoomFocus();
+              setView([clamp(focus - span / 2, 0, LOOP_STEPS - span), span]);
+            }}
+            onPointerUp={(event) => event.currentTarget.blur()}
+          />
+          <button aria-label="Zoom in tracks" title="Zoom in" onClick={blurAfter(() => zoomAround(0.7))} disabled={viewSpan <= MIN_SPAN}>
+            +
+          </button>
+          <button className="jam-grid-fit" onClick={blurAfter(() => setView([0, LOOP_STEPS]))} disabled={viewSpan >= LOOP_STEPS}>
+            Fit
+          </button>
+        </div>
         {edited && (
           <button className="jam-grid-reset" onClick={blurAfter(onReset)}>
             Reset
@@ -610,13 +702,26 @@ export function JamTrackGrid({
         )}
       </div>
 
-      <div className="jam-timeline">
+      <div className="jam-timeline" ref={timelineRef}>
+        {/* Bar (or, zoomed in, beat) lines behind the clips */}
+        <div className="jam-timeline-lines">
+          {marks.map((mark) => (
+            <span key={mark.at} className={mark.bar ? 'bar' : undefined} style={{ left: at(mark.at) }} />
+          ))}
+        </div>
         <div className="jam-timeline-row jam-timeline-ruler">
           <div className="jam-timeline-head" />
           <div className="jam-timeline-bars">
-            {open && <span className="jam-timeline-page" style={{ left: `${(page / PAGES) * 100}%`, width: `${100 / PAGES}%` }} />}
-            {Array.from({ length: JAM_TRACK_BARS }, (_, bar) => (
-              <span key={bar}>{bar + 1}</span>
+            {open && (
+              <span
+                className="jam-timeline-page"
+                style={{ left: at(first), width: `${(PAGE_STEPS / viewSpan) * 100}%` }}
+              />
+            )}
+            {marks.map((mark) => (
+              <span key={mark.at} className={`jam-timeline-mark ${mark.bar ? 'bar' : ''}`} style={{ left: at(mark.at) }}>
+                {mark.label}
+              </span>
             ))}
           </div>
         </div>
@@ -625,7 +730,10 @@ export function JamTrackGrid({
           const mute = gridTrack.parts.every((part) => mix.mutes[part]);
           const level = Math.max(...gridTrack.parts.map((part) => mix.levels[part]));
           return (
-            <div key={gridTrack.id} className="jam-timeline-row" style={{ '--track-color': gridTrack.color } as CSSProperties}>
+            <div
+              key={gridTrack.id}
+              className={`jam-timeline-row ${open?.id === gridTrack.id ? 'open' : ''}`}
+              style={{ '--track-color': gridTrack.color } as CSSProperties}>
               <div className="jam-timeline-head">
                 {lanesOpen && (
                   <JamLaneStrip
@@ -650,8 +758,8 @@ export function JamTrackGrid({
                     setSelected(null);
                   })}
                   aria-label={`Edit ${gridTrack.name}`}
+                  style={{ left: at(0), width: `${(LOOP_STEPS / viewSpan) * 100}%` }}
                 >
-                  <span className="jam-timeline-clip-name">{gridTrack.name}</span>
                   <svg viewBox={`0 0 ${LOOP_STEPS} ${previewRows(gridTrack)}`} preserveAspectRatio="none" aria-hidden="true">
                     {renderPreview(gridTrack)}
                   </svg>

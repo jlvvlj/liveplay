@@ -38,7 +38,6 @@
 }
 
 .jam-grid-reset {
-  margin-left: auto;
   padding: 0.35rem 0.9rem;
   border-radius: var(--ds-radius-pill);
   border: 1px solid var(--ds-border-strong);
@@ -56,7 +55,6 @@
 /* Small uppercase labels: the rulers, the clips' names, the editor's rows */
 .jam-timeline-bars,
 .jam-editor-ruler,
-.jam-timeline-clip-name,
 .jam-editor-velocity-name,
 .jam-editor-key {
   font-family: var(--ds-mono);
@@ -66,12 +64,13 @@
   color: var(--ds-text-dim);
 }
 
-/* The timeline: a row per track, its header and its clip over the whole loop */
+/* The timeline: a row per track, its header and its clip over the loop (or
+   the part of it in view), as tall as Riffle's */
 .jam-timeline {
   position: relative;
   flex: 0 1 auto;
   min-width: 0;
-  min-height: 7rem;
+  min-height: 9rem;
   overflow-y: auto;
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-card);
@@ -79,17 +78,18 @@
 }
 
 .jam-timeline-row {
+  position: relative;
   display: grid;
   grid-template-columns: var(--jam-timeline-head) 1fr;
-  height: 3.4rem;
-  border-bottom: 1px solid var(--ds-border);
+  height: 5.5rem;
 }
 
 .jam-timeline-row.jam-timeline-ruler {
   position: sticky;
   top: 0;
   z-index: 3;
-  height: 1.6rem;
+  height: 1.75rem;
+  border-bottom: 1px solid var(--ds-border);
   background: var(--ds-panel);
 }
 
@@ -97,16 +97,23 @@
   display: flex;
   align-items: stretch;
   min-width: 0;
-  padding: 0.45rem 0.5rem 0.45rem 0.75rem;
+  padding: 0.3rem 0.5rem 0.3rem 0.65rem;
   border-right: 1px solid var(--ds-border);
-  box-shadow: inset 3px 0 0 var(--track-color, transparent);
+  background: var(--ds-panel);
+  box-shadow: inset 4px 0 0 var(--track-color, transparent);
 }
 
-/* A track's name above its solo, mute and level */
+/* A track's name, its round solo and mute, then its level across */
 .jam-timeline-head .jam-lane-strip {
   flex-wrap: wrap;
-  align-content: space-between;
-  row-gap: 3px;
+  align-content: center;
+  row-gap: 0.4rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+}
+
+.jam-timeline-row.open .jam-timeline-head .jam-lane-strip {
+  box-shadow: inset 0 0 0 1.5px var(--track-color);
 }
 
 .jam-timeline-head .jam-lane-name {
@@ -115,15 +122,18 @@
   padding: 0;
   background: none;
   color: var(--ds-text);
+  font-size: 0.8rem;
 }
 
 .jam-timeline-head .jam-lane-toggle {
-  height: 1.15rem;
+  flex: 0 0 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  font-size: 0.62rem;
 }
 
 .jam-timeline-head .jam-lane-level {
-  flex: 1 1 auto;
-  margin-left: 0.4rem;
+  flex: 1 0 100%;
 }
 
 /* Folded away: the clips take the headers' place */
@@ -137,18 +147,25 @@
   box-shadow: none;
 }
 
+/* The ruler: bars, and beats once zoomed in, from where the view starts */
 .jam-timeline-bars {
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  align-items: center;
+  overflow: hidden;
 }
 
-.jam-timeline-bars > span:not(.jam-timeline-page) {
-  position: relative;
+.jam-timeline-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
   padding-left: 0.35rem;
   border-left: 1px solid var(--ds-border-strong);
-  line-height: 1.6rem;
+  line-height: 1.75rem;
+  white-space: nowrap;
+}
+
+.jam-timeline-mark.bar {
+  color: var(--ds-text);
+  border-left-color: var(--ds-text-dim);
 }
 
 /* The bars the editor shows */
@@ -160,54 +177,71 @@
   background: var(--ds-raised);
 }
 
-.jam-timeline-lane {
-  min-width: 0;
-  padding: 0.3rem 0;
-  background-image: repeating-linear-gradient(to right, var(--ds-border) 0 1px, transparent 1px calc(100% / 8));
+/* Bar and beat lines behind the clips */
+.jam-timeline-lines {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--jam-timeline-head);
+  right: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.jam-timeline-clip {
+.jam-timeline-lines span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ds-border);
+}
+
+.jam-timeline-lines span.bar {
+  background: var(--ds-border-strong);
+}
+
+.jam-timeline-lane {
   position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* A clip fills its row: a light tint of its track's color, its notes in a dark one */
+.jam-timeline-clip {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
   padding: 0;
   border: none;
-  border-radius: 8px;
-  background: var(--track-color);
-  color: var(--ds-on-light);
+  border-radius: 10px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--track-color) 62%, white),
+    color-mix(in srgb, var(--track-color) 88%, white)
+  );
   overflow: hidden;
   cursor: pointer;
 }
 
 .jam-timeline-clip:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.05);
 }
 
-.jam-timeline-clip.open {
-  box-shadow: 0 0 0 2px var(--ds-panel), 0 0 0 4px var(--ds-accent);
+/* With the headers folded away, the open clip is outlined instead */
+.jam-grid.heads-closed .jam-timeline-clip.open {
+  box-shadow: inset 0 0 0 2px var(--ds-text);
 }
 
 .jam-timeline-clip.silent {
   filter: saturate(0.25) brightness(0.55);
 }
 
-.jam-timeline-clip-name {
-  position: absolute;
-  top: 3px;
-  left: 7px;
-  z-index: 1;
-  color: var(--ds-on-light);
-  font-weight: 600;
-}
-
 .jam-timeline-clip svg {
   position: absolute;
-  inset: 16px 4px 4px;
-  width: calc(100% - 8px);
-  height: calc(100% - 20px);
-  fill: var(--ds-on-light);
-  opacity: 0.55;
+  inset: 12px 0;
+  width: 100%;
+  height: calc(100% - 24px);
+  fill: color-mix(in srgb, var(--track-color) 55%, black);
 }
 
 /* The playhead spans every track, over the clips only */
@@ -217,6 +251,7 @@
   bottom: 0;
   left: var(--jam-timeline-head);
   right: 0;
+  overflow: hidden;
   pointer-events: none;
   z-index: 4;
 }
@@ -228,6 +263,41 @@
   width: 2px;
   margin-left: -1px;
   background: var(--ds-accent);
+}
+
+/* The timeline's zoom: out, a slider, in, and the whole loop */
+.jam-grid-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.jam-grid-zoom .jam-lane-level {
+  flex: none;
+  width: 7rem;
+}
+
+.jam-grid-zoom button {
+  min-width: 1.9rem;
+  height: 1.9rem;
+  padding: 0 0.6rem;
+  border-radius: var(--ds-radius-pill);
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-panel-2);
+  color: var(--ds-text);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.jam-grid-zoom button:hover:not(:disabled) {
+  background: var(--ds-raised);
+}
+
+.jam-grid-zoom button:disabled {
+  color: var(--ds-text-dim);
+  cursor: default;
 }
 
 /* The open clip's editor */
@@ -599,7 +669,11 @@
   }
 
   .jam-timeline-row {
-    height: 2.75rem;
+    height: 4.5rem;
+  }
+
+  .jam-grid-zoom .jam-lane-level {
+    width: 4rem;
   }
 }
 
