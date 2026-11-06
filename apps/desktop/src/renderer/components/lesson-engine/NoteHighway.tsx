@@ -149,9 +149,11 @@ export function NoteHighway({
   const jamWidth = containerWidth;
 
   // Calculate hit zone offset based on container width
+  // A lesson room's ship is its timing line, where lesson mode has it
+  const lessonRoom = !!jamLesson;
   const hitZoneOffset = useMemo(() => {
-    return mode === 'jam' ? jamWidth * JAM_CURSOR_HOME_PERCENT : containerWidth * HIT_ZONE_PERCENT;
-  }, [containerWidth, mode, jamWidth]);
+    return mode === 'jam' && !lessonRoom ? jamWidth * JAM_CURSOR_HOME_PERCENT : containerWidth * HIT_ZONE_PERCENT;
+  }, [containerWidth, mode, jamWidth, lessonRoom]);
 
   // Get unique notes from the lesson (sorted by MIDI value)
   const uniqueNotes = useMemo(() =>

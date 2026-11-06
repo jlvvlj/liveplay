@@ -2346,7 +2346,9 @@ export function LessonPlayer({
 
   // Update current time from the engine's logical lesson clock. The lesson
   // duration stays fixed; speed changes how quickly this playhead advances.
+  // The Jam keeps its own clock (a lesson room's engine follows it).
   useEffect(() => {
+    if (currentMode === 'jam') return;
     if (state === 'playing') {
       const interval = setInterval(() => {
         setCurrentTime((engineRef.current?.getCurrentTimeSeconds() ?? 0) * 1000);
@@ -2356,7 +2358,7 @@ export function LessonPlayer({
     } else if (state === 'stopped') {
       setCurrentTime(0);
     }
-  }, [state, practiceMode.speedMultiplier]);
+  }, [state, practiceMode.speedMultiplier, currentMode]);
 
   const [showSoundSettings, setShowSoundSettings] = useState<boolean>(false);
   const soundLabel = (note: number, index: number) => fullLesson.laneLabels?.[note] ?? `Sound ${index + 1}`;
