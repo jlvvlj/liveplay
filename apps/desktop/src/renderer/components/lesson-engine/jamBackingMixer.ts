@@ -1,7 +1,6 @@
 import * as Tone from 'tone';
 import { renderJamBackingPart, type JamPartAudio } from './jamRenderer';
 import { JAM_TRACK_BARS, jamTrackIsEmpty, jamTrackParts, type JamTrack, type JamTrackNote } from './jamTracks';
-import { jamAddedInstrument, type JamAddedPart } from './jamAddedParts';
 import { jamLoopScale, jamLoopSeconds } from './jamTrackRender';
 
 // What the lesson player needs from a backing track: a Tone.Player, or the
@@ -48,6 +47,12 @@ export class JamBackingMixer implements BackingPlayer {
     return this.master.volume;
   }
 
+  // Where tracks played by live instruments come in: after the parts' levels,
+  // scaled and limited with them
+  get input(): Tone.InputNode {
+    return this.trim;
+  }
+
   get state() {
     return this.origin === null ? 'stopped' : 'started';
   }
@@ -76,7 +81,7 @@ export class JamBackingMixer implements BackingPlayer {
   // A part added in the grid: a new lane, silent until its audio replaces it
   add(): void {
     const level = new Tone.Volume().connect(this.trim);
-    const player = partPlayer({ channels: [new Float32Array(1)], sampleRate: Tone.getContext().sampleRate }).connect(level);
+    const player = partPlayer(silentJamPart()).connect(level);
     this.lanes.push({ level, player });
     if (this.origin !== null) player.start(Tone.now() + 0.05);
   }
@@ -113,6 +118,9 @@ export class JamBackingMixer implements BackingPlayer {
     this.limiter.dispose();
   }
 }
+
+// A part with nothing to play: a new part, or one a live instrument plays
+export const silentJamPart = (): JamPartAudio => ({ channels: [new Float32Array(1)], sampleRate: Tone.getContext().sampleRate });
 
 function partPlayer(audio: JamPartAudio): Tone.Player {
   const buffer = Tone.getContext().createBuffer(audio.channels.length, audio.channels[0].length, audio.sampleRate);
@@ -158,18 +166,15 @@ const scales = new Map<string, number>();
 // Renders every part of a track (its own, then the ones `added` in the grid)
 // as a loop of `bars` bars and returns them in a mixer, scaled by the
 // original track's loudness (its 8 bars as they were are rendered too, once,
-// for that)
+// for that). Parts `live` instruments play are left silent here.
 export async function loadJamBackingMixer(
   track: JamTrack,
   notes: JamTrackNote[][],
-  added: JamAddedPart[],
+  live: boolean[],
   bars = JAM_TRACK_BARS
 ): Promise<JamBackingMixer> {
-  const own = notes.length - added.length;
   const parts = await Promise.all(
-    notes.map((part, p) =>
-      renderJamBackingPart(track.file, p, part, p < own ? undefined : (jamAddedInstrument(added[p - own]) ?? undefined), bars)
-    )
+    notes.map((part, p) => (live[p] ? Promise.resolve(silentJamPart()) : renderJamBackingPart(track.file, p, part, undefined, bars)))
   );
   // An empty track has no loudness of its own to match: its added parts play unscaled
   if (jamTrackIsEmpty(track)) return new JamBackingMixer(parts, 1, jamLoopSeconds(track, bars));
@@ -177,7 +182,7 @@ export async function loadJamBackingMixer(
     const original = jamTrackParts(track).map((part) => part.notes);
     const originals = await Promise.all(
       original.map((part, p) =>
-        bars === JAM_TRACK_BARS && JSON.stringify(part) === JSON.stringify(notes[p])
+        bars === JAM_TRACK_BARS && !live[p] && JSON.stringify(part) === JSON.stringify(notes[p])
           ? parts[p]
           : renderJamBackingPart(track.file, p, part)
       )

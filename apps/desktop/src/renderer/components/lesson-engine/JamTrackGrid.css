@@ -782,21 +782,32 @@
   z-index: 1;
 }
 
-/* Under the roll: each note's velocity as a bar */
+/* Under the roll: each note's velocity as a bar. It stays at the editor's
+   foot, as the ruler stays at its top: an editor shorter than its rows
+   scrolls them between the two. */
 .jam-editor-velocity-name {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   flex: none;
   height: 3rem;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  background: var(--ds-panel);
+  box-shadow: 0 calc(-1 * var(--jam-cell-gap)) 0 var(--ds-panel);
 }
 
 .jam-editor-velocities {
-  position: relative;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   flex: none;
   height: 3rem;
   border-radius: 4px;
   background: var(--ds-panel-2);
+  /* the gap above it hides the rows passing under */
+  box-shadow: 0 calc(-1 * var(--jam-cell-gap)) 0 var(--ds-panel);
   cursor: ns-resize;
   touch-action: none;
 }
