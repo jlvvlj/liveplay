@@ -108,6 +108,21 @@
   .param output { font-size: 0.8rem; color: var(--text-dim); font-variant-numeric: tabular-nums; min-width: 2.5em; text-align: right; }
   .param input { grid-column: 1 / -1; }
 
+  .choice-btn {
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; width: 100%; height: 32px;
+    margin-top: 4px; padding: 0 12px; border-radius: var(--pill); border: 1px solid var(--border-strong);
+    background: var(--bg); cursor: pointer; text-align: left;
+  }
+  .choice-btn:hover { background: var(--panel-2); }
+  .choice-btn .label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.9rem; }
+  .choice-btn svg { flex: none; width: 14px; height: 14px; color: var(--text-dim); }
+  .choice-menu {
+    position: fixed; z-index: 30; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--card);
+    box-shadow: 0 16px 40px #000; overflow: hidden;
+  }
+  .choice-menu .menu-list { border-top: 1px solid var(--border); }
+
   input[type='range'] {
     -webkit-appearance: none; appearance: none; width: 100%; height: 20px; margin: 0;
     background: transparent; cursor: pointer;
@@ -236,6 +251,7 @@ const send = (message) => node && node.port.postMessage(message);
 // ---------- parameters ----------
 
 const inputs = new Map();
+const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 function format(spec, v) {
   if (spec.step >= 1) return v > 0 ? `+${v}` : String(v);
   return String(Math.round(v * 100));
@@ -258,6 +274,22 @@ function buildParams() {
     const row = document.createElement('div');
     row.className = 'param';
     const id = `p-${spec.key}`;
+    if (spec.options) {
+      row.innerHTML = `<label for="${id}"></label><button class="choice-btn" id="${id}" aria-haspopup="listbox"><span class="label"></span>${CHEVRON}</button>`;
+      row.querySelector('label').textContent = spec.label;
+      const button = row.querySelector('button');
+      const control = {
+        set(v) { button.firstChild.textContent = spec.options[v] ?? spec.options[0]; button.value = v; },
+      };
+      button.onclick = () => openChoice(button, spec, Number(button.value), (v) => {
+        values[spec.key] = v;
+        control.set(v);
+        send({ type: 'param', key: spec.key, value: v });
+      });
+      inputs.set(spec.key, control);
+      groups.get(spec.group).append(row);
+      continue;
+    }
     row.innerHTML = `<label for="${id}"></label><output></output><input type="range" id="${id}">`;
     row.querySelector('label').textContent = spec.label;
     const input = row.querySelector('input');
@@ -270,19 +302,86 @@ function buildParams() {
       setFill(input);
       send({ type: 'param', key: spec.key, value });
     });
-    inputs.set(spec.key, input);
+    inputs.set(spec.key, {
+      set(v) {
+        input.value = v;
+        output.textContent = format(spec, v);
+        setFill(input);
+      },
+    });
     groups.get(spec.group).append(row);
   }
 }
+
+// A list to pick one option from, under the control that opened it
+let choice = null;
+function openChoice(anchor, spec, value, pick) {
+  closeChoice();
+  const menu = document.createElement('div');
+  menu.className = 'choice-menu';
+  menu.setAttribute('role', 'dialog');
+  menu.setAttribute('aria-label', spec.label);
+  menu.innerHTML = `<input class="menu-search" type="text" placeholder="Search" autocomplete="off" spellcheck="false"><div class="menu-list" role="listbox"></div>`;
+  const search = menu.querySelector('input');
+  const list = menu.querySelector('.menu-list');
+  const show = () => {
+    const q = search.value.trim().toLowerCase();
+    list.replaceChildren(
+      ...spec.options
+        .map((label, i) => [label, i])
+        .filter(([label]) => !q || label.toLowerCase().includes(q))
+        .map(([label, i]) => {
+          const b = document.createElement('button');
+          b.className = 'menu-item' + (i === value ? ' on' : '');
+          b.setAttribute('role', 'option');
+          const slash = label.lastIndexOf('/');
+          const l = document.createElement('span');
+          l.className = 'label';
+          l.textContent = slash > 0 ? label.slice(slash + 1) : label;
+          b.append(l);
+          if (slash > 0) {
+            const t = document.createElement('span');
+            t.className = 'tag';
+            t.textContent = label.slice(0, slash);
+            b.append(t);
+          }
+          b.onclick = () => { pick(i); closeChoice(); };
+          return b;
+        })
+    );
+  };
+  search.oninput = show;
+  document.body.append(menu);
+  const r = anchor.getBoundingClientRect();
+  const width = Math.min(Math.max(r.width, 280), innerWidth - 32);
+  const left = Math.min(Math.max(16, r.left), innerWidth - 16 - width);
+  const below = innerHeight - r.bottom - 16;
+  const above = r.top - 16;
+  const height = Math.min(420, Math.max(below, above) - 8);
+  Object.assign(menu.style, { left: `${left}px`, width: `${width}px`, maxHeight: `${height}px` });
+  if (below >= Math.min(420, above)) menu.style.top = `${r.bottom + 6}px`;
+  else menu.style.bottom = `${innerHeight - r.top + 6}px`;
+  show();
+  list.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+  search.focus();
+  choice = { menu, anchor };
+}
+function closeChoice() {
+  if (!choice) return;
+  choice.menu.remove();
+  choice = null;
+}
+addEventListener('pointerdown', (e) => {
+  if (choice && !choice.menu.contains(e.target) && !choice.anchor.contains(e.target)) closeChoice();
+});
+addEventListener('scroll', (e) => { if (choice && !choice.menu.contains(e.target)) closeChoice(); }, true);
+addEventListener('resize', closeChoice);
 function showValues(preset) {
   values = {};
   for (const spec of params) {
     const v = preset.params?.[spec.key] ?? spec.default;
     values[spec.key] = v;
-    const input = inputs.get(spec.key);
-    input.value = v;
-    input.output.textContent = format(spec, v);
-    setFill(input);
+    inputs.get(spec.key).set(v);
   }
 }
 
@@ -462,7 +561,7 @@ $('keyboard').addEventListener('pointerup', lift);
 $('keyboard').addEventListener('pointercancel', lift);
 
 addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') return closeMenu();
+  if (e.key === 'Escape') return (closeMenu(), closeChoice());
   if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.('.menu-search')) return;
   if (!document.body.classList.contains('ready')) return;
   if (e.key === 'z') return shift(-1);

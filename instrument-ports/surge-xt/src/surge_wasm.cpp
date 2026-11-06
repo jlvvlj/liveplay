@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <new>
@@ -57,9 +58,10 @@ struct Host : public SurgeSynthesizer::PluginLayer
 
 enum Kind
 {
-    PARAM, // a Surge parameter, set through setParameter01
-    MACRO, // macro n, 0..1
-    FX_MIX // the "Mix" parameter of whatever effect sits in an FX slot
+    PARAM,    // a Surge parameter, set through setParameter01
+    MACRO,    // macro n, 0..1
+    FX_MIX,   // the "Mix" parameter of whatever effect sits in an FX slot
+    WAVETABLE // scene A oscillator n: 0 = as the preset has it, k = factory wavetable k
 };
 
 struct Exposed
@@ -78,6 +80,34 @@ std::vector<int> presets; // patch_list indices, by category then name
 std::string json;
 std::string initError;
 constexpr const char *INITIAL_PRESET = "Templates/Init Saw";
+
+// Wavetable choosers. Before an oscillator first leaves the preset's own setup, its
+// type, settings, wavetable and the modulation routed to its settings are kept here,
+// so choosing 0 again puts it back exactly as the preset loaded it.
+struct OscStash
+{
+    struct Setting
+    {
+        pdata val;
+        int deform_type;
+        bool temposync, absolute, deactivated, extend_range;
+    };
+    struct Routing
+    {
+        ModulationRouting routing;
+        bool voice;    // in modulation_voice, else modulation_scene
+        float depth01; // its depth as a share of the setting's range
+    };
+    bool saved{false};
+    int type{0};
+    Setting settings[n_osc_params];
+    OscillatorStorage::ExtraConfigurationData extra;
+    Wavetable table;
+    std::string tableName;
+    std::vector<Routing> routings;
+};
+int chosen[n_oscs]{};
+OscStash stash[n_oscs];
 
 void addParam(const char *key, const char *label, const char *group, Parameter &p)
 {
@@ -106,6 +136,12 @@ void buildParams()
         snprintf(key, sizeof key, "osc%d_pitch", o + 1);
         snprintf(label, sizeof label, "Osc %d pitch", o + 1);
         addParam(key, label, "Oscillators", osc.pitch);
+    }
+    for (int o = 0; o < n_oscs; ++o)
+    {
+        snprintf(key, sizeof key, "osc%d_wavetable", o + 1);
+        snprintf(label, sizeof label, "Osc %d wavetable", o + 1);
+        exposed.push_back({key, label, "Oscillators", WAVETABLE, nullptr, o});
     }
     addParam("osc1_level", "Osc 1 level", "Oscillators", a.level_o1);
     exposed.back().mute = &a.mute_o1;
@@ -234,6 +270,8 @@ double currentValue(const Exposed &e)
         auto *p = fxMix(e.index);
         return p ? p->get_value_f01() : 1.0;
     }
+    case WAVETABLE:
+        return chosen[e.index];
     }
     return 0;
 }
@@ -245,12 +283,119 @@ void setParam(Parameter *p, float value01, bool integer)
         synth->setParameter01(id, std::clamp(value01, 0.f, 1.f), false, integer);
 }
 
-// After a patch load: run what Surge would otherwise do on the
-// audio thread at the start of the next block
+// After a patch load or an oscillator change: run what Surge would otherwise do
+// on the audio thread at the start of the next block
 void settle()
 {
     synth->processAudioThreadOpsWhenAudioEngineUnavailable(true);
     synth->halt_engine = false;
+}
+
+void setOscType(OscillatorStorage &osc, int type)
+{
+    int lo = osc.type.val_min.i, hi = osc.type.val_max.i;
+    setParam(&osc.type, (type - lo) / (float)(hi - lo), true);
+    settle(); // the type change, which resets the settings and clears their modulation
+}
+
+bool usesWavetable(int type) { return type == ot_wavetable || type == ot_window; }
+
+void saveOsc(int o)
+{
+    auto &scene = synth->storage.getPatch().scene[0];
+    auto &osc = scene.osc[o];
+    auto &k = stash[o];
+    k.type = osc.type.val.i;
+    for (int i = 0; i < n_osc_params; ++i)
+    {
+        auto &p = osc.p[i];
+        k.settings[i] = {p.val, p.deform_type, p.temposync, p.absolute, p.deactivated, p.extend_range};
+    }
+    k.extra = osc.extraConfig;
+    {
+        std::lock_guard<std::mutex> g(synth->storage.waveTableDataMutex);
+        k.table.Copy(&osc.wt);
+    }
+    k.tableName = osc.wavetable_display_name;
+    k.routings.clear();
+    int first = osc.p[0].param_id_in_scene;
+    auto keep = [&](std::vector<ModulationRouting> &list, bool voice) {
+        for (auto &r : list)
+            if (r.destination_id >= first && r.destination_id < first + n_osc_params)
+            {
+                auto &p = osc.p[r.destination_id - first];
+                k.routings.push_back({r, voice, p.get_modulation_f01(r.depth)});
+            }
+    };
+    keep(scene.modulation_voice, true);
+    keep(scene.modulation_scene, false);
+    k.saved = true;
+}
+
+// Factory wavetable `choice` (1-based) into scene A oscillator o
+void chooseTable(int o, int choice)
+{
+    auto &st = synth->storage;
+    auto &osc = st.getPatch().scene[0].osc[o];
+    if (!stash[o].saved)
+        saveOsc(o);
+    if (!usesWavetable(osc.type.val.i))
+    {
+        setOscType(osc, ot_wavetable);
+        // Put back the modulation the type change cleared, on the settings that
+        // can still take it, at the same share of their range
+        for (auto &k : stash[o].routings)
+        {
+            auto &r = k.routing;
+            auto &p = osc.p[r.destination_id - osc.p[0].param_id_in_scene];
+            auto source = (modsources)r.source_id;
+            if (!synth->isValidModulation(p.id, source))
+                continue;
+            synth->setModDepth01(p.id, source, 0, r.source_index, k.depth01);
+            if (r.muted)
+                synth->muteModulation(p.id, source, 0, r.source_index, true);
+        }
+    }
+    osc.wt.queue_id = st.wtOrdering[choice - 1];
+    st.perform_queued_wtloads();
+    settle();
+    chosen[o] = choice;
+}
+
+// Scene A oscillator o back as the preset loaded it
+void restoreOsc(int o)
+{
+    auto &scene = synth->storage.getPatch().scene[0];
+    auto &osc = scene.osc[o];
+    auto &k = stash[o];
+    if (osc.type.val.i != k.type)
+        setOscType(osc, k.type);
+    synth->clear_osc_modulation(0, o);
+    {
+        std::lock_guard<std::recursive_mutex> g(synth->storage.modRoutingMutex);
+        for (auto &r : k.routings)
+            (r.voice ? scene.modulation_voice : scene.modulation_scene).push_back(r.routing);
+    }
+    for (int i = 0; i < n_osc_params; ++i)
+    {
+        auto &p = osc.p[i];
+        auto &v = k.settings[i];
+        p.val = v.val;
+        p.deform_type = v.deform_type;
+        p.temposync = v.temposync;
+        p.absolute = v.absolute;
+        p.deactivated = v.deactivated;
+        p.extend_range = v.extend_range;
+    }
+    osc.extraConfig = k.extra;
+    {
+        std::lock_guard<std::mutex> g(synth->storage.waveTableDataMutex);
+        osc.wt.Copy(&k.table);
+        synth->storage.wtGenPublishToken[o]++;
+    }
+    osc.wavetable_display_name = k.tableName;
+    settle();
+    chosen[o] = 0;
 }
 } // namespace
 
@@ -349,6 +494,11 @@ extern "C"
         volume.set_value_f01(volume.get_default_value_f01());
         synth->patchid_queue = presets[i];
         settle();
+        for (int o = 0; o < n_oscs; ++o)
+        {
+            chosen[o] = 0;
+            stash[o].saved = false;
+        }
         return 1;
     }
 
@@ -402,6 +552,18 @@ extern "C"
             if (auto *p = fxMix(e.index))
                 setParam(p, value, false);
             break;
+        case WAVETABLE:
+        {
+            int n = (int)synth->storage.wtOrdering.size();
+            int choice = std::clamp((int)std::lround(value), 0, n);
+            if (choice == chosen[e.index])
+                break;
+            if (choice == 0)
+                restoreOsc(e.index);
+            else
+                chooseTable(e.index, choice);
+            break;
+        }
         }
     }
 
@@ -421,6 +583,11 @@ extern "C"
                 hi = e.param->val_max.i;
                 step = 1;
             }
+            if (e.kind == WAVETABLE)
+            {
+                hi = (double)st.wtOrdering.size();
+                step = 1;
+            }
             if (i)
                 json += ',';
             json += "{\"key\":";
@@ -437,6 +604,17 @@ extern "C"
             appendNumber(json, step);
             json += ",\"default\":";
             appendNumber(json, currentValue(e));
+            if (e.kind == WAVETABLE)
+            {
+                json += ",\"options\":[\"Patch's own\"";
+                for (auto id : st.wtOrdering)
+                {
+                    auto &wt = st.wt_list[id];
+                    json += ',';
+                    appendEscaped(json, st.wt_category[wt.category].name + "/" + wt.name);
+                }
+                json += ']';
+            }
             json += '}';
         }
         json += "],\"presets\":[";
@@ -459,6 +637,18 @@ extern "C"
     }
 
     EMSCRIPTEN_KEEPALIVE unsigned sxt_render_allocations() { return renderAllocations; }
+
+    // For the check: scene A oscillator o's type, and the modulation routed to its settings
+    EMSCRIPTEN_KEEPALIVE int sxt_osc_type(int o) { return synth->storage.getPatch().scene[0].osc[o].type.val.i; }
+    EMSCRIPTEN_KEEPALIVE int sxt_osc_routings(int o)
+    {
+        auto &scene = synth->storage.getPatch().scene[0];
+        int first = scene.osc[o].p[0].param_id_in_scene, n = 0;
+        for (auto *list : {&scene.modulation_voice, &scene.modulation_scene})
+            for (auto &r : *list)
+                n += r.destination_id >= first && r.destination_id < first + n_osc_params;
+        return n;
+    }
 
     // Whether the loaded patch routes a formula modulator (Lua) to anything
     EMSCRIPTEN_KEEPALIVE int sxt_patch_uses_formula()

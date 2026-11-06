@@ -103,6 +103,97 @@ if (!preset) {
   if (osc2.peak < 0.05) fail('raising osc 2 level does not unmute it');
 }
 
+// Wavetable choosers: a factory wavetable changes the sound, "Patch's own" (0)
+// gives the preset's sound back, with the oscillator's type and modulation
+{
+  const chooser = ready.params.find((p) => p.key === 'osc1_wavetable');
+  if (!chooser || chooser.options?.length !== chooser.max + 1 || chooser.options[0] !== "Patch's own") {
+    fail('osc1_wavetable has no options list starting with "Patch\'s own"');
+  }
+  const triangle = chooser.options.indexOf('Basic/Triangle NES');
+  if (triangle < 1) fail('no Basic/Triangle NES wavetable among the options');
+
+  // The magnitude spectrum of a held note's last 4096 samples
+  const spectrum = () => {
+    const r = render(scope, processor, 0.6, [[0, { type: 'noteOn', note: 57, velocity: 100 }]]);
+    processor.port.deliver({ type: 'allOff' });
+    render(scope, processor, 0.5);
+    const m = measure(r);
+    const N = 4096;
+    const x = r.left.subarray(r.left.length - N);
+    const mags = new Float64Array(N / 8);
+    for (let k = 0; k < mags.length; k++) {
+      let re = 0;
+      let im = 0;
+      for (let n = 0; n < N; n++) {
+        const w = x[n] * (0.5 - 0.5 * Math.cos((2 * Math.PI * n) / N));
+        re += w * Math.cos((2 * Math.PI * k * n) / N);
+        im -= w * Math.sin((2 * Math.PI * k * n) / N);
+      }
+      mags[k] = Math.hypot(re, im);
+    }
+    return { mags, ...m };
+  };
+  // 0 for the same spectrum, 1 for nothing in common
+  const distance = (a, b) => {
+    let d = 0;
+    let t = 0;
+    for (let k = 0; k < a.mags.length; k++) {
+      d += Math.abs(a.mags[k] - b.mags[k]);
+      t += a.mags[k] + b.mags[k];
+    }
+    return d / t;
+  };
+  const choose = (value) => processor.port.deliver({ type: 'param', key: 'osc1_wavetable', value });
+
+  for (const id of ['Templates/Init Saw', 'Templates/Init Wavetable']) {
+    processor.port.deliver({ type: 'preset', id });
+    const type = engine._sxt_osc_type(0);
+    const own = spectrum();
+    choose(triangle);
+    const table = spectrum();
+    choose(0);
+    const back = spectrum();
+    const changed = distance(own, table);
+    const restored = distance(own, back);
+    console.log(`${id}: Basic/Triangle NES on osc 1 changes the sound by ${changed.toFixed(2)}, back to its own by ${restored.toFixed(3)}`);
+    for (const [name, m] of [['own', own], ['wavetable', table], ['restored', back]]) {
+      if (m.nan || m.peak < 1e-3) fail(`${id}, ${name}: silent or NaN`);
+    }
+    if (changed < 0.1) fail(`${id}: choosing a wavetable does not change the sound`);
+    if (restored > 0.05) fail(`${id}: choosing "Patch's own" does not give its sound back`);
+    if (engine._sxt_osc_type(0) !== type) fail(`${id}: osc 1 type not restored`);
+  }
+
+  // A preset whose osc 1 is not a wavetable oscillator and has modulation on its settings
+  const modulated = ready.presets.find((p) => {
+    processor.port.deliver({ type: 'preset', id: p.id });
+    const type = engine._sxt_osc_type(0);
+    return type !== 2 && type !== 7 && engine._sxt_osc_routings(0) > 1;
+  });
+  if (!modulated) fail('no preset with modulation on a non-wavetable osc 1');
+  else {
+    processor.port.deliver({ type: 'preset', id: modulated.id });
+    const type = engine._sxt_osc_type(0);
+    const routings = engine._sxt_osc_routings(0);
+    choose(triangle);
+    const kept = engine._sxt_osc_routings(0);
+    const table = measure(render(scope, processor, 0.5, [[0, { type: 'noteOn', note: 60, velocity: 100 }]]));
+    processor.port.deliver({ type: 'allOff' });
+    choose(0);
+    const back = measure(render(scope, processor, 0.5, [[0, { type: 'noteOn', note: 60, velocity: 100 }]]));
+    processor.port.deliver({ type: 'allOff' });
+    console.log(
+      `${modulated.id}: ${routings} modulations on osc 1, ${kept} kept on the wavetable, ` +
+        `${engine._sxt_osc_routings(0)} after "Patch's own"`
+    );
+    if (table.nan || table.peak < 1e-3 || back.nan || back.peak < 1e-3) fail(`${modulated.id}: silent or NaN`);
+    if (engine._sxt_osc_routings(0) !== routings) fail(`${modulated.id}: osc 1 modulation not restored`);
+    if (engine._sxt_osc_type(0) !== type) fail(`${modulated.id}: osc 1 type not restored`);
+  }
+  processor.port.deliver({ type: 'preset', id: 'Templates/Init Saw' });
+}
+
 // Each preset's listed values are the parameters loading it gives
 const sample = args.includes('--all') ? ready.presets : ready.presets.filter((_, i) => i % 50 === 0);
 let mismatches = 0;
@@ -123,6 +214,8 @@ if (mismatches) fail('preset parameter values differ from the loaded patches');
 if (args.includes('--all')) {
   const quiet = [];
   const formula = [];
+  let presetIndex = 0;
+  let swaps = 0;
   let cpu = 0;
   for (const p of ready.presets) {
     processor.port.deliver({ type: 'allOff' });
@@ -137,7 +230,24 @@ if (args.includes('--all')) {
     const m = measure(r);
     if (m.nan) fail(`${p.id}: NaN`);
     if (m.peak < 1e-3) quiet.push(p.id);
+
+    // Every 10th preset: a wavetable on each oscillator, then each back to its own
+    if (presetIndex++ % 10 === 0) {
+      const tables = ready.params.find((q) => q.key === 'osc1_wavetable').max;
+      for (const o of [1, 2, 3]) {
+        const key = `osc${o}_wavetable`;
+        processor.port.deliver({ type: 'param', key, value: 1 + ((presetIndex * 37 + o * 11) % tables) });
+      }
+      const swapped = measure(render(scope, processor, 0.5, [[0, { type: 'noteOn', note: 60, velocity: 110 }]]));
+      processor.port.deliver({ type: 'allOff' });
+      for (const o of [1, 2, 3]) processor.port.deliver({ type: 'param', key: `osc${o}_wavetable`, value: 0 });
+      const back = measure(render(scope, processor, 0.5, [[0, { type: 'noteOn', note: 60, velocity: 110 }]]));
+      if (swapped.nan || back.nan) fail(`${p.id}: NaN with wavetables chosen`);
+      if (back.peak < 1e-3) fail(`${p.id}: silent after "Patch's own"`);
+      swaps++;
+    }
   }
+  console.log(`wavetables swapped in and back on ${swaps} presets`);
   console.log(
     `all ${ready.presets.length} presets: ${ready.presets.length - quiet.length} sound, ` +
       `slowest renders 1 s of a 3-note chord in ${cpu.toFixed(0)} ms`
