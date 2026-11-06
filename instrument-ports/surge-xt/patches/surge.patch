@@ -1,0 +1,21 @@
+diff --git a/src/common/dsp/modulators/MSEGModulationHelper.h b/src/common/dsp/modulators/MSEGModulationHelper.h
+index 8f0f9a3..23d9488 100644
+--- a/src/common/dsp/modulators/MSEGModulationHelper.h
++++ b/src/common/dsp/modulators/MSEGModulationHelper.h
+@@ -35,8 +35,16 @@ struct EvaluatorState
+ {
+     EvaluatorState()
+     {
++#if defined(__EMSCRIPTEN__)
++        // Voices are rebuilt on the audio thread at each note; std::random_device
++        // allocates there on wasm32 (its "/dev/urandom" token is past the short
++        // string buffer), so seeds come from one generator seeded once
++        static std::minstd_rand seeds{std::random_device{}()};
++        gen = std::minstd_rand(seeds());
++#else
+         std::random_device rd;
+         gen = std::minstd_rand(rd());
++#endif
+         urd = std::uniform_real_distribution<float>(-1.0, 1.0);
+     }
+     int lastEval = -1;

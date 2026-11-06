@@ -1,0 +1,64 @@
+diff --git a/src/cpufeatures.cpp b/src/cpufeatures.cpp
+index 4f99a7a..153bbd6 100644
+--- a/src/cpufeatures.cpp
++++ b/src/cpufeatures.cpp
+@@ -13,8 +13,9 @@
+  */
+ #include "sst/plugininfra/cpufeatures.h"
+ 
+-#if defined(__SSE2__) || defined(_M_AMD64) || defined(_M_X64) ||                                   \
+-    (defined(_M_IX86_FP) && _M_IX86_FP >= 2) || defined(__i386__) || defined(__x86_64__)
++#if (defined(__SSE2__) || defined(_M_AMD64) || defined(_M_X64) ||                                  \
++     (defined(_M_IX86_FP) && _M_IX86_FP >= 2) || defined(__i386__) || defined(__x86_64__)) &&     \
++    !defined(__EMSCRIPTEN__)
+ #if defined(_M_ARM64EC)
+ #include <intrin.h>
+ #else
+diff --git a/src/misc_linux.cpp b/src/misc_linux.cpp
+index a9b5524..c0302cb 100644
+--- a/src/misc_linux.cpp
++++ b/src/misc_linux.cpp
+@@ -16,7 +16,9 @@
+ 
+ #include <stdio.h>
+ #include <cstdlib>
++#if !defined(__EMSCRIPTEN__)
+ #include <execinfo.h>
++#endif
+ #include <string>
+ #include <sstream>
+ #include <iomanip>
+@@ -38,6 +40,9 @@ std::string toOSCase(const std::string &text) { return text; }
+ 
+ std::string stackTraceToString(int depth)
+ {
++#if defined(__EMSCRIPTEN__)
++    return "-------- Stack Trace (unavailable in WebAssembly) --------\n";
++#else
+     void *callstack[128];
+     int i, frames = backtrace(callstack, 128);
+     char **strs = backtrace_symbols(callstack, frames);
+@@ -51,6 +56,7 @@ std::string stackTraceToString(int depth)
+     }
+     free(strs);
+     return oss.str();
++#endif
+ }
+ 
+ std::string getLastSystemError() { return std::string(strerror(errno)); }
+diff --git a/src/paths_linux.cpp b/src/paths_linux.cpp
+index 9e37e5e..7429622 100644
+--- a/src/paths_linux.cpp
++++ b/src/paths_linux.cpp
+@@ -36,6 +36,11 @@ fs::path homePath()
+ 
+ fs::path sharedLibraryBinaryPath()
+ {
++#if defined(__EMSCRIPTEN__)
++    // WebAssembly has no shared object on disk; the module lives at the root
++    // of its in-memory filesystem
++    return fs::path{"/surge-xt.wasm"};
++#endif
+     Dl_info info;
+     if (!dladdr(reinterpret_cast<const void *>(&sharedLibraryBinaryPath), &info) ||
+         !info.dli_fname[0])
