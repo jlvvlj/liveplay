@@ -15,7 +15,12 @@ import './InstrumentPanel.css';
 
 interface InstrumentPanelProps {
   instruments: InstrumentDef[];
-  choice: InstrumentChoice;
+  // What plays now; none for a track playing its original sound
+  choice: InstrumentChoice | null;
+  // A Daw track's: its name, the instruments that fit it (kits for drums,
+  // the others for notes), and for a track of the song's own its original
+  // sound to go back to
+  track?: { name: string; kind: 'notes' | 'drum'; original?: () => void };
   // The chosen instrument is still loading
   loading: boolean;
   // How each instrument was last left, to go back to it
@@ -137,8 +142,10 @@ function Card({ art, name, detail, active, onClick }: { art: ReactNode; name: st
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
-export function InstrumentPanel({ instruments, choice, loading, saved, onChange, onClose }: InstrumentPanelProps) {
-  const [view, setView] = useState<View>({ at: 'home' });
+export function InstrumentPanel({ instruments: all, choice, track, loading, saved, onChange, onClose }: InstrumentPanelProps) {
+  const instruments = track ? all.filter((instrument) => !!instrument.pads === (track.kind === 'drum')) : all;
+  // Opens on what plays now, its presets and settings at hand
+  const [view, setView] = useState<View>(() => (choice ? { at: 'instrument', id: choice.instrument } : { at: 'home' }));
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -176,7 +183,7 @@ export function InstrumentPanel({ instruments, choice, loading, saved, onChange,
         art={<span className="instrument-card-icon">{Icon && <Icon />}</span>}
         name={preset.name}
         detail={instrument.name}
-        active={choice.instrument === instrument.id && choice.preset === preset.id}
+        active={choice?.instrument === instrument.id && choice?.preset === preset.id}
         onClick={() => pick(instrument, preset)}
       />
     );
@@ -187,26 +194,26 @@ export function InstrumentPanel({ instruments, choice, loading, saved, onChange,
       art={<CategoryArt seed={artSeed(instrument)} />}
       name={instrument.name}
       detail={instrument.pads ? plural(instrument.pads.length, 'sound') : instrument.category}
-      active={choice.instrument === instrument.id}
+      active={choice?.instrument === instrument.id}
       onClick={() => pick(instrument)}
     />
   );
 
   const current = view.at === 'instrument' ? instruments.find((instrument) => instrument.id === view.id) : undefined;
   const title =
-    view.at === 'tag' ? view.tag : view.at === 'category' ? view.category : current ? current.name : 'Instruments';
+    view.at === 'tag' ? view.tag : view.at === 'category' ? view.category : current ? current.name : (track?.name ?? 'Instruments');
   const back =
     view.at === 'home'
       ? undefined
       : () => {
           if (view.at === 'instrument' && current?.engine === 'melodics-synth') {
-            const preset = current.presets.find((candidate) => candidate.id === choice.preset);
+            const preset = current.presets.find((candidate) => candidate.id === choice?.preset);
             setView(preset?.tag ? { at: 'tag', tag: preset.tag } : { at: 'home' });
           } else if (view.at === 'instrument' && current) setView({ at: 'category', category: current.category });
           else setView({ at: 'home' });
         };
 
-  const setEffects = (effects: EffectSlot[]) => onChange({ ...choice, effects });
+  const setEffects = (effects: EffectSlot[]) => choice && onChange({ ...choice, effects });
 
   return (
     <aside className="instrument-panel">
@@ -250,7 +257,18 @@ export function InstrumentPanel({ instruments, choice, loading, saved, onChange,
           </div>
         ) : view.at === 'home' ? (
           <>
-            <CardRow title="Synths">
+            {track?.original && (
+              <CardRow title="This track">
+                <Card
+                  art={<span className="instrument-card-icon instrument-card-original">{track.name.slice(0, 1)}</span>}
+                  name="Original"
+                  detail={track.name}
+                  active={!choice}
+                  onClick={track.original}
+                />
+              </CardRow>
+            )}
+            {tags.length > 0 && <CardRow title="Synths">
               {tags.map((tag) => {
                 const Icon = SYNTH_TAG_ICONS[tag];
                 return (
@@ -263,7 +281,7 @@ export function InstrumentPanel({ instruments, choice, loading, saved, onChange,
                   />
                 );
               })}
-            </CardRow>
+            </CardRow>}
             <CardRow title="Samplers">
               {categories.map((category) => (
                 <Card
@@ -282,7 +300,7 @@ export function InstrumentPanel({ instruments, choice, loading, saved, onChange,
           <div className="instrument-grid">
             {sampled.filter((instrument) => instrument.category === view.category).map(sampledCard)}
           </div>
-        ) : current && choice.instrument === current.id ? (
+        ) : current && choice && choice.instrument === current.id ? (
           <div className="instrument-detail">
             <div className="instrument-detail-head">
               <span className="instrument-detail-art">

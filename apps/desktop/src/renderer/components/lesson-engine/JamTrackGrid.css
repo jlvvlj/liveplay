@@ -96,9 +96,10 @@
 
 /* The timeline: a row per track, its header and its clip over the loop (or
    the part of it in view), as tall as Riffle's */
+/* It takes every height the editor leaves, so the editor sits at the bottom */
 .jam-timeline {
   position: relative;
-  flex: 0 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   min-height: 9rem;
   overflow-y: auto;
@@ -407,7 +408,8 @@
   overflow: hidden;
 }
 
-/* Dragged taller by its top edge: its own height, over the tracks' space */
+/* Dragged taller or shorter by its top edge: its own height, the tracks
+   taking the rest, so its foot stays at the bottom and only its top moves */
 .jam-editor.sized {
   flex: none;
   max-height: none;
@@ -782,21 +784,32 @@
   z-index: 1;
 }
 
-/* Under the roll: each note's velocity as a bar */
+/* Under the roll: each note's velocity as a bar. It stays at the editor's
+   foot, as the ruler stays at its top: an editor shorter than its rows
+   scrolls them between the two. */
 .jam-editor-velocity-name {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   flex: none;
   height: 3rem;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  background: var(--ds-panel);
+  box-shadow: 0 calc(-1 * var(--jam-cell-gap)) 0 var(--ds-panel);
 }
 
 .jam-editor-velocities {
-  position: relative;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   flex: none;
   height: 3rem;
   border-radius: 4px;
   background: var(--ds-panel-2);
+  /* the gap above it hides the rows passing under */
+  box-shadow: 0 calc(-1 * var(--jam-cell-gap)) 0 var(--ds-panel);
   cursor: ns-resize;
   touch-action: none;
 }

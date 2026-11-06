@@ -7,6 +7,8 @@ import { EFFECTS } from '../apps/desktop/src/renderer/components/lesson-engine/i
 import { paramsPatch, patchParams } from '../apps/desktop/src/renderer/components/lesson-engine/instruments/engines/melodicsSynth';
 import { EFFECT_KINDS, PAD_BASE_NOTE } from '../apps/desktop/src/renderer/components/lesson-engine/instruments/types';
 import { JAM_SOUND_PRESETS } from '../apps/desktop/src/renderer/components/lesson-engine/jamSynth';
+import { jamPartTracks, validInstrumentChoice } from '../apps/desktop/src/renderer/components/lesson-engine/jamTrackInstruments';
+import { liveEvents } from '../apps/desktop/src/renderer/components/lesson-engine/instruments/liveTracks';
 
 const ROWS = [45, 48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81];
 
@@ -80,5 +82,47 @@ describe('Jam rows', () => {
   it('plays the synth at the rows own pitch', () => {
     const synth = findInstrument(INSTRUMENTS, 'melodics-synth')!;
     expect(ROWS.map((row) => jamRowNote(synth, row, ROWS))).toEqual(ROWS);
+  });
+});
+
+describe('Daw tracks', () => {
+  it('keys each part by its grid track, drums by pad', () => {
+    const tracks = jamPartTracks(
+      [{ kind: 'drum' }, { kind: 'drum' }, { kind: 'notes' }],
+      [{ track: 'a', sound: 'groove-kit', drum: 0 }, { track: 'a', sound: 'groove-kit', drum: 1 }, { track: 'b', sound: 'keys:grand-piano' }]
+    );
+    expect(tracks).toEqual([
+      { key: 'drums', kind: 'drum', pad: 0 },
+      { key: 'drums', kind: 'drum', pad: 1 },
+      { key: 'part-2', kind: 'notes', pad: 0 },
+      { key: 'added-a', kind: 'drum', pad: 0 },
+      { key: 'added-a', kind: 'drum', pad: 1 },
+      { key: 'added-b', kind: 'notes', pad: 0 },
+    ]);
+  });
+
+  it('checks a shared instrument choice', () => {
+    const piano = presetChoice(findInstrument(INSTRUMENTS, 'keys:grand-piano')!, 'ambient');
+    expect(validInstrumentChoice(piano)).toBe(true);
+    expect(validInstrumentChoice({ ...piano, params: { cutoff: 'high' } })).toBe(false);
+    expect(validInstrumentChoice({ ...piano, effects: [{ kind: 'reverb' }] })).toBe(false);
+  });
+
+  it('sends the notes that sound in the window, every loop, swung, on their pad', () => {
+    const sixteenth = 0.125;
+    const notes = [
+      { pitch: 60, step: 0, length: 2, velocity: 100 },
+      { pitch: 64, step: 2, length: 1, velocity: 80 },
+    ];
+    const timing = { sixteenth, loopSteps: 16, swing: (step: number) => (step % 4 === 2 ? step + 0.5 : step) };
+    // The second loop's first beat: 16 steps of 0.125 s after a start at 1 s
+    const events = liveEvents({ start: 1, from: 3, to: 3.5 }, timing, [{ notes, pad: null, level: 1 }]);
+    expect(events).toEqual([
+      { note: 60, velocity: 100, on: 3, off: 3.25 },
+      { note: 64, velocity: 80, on: 3 + 2.5 * sixteenth, off: 3 + 2.5 * sixteenth + sixteenth },
+    ]);
+    const drums = liveEvents({ start: 1, from: 1, to: 1.1 }, timing, [{ notes, pad: 3, level: 0.5 }]);
+    expect(drums).toEqual([{ note: PAD_BASE_NOTE + 3, velocity: 50, on: 1, off: 1.25 }]);
+    expect(liveEvents({ start: 1, from: 1, to: 1.1 }, timing, [{ notes, pad: null, level: 0 }])).toEqual([]);
   });
 });
