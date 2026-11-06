@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mutable Instruments</title>
+    <link rel="stylesheet" href="../common/demo.css" />
+  </head>
+  <body>
+    <script type="module">
+      import { demo } from '../common/demo.js';
+      demo({
+        title: 'Mutable Instruments',
+        instruments: [
+          { name: 'plaits', label: 'Plaits' },
+          { name: 'rings', label: 'Rings' },
+          { name: 'elements', label: 'Elements' },
+          { name: 'braids', label: 'Braids' },
+          { name: 'clouds', label: 'Clouds', effect: true, source: 'plaits' },
+        ],
+      });
+    </script>
+  </body>
+</html>
