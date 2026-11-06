@@ -371,6 +371,8 @@ export function JamSettingsPanel({
           </div>
         </div>
 
+        {/* A lesson room's hits play its lesson track's own sound */}
+        {!lesson && (
         <div className="setting-group">
           <label className="setting-label">
             <span className="setting-icon">&#127927;</span>
@@ -392,6 +394,7 @@ export function JamSettingsPanel({
             </button>
           )}
         </div>
+        )}
         </>
         )}
       </div>

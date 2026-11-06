@@ -177,4 +177,63 @@ describe('LessonEngine', () => {
       expect(() => engine.pause()).not.toThrow();
     });
   });
+
+  describe('on a room\'s clock', () => {
+    // 100 BPM: a beat is 0.6 s; the loop (1920 ticks) is 2.4 s
+    const chord: Lesson = {
+      ...mockLesson,
+      steps: [
+        { tick: 0, note: 36, dur: 120, velocity: 100 },
+        { tick: 0, note: 48, dur: 120, velocity: 100 },
+        { tick: 960, note: 40, dur: 120, velocity: 100 },
+      ],
+    };
+
+    it('takes notes due together in any order', () => {
+      let now = 0.01;
+      engine.loadLesson(chord);
+      engine.startOnClock(() => now);
+      expect(engine.processNote(48, 0)?.accuracy).toBe('perfect');
+      expect(engine.processNote(36, 0)?.accuracy).toBe('perfect');
+      now = 1.2;
+      expect(engine.processNote(40, 0)?.accuracy).toBe('perfect');
+    });
+
+    it('judges a note at the loop\'s start played just before the loop wraps', () => {
+      let now = 2.25;
+      engine.loadLesson(chord);
+      engine.startOnClock(() => now);
+      const feedback = engine.processNote(36, 0);
+      expect(feedback?.accuracy).toBe('good');
+      expect(Math.round(feedback!.timingDelta)).toBe(-150);
+      now = 0;
+    });
+
+    it('judges a note played after one left unplayed as itself, the other missed', () => {
+      // 8ths at 100 BPM: 0.3 s apart, closer than the late window
+      const line: Lesson = {
+        ...mockLesson,
+        steps: [
+          { tick: 0, note: 36, dur: 120, velocity: 100 },
+          { tick: 240, note: 48, dur: 120, velocity: 100 },
+          { tick: 480, note: 36, dur: 120, velocity: 100 },
+        ],
+      };
+      let now = 0.31;
+      engine.loadLesson(line);
+      engine.startOnClock(() => now);
+      expect(engine.processNote(48, 0)?.accuracy).toBe('perfect');
+      expect(hitFeedbacks.map((feedback) => feedback.accuracy)).toEqual(['miss', 'perfect']);
+      now = 0.6;
+      expect(engine.processNote(36, 0)?.accuracy).toBe('perfect');
+    });
+
+    it('keeps lesson mode\'s order off a room\'s clock: the lowest of notes due together first', async () => {
+      engine.loadLesson(chord);
+      await engine.start();
+      expect(engine.processNote(48, 0)).toBeNull();
+      expect(engine.processNote(36, 0)?.accuracy).toBe('perfect');
+    });
+  });
 });
+

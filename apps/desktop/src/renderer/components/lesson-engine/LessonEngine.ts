@@ -259,6 +259,32 @@ export class LessonEngine {
       return null;
     }
 
+    // On a room's clock the song never waits: notes due together (a chord,
+    // an octave, drums hit at once) can be played in any order, as one ship
+    // plays one row at a time; and a note played after one left unplayed is
+    // judged as itself, the one left unplayed counted as missed (else, with
+    // notes closer than the late window, every press after one miss would be
+    // judged against the note before it)
+    if (this.clock && target.step.note !== note) {
+      const pending = [...this.expectedSteps.entries()]
+        .filter(([stepIndex]) => !this.processedSteps.has(stepIndex))
+        .sort((a, b) => a[0] - b[0]);
+      const played = pending.find(
+        ([, expected]) =>
+          expected.step.note === note &&
+          (expected.step.tick === target!.step.tick || this.loopDelta(currentTime, expected.time) >= -TIMING_WINDOWS.early)
+      );
+      if (played && played[1].step.tick !== target.step.tick) {
+        const left = pending.filter(([stepIndex, expected]) => stepIndex < played[0] && expected.step.tick < played[1].step.tick);
+        if (left.every(([, expected]) => this.loopDelta(currentTime, expected.time) > 0)) {
+          for (const [stepIndex, expected] of left) this.markMissed(stepIndex, expected.step, expected.time);
+          [targetIndex, target] = played;
+        }
+      } else if (played) {
+        [targetIndex, target] = played;
+      }
+    }
+
     // Wrong note: the input does not match the next expected note — ignore it.
     if (target.step.note !== note) {
       console.log(`[LessonEngine] Ignoring note ${note}: next expected note is ${target.step.note} (step ${targetIndex})`);
@@ -268,9 +294,7 @@ export class LessonEngine {
     // Right note, but only counts near the hit line.
     // delta > 0 = pressed after the note's time (late), delta < 0 = before (early).
     // On a looping clock a note near the loop's start can be hit just before it wraps.
-    const loopMs = this.ticksToSeconds(this.loopEndTick - this.loopStartTick) * 1000;
-    const raw = (currentTime - target.time) * 1000;
-    const delta = this.clock && loopMs > 0 ? raw - loopMs * Math.round(raw / loopMs) : raw;
+    const delta = this.loopDelta(currentTime, target.time);
     const withinWindow = delta <= TIMING_WINDOWS.late && delta >= -TIMING_WINDOWS.early;
     if (!withinWindow) {
       console.log(`[LessonEngine] Note ${note} matches next step ${targetIndex} but OUTSIDE timing window. Delta: ${delta.toFixed(0)}ms, Window: [-${TIMING_WINDOWS.early}, +${TIMING_WINDOWS.late}]ms`);
@@ -328,6 +352,29 @@ export class LessonEngine {
       if (hold.note === note) return true;
     }
     return false;
+  }
+
+  // How far (ms) `now` is past `time`; on a looping clock the nearest way round
+  private loopDelta(now: number, time: number): number {
+    const raw = (now - time) * 1000;
+    const loopMs = this.ticksToSeconds(this.loopEndTick - this.loopStartTick) * 1000;
+    return this.clock && loopMs > 0 ? raw - loopMs * Math.round(raw / loopMs) : raw;
+  }
+
+  // A step left unplayed, counted as missed now
+  private markMissed(stepIndex: number, step: LessonStep, time: number): void {
+    const actualTime = this.getCurrentTimeSeconds();
+    const feedback: HitFeedback = {
+      expectedStep: step,
+      actualNote: step.note,
+      actualTime,
+      timingDelta: this.loopDelta(actualTime, time),
+      accuracy: 'miss',
+      points: POINTS.miss,
+    };
+    this.processedSteps.add(stepIndex);
+    this.updateScore(feedback);
+    this.callbacks.onHitFeedback?.(feedback);
   }
 
   private finishHold(stepIndex: number, completed: boolean): void {

@@ -2676,7 +2676,7 @@ export function LessonPlayer({
         <button className="jam-corner-btn" onClick={() => setShowJamSettings(true)} title="Show sidebar">
           <SidebarIcon />
         </button>
-        {jamSection !== 'daw' && (
+        {jamSection !== 'daw' && !jamLesson && (
           <button className="jam-corner-btn" onClick={() => setInstrumentsFor('jam')} title="Instruments">
             <InstrumentsIcon />
           </button>
