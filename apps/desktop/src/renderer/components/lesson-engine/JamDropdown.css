@@ -1,0 +1,136 @@
+/* A dropdown in the app's style: a raised field, its list on a panel below */
+.jam-dropdown {
+  position: relative;
+  min-width: 0;
+}
+
+.jam-dropdown-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 0.75rem 0 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-raised);
+  color: var(--ds-text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.jam-dropdown-field:hover,
+.jam-dropdown.open .jam-dropdown-field {
+  background: var(--ds-raised-hover);
+}
+
+.jam-dropdown-field:focus-visible {
+  outline: none;
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-accent) 25%, transparent);
+}
+
+.jam-dropdown-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jam-dropdown-value.placeholder {
+  color: var(--ds-text-dim);
+}
+
+.jam-dropdown-detail {
+  flex: none;
+  color: var(--ds-text-dim);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-dropdown-chevron {
+  flex: none;
+  color: var(--ds-text-dim);
+  transition: transform 0.15s ease;
+}
+
+.jam-dropdown.open .jam-dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+.jam-dropdown-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  /* As wide as its longest option, never narrower than the field */
+  width: max-content;
+  min-width: 100%;
+  max-width: 22rem;
+  max-height: min(30rem, 60vh);
+  overflow-y: auto;
+  padding: 0.35rem;
+  border-radius: var(--ds-radius-card);
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-panel-2);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  animation: jamDropdownIn 0.12s ease-out;
+}
+
+@keyframes jamDropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.jam-dropdown-group {
+  padding: 0.6rem 0.6rem 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-text-dim);
+}
+
+.jam-dropdown-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.6rem 0.5rem 0.4rem;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.jam-dropdown-option.active {
+  background: var(--ds-raised-hover);
+  color: var(--ds-text);
+}
+
+.jam-dropdown-option.selected {
+  color: var(--ds-text);
+  font-weight: 600;
+}
+
+.jam-dropdown-check {
+  display: inline-flex;
+  flex: none;
+  width: 14px;
+  color: var(--ds-accent);
+}
+
+.jam-dropdown-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -4,6 +4,7 @@ import type { JamRoomEnd } from './jamRoom';
 import { JAM_SONG_TITLE_MAX, type JamDawSongSummary } from './jamRoomProtocol';
 import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM } from './jamTracks';
 import { JamLobbyHeader, startJamAudio } from './JamLobby';
+import { JamDropdown } from './JamDropdown';
 import './JamLobby.css';
 
 // The jam app's Daw section: every Daw song as a card, opened with a click to
@@ -32,7 +33,7 @@ const ENDED: Record<JamRoomEnd, string> = {
   lost: 'The connection to the song was lost',
 };
 
-const NEW_TITLE = 'New song';
+const NEW_TITLE = 'Untitled';
 const NEW_BPM = 120;
 
 export function DawLobby({ songs, unreachable, builtIns, onOpen: openSong, onNew, onOffer, onBack, ended }: DawLobbyProps) {
@@ -111,6 +112,7 @@ function NewSongCard({
         submit();
       }}
     >
+      <div className="jam-lobby-card-head">New song</div>
       <input
         className="jam-lobby-field jam-lobby-name"
         value={title}
@@ -122,18 +124,18 @@ function NewSongCard({
         spellCheck={false}
       />
       <div className="jam-lobby-start">
-        <select className="jam-lobby-select" value={from} onChange={(event) => setFrom(event.target.value)}>
-          <option value="">Empty</option>
-          {builtIns.map((song) => (
-            <option key={song.id} value={song.id}>
-              {song.title}
-            </option>
-          ))}
-        </select>
+        <JamDropdown
+          className="jam-lobby-from"
+          value={from}
+          onChange={setFrom}
+          groups={[
+            { options: [{ value: '', label: 'Empty' }] },
+            { label: 'Songs', options: builtIns.map((song) => ({ value: song.id, label: song.title, detail: `${song.bpm} BPM` })) },
+          ]}
+        />
         {from === '' && (
           <label className="jam-lobby-bpm-field">
             <input
-              className="jam-lobby-field"
               type="number"
               min={JAM_DAW_MIN_BPM}
               max={JAM_DAW_MAX_BPM}

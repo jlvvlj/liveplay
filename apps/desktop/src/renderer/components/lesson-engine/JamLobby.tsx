@@ -8,6 +8,7 @@ import {
   type JamRoomVisibility,
 } from './jamRoomProtocol';
 import { BackIcon } from './JamIcons';
+import { JamDropdown } from './JamDropdown';
 import './JamLobby.css';
 
 // The jam app's Jam section: every live room as a card, open rooms joined
@@ -126,21 +127,16 @@ function NewRoomCard({
       </button>
     );
   }
-  const option = (track: JamLobbyTrack) => (
-    <option key={track.id} value={track.id}>
-      {track.title} · {track.bpm} BPM
-    </option>
-  );
-  const daw = tracks.filter((track) => track.daw);
+  const options = (daw: boolean) =>
+    tracks.filter((track) => track.daw === daw).map((track) => ({ value: track.id, label: track.title, detail: `${track.bpm} BPM` }));
+  const groups = [
+    { label: 'Songs', options: options(false) },
+    { label: 'Daw', options: options(true) },
+  ].filter((group) => group.options.length);
   return (
     <div className="jam-lobby-card jam-lobby-new jam-lobby-choosing">
-      <select className="jam-lobby-select" value={song} onChange={(event) => setSong(event.target.value)} autoFocus>
-        <option value="" disabled>
-          Track
-        </option>
-        <optgroup label="Songs">{tracks.filter((track) => !track.daw).map(option)}</optgroup>
-        {daw.length > 0 && <optgroup label="Daw">{daw.map(option)}</optgroup>}
-      </select>
+      <div className="jam-lobby-card-head">New room</div>
+      <JamDropdown groups={groups} value={song} onChange={setSong} placeholder="Track" autoFocus />
       {song && (
         <div className="jam-lobby-choices">
           <button className="jam-lobby-choice" onClick={() => onCreate({ visibility: 'open', song })}>

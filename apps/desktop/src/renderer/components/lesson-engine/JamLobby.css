@@ -85,32 +85,48 @@ button.jam-lobby-card:hover:not(:disabled) {
 
 .jam-lobby-choosing {
   position: relative;
-  gap: 0.8rem;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  border-style: solid;
+  border-color: var(--ds-border-strong);
+  background: var(--ds-panel);
   cursor: default;
+}
+
+/* A new room's or song's card: its name at the top, its cancel beside it */
+.jam-lobby-card-head {
+  padding-right: 1.6rem;
+  color: var(--ds-text);
+  font-size: 1.15rem;
+  font-weight: 600;
 }
 
 .jam-lobby-choices {
   display: flex;
   gap: 0.6rem;
+  margin-top: auto;
 }
 
-/* A new room's track, a new song's start */
-.jam-lobby-select,
+/* A new song's name and tempo, like the dropdown beside them */
 .jam-lobby-field {
   width: 100%;
   min-width: 0;
-  padding: 0.5rem 0.7rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: var(--ds-bg);
+  height: 2.5rem;
+  padding: 0 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-raised);
   color: var(--ds-text);
   font: inherit;
   font-size: 0.9rem;
+  font-weight: 500;
 }
 
-.jam-lobby-choosing .jam-lobby-select {
-  width: calc(100% - 1.6rem);
-  margin-right: 1.6rem;
+.jam-lobby-field:focus-visible {
+  outline: none;
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-accent) 25%, transparent);
 }
 
 .jam-lobby-choice {
@@ -142,8 +158,8 @@ button.jam-lobby-card:hover:not(:disabled) {
 
 .jam-lobby-choosing .jam-lobby-cancel {
   position: absolute;
-  top: 0.4rem;
-  right: 0.6rem;
+  top: 0.85rem;
+  right: 0.85rem;
 }
 
 .jam-lobby-card-top {
@@ -299,7 +315,7 @@ button.jam-lobby-card:hover:not(:disabled) {
 }
 
 .jam-lobby-making .jam-lobby-name {
-  width: calc(100% - 1.6rem);
+  font-size: 1rem;
   font-weight: 600;
 }
 
@@ -308,27 +324,56 @@ button.jam-lobby-card:hover:not(:disabled) {
   gap: 0.5rem;
 }
 
-.jam-lobby-start .jam-lobby-select {
+.jam-lobby-start .jam-lobby-from {
   flex: 1;
-  width: auto;
-  margin: 0;
 }
 
+/* An empty song's tempo: its number and BPM in one field */
 .jam-lobby-bpm-field {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 0.35rem;
-  color: rgba(255, 255, 255, 0.6);
+  gap: 0.3rem;
+  height: 2.5rem;
+  padding: 0 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-raised);
+  color: var(--ds-text-dim);
   font-size: 0.75rem;
+  font-weight: 500;
+  cursor: text;
+}
+
+.jam-lobby-bpm-field:focus-within {
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-accent) 25%, transparent);
 }
 
 .jam-lobby-bpm-field input {
-  width: 4.2rem;
+  width: 2.2rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ds-text);
+  font: inherit;
+  font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.jam-lobby-bpm-field input::-webkit-inner-spin-button,
+.jam-lobby-bpm-field input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .jam-lobby-making .jam-lobby-choice {
   align-self: flex-start;
+  margin-top: auto;
 }
 
 .jam-lobby-making .jam-lobby-choice:disabled {
