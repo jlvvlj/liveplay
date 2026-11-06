@@ -933,7 +933,11 @@ export function JamTrackGrid({
     });
 
   return (
-    <div className={`jam-grid ${lanesOpen ? '' : 'heads-closed'} ${open && expanded ? 'editor-expanded' : ''}`}>
+    <div
+      className={`jam-grid ${lanesOpen ? '' : 'heads-closed'} ${open && expanded ? 'editor-expanded' : ''} ${
+        open && !expanded && editorHeight !== null ? 'editor-sized' : ''
+      }`}
+    >
       <div className="jam-grid-head">
         {toolbar}
         <button
