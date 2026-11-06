@@ -426,6 +426,12 @@
   overflow: visible;
 }
 
+/* Every row's notes are drawn over every row, so a note that crosses into the
+   next row is never covered by that row's background */
+.jam-lanes .notes-scroll-container {
+  z-index: 1;
+}
+
 .jam-dot {
   position: absolute;
   top: 50%;
