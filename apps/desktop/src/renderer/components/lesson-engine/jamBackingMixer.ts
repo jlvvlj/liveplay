@@ -1,6 +1,6 @@
 import * as Tone from 'tone';
 import { renderJamBackingPart, type JamPartAudio } from './jamRenderer';
-import { JAM_TRACK_BARS, jamTrackParts, type JamTrack, type JamTrackNote } from './jamTracks';
+import { JAM_TRACK_BARS, jamTrackIsEmpty, jamTrackParts, type JamTrack, type JamTrackNote } from './jamTracks';
 import { jamAddedInstrument, type JamAddedPart } from './jamAddedParts';
 import { jamLoopScale, jamLoopSeconds } from './jamTrackRender';
 
@@ -171,6 +171,8 @@ export async function loadJamBackingMixer(
       renderJamBackingPart(track.file, p, part, p < own ? undefined : (jamAddedInstrument(added[p - own]) ?? undefined), bars)
     )
   );
+  // An empty track has no loudness of its own to match: its added parts play unscaled
+  if (jamTrackIsEmpty(track)) return new JamBackingMixer(parts, 1, jamLoopSeconds(track, bars));
   if (!scales.has(track.file)) {
     const original = jamTrackParts(track).map((part) => part.notes);
     const originals = await Promise.all(

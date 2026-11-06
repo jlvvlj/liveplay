@@ -17,6 +17,9 @@ import type { JamRoomPlayer } from './jamRoom';
 import { JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
 
 interface JamSettingsPanelProps {
+  // The Daw has only the backing track's settings and the room; the played
+  // notes' settings are the Jam's
+  section?: 'daw' | 'jam';
   songs: Lesson[];
   songId: string;
   onSongChange: (id: string) => void;
@@ -125,6 +128,7 @@ function Slider({
 }
 
 export function JamSettingsPanel({
+  section,
   songs,
   songId,
   onSongChange,
@@ -164,6 +168,7 @@ export function JamSettingsPanel({
   onBack,
   onClose,
 }: JamSettingsPanelProps) {
+  const playing = section !== 'daw';
   const [linkCopied, setLinkCopied] = useState(false);
   const setEffect = <K extends keyof JamEffects>(key: K, value: JamEffects[K]) =>
     onEffectsChange({ ...effects, [key]: value });
@@ -242,15 +247,17 @@ export function JamSettingsPanel({
             <span className="setting-icon">&#128266;</span>
             Volume
           </label>
-          <Slider
-            label="Notes"
-            value={notesVolume}
-            display={`${Math.round(notesVolume * 100)}%`}
-            min={0}
-            max={1}
-            step={0.05}
-            onChange={onNotesVolumeChange}
-          />
+          {playing && (
+            <Slider
+              label="Notes"
+              value={notesVolume}
+              display={`${Math.round(notesVolume * 100)}%`}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={onNotesVolumeChange}
+            />
+          )}
           <Slider
             label="Backing track"
             value={backingVolume}
@@ -262,6 +269,7 @@ export function JamSettingsPanel({
           />
         </div>
 
+        {playing && (
         <div className="setting-group">
           <label className="setting-label">
             <span className="setting-icon">&#128257;</span>
@@ -300,6 +308,7 @@ export function JamSettingsPanel({
             onChange={onSwingChange}
           />
         </div>
+        )}
 
         {room && (
           <div className="setting-group">
@@ -354,6 +363,8 @@ export function JamSettingsPanel({
           </div>
         )}
 
+        {playing && (
+        <>
         <div className="setting-group">
           <label className="setting-label">
             <span className="setting-icon">&#127929;</span>
@@ -502,6 +513,8 @@ export function JamSettingsPanel({
             onChange={(value) => setEffect('echoFeedback', value)}
           />
         </div>
+        </>
+        )}
       </div>
     </div>
   );

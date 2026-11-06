@@ -1,12 +1,20 @@
 # The hosted jam: the jam app and its rooms on one address
 # (fly deploy --ha=false). Rooms live in the server's memory, so it runs on
 # exactly one machine; it stops when nobody is connected and starts again
-# on the next visit.
+# on the next visit. The Daw's songs are kept on the jam_songs volume
+# (fly volumes create jam_songs -r nrt -s 1).
 app = 'liveplay-jam'
 primary_region = 'nrt'
 
 [build]
   dockerfile = 'Dockerfile.jam'
+
+[env]
+  JAM_SONGS_DIR = '/data/songs'
+
+[mounts]
+  source = 'jam_songs'
+  destination = '/data'
 
 [http_service]
   internal_port = 8080

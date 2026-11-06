@@ -10,7 +10,7 @@ import {
   type JamServerMessage,
   type JamSignal,
 } from './jamRoomProtocol';
-import type { JamTrackEdit } from './LessonPlayer';
+import type { JamTrackEdit } from './jamTrackEdits';
 
 // A jam room on this page: shares the room server's clock and the room's jam,
 // connects directly to every other player (WebRTC data channels that never
@@ -88,12 +88,21 @@ export class JamRoom {
   constructor(
     readonly code: string,
     url: string,
-    join: { create?: JamRoomVisibility; name: string; state: JamRoomState; sound: JamRoomSound | null; need: number },
+    // `edit` joins the room where the Daw song `code` is edited; else the Jam
+    // room `code`, opened with `create` when it is new
+    join: {
+      edit?: boolean;
+      create?: { visibility: JamRoomVisibility; song: string };
+      name: string;
+      sound: JamRoomSound | null;
+      need: number;
+    },
     private events: JamRoomEvents
   ) {
     this.socket = new WebSocket(url);
     this.socket.onopen = () => {
-      this.send({ t: 'join', room: code, ...join });
+      const { edit, create, ...player } = join;
+      this.send(edit ? { t: 'edit', song: code, ...player } : { t: 'join', room: code, ...(create ? { create } : {}), ...player });
       for (let i = 0; i < CLOCK_BURST; i++) {
         this.timers.push(setTimeout(() => this.send({ t: 'ping', c: performance.now() }), i * CLOCK_BURST_MS));
       }
@@ -137,7 +146,7 @@ export class JamRoom {
     });
   }
 
-  setState(state: Omit<JamRoomState, 'tracks'>): void {
+  setState(state: Omit<JamRoomState, 'song' | 'tracks'>): void {
     this.send({ t: 'state', state });
   }
 

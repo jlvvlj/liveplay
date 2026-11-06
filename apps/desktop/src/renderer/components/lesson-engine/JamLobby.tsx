@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import * as Tone from 'tone';
-import type { Lesson } from '../../types/lesson';
 import { newJamRoomCode, type JamRoomEnd } from './jamRoom';
 import {
   JAM_ROOM_CODE,
@@ -8,14 +7,24 @@ import {
   type JamRoomSummary,
   type JamRoomVisibility,
 } from './jamRoomProtocol';
+import { BackIcon } from './JamIcons';
 import './JamLobby.css';
 
-// The jam app's home: every live room as a card, open rooms joined with a
-// click and private ones with their code, and a card to open a new room.
+// The jam app's Jam section: every live room as a card, open rooms joined
+// with a click and private ones with their code, and a card to open a new
+// room on the track its opener picks.
 
 export interface JamRoomEntry {
   key: string;
-  create?: JamRoomVisibility;
+  create?: { visibility: JamRoomVisibility; song: string };
+}
+
+// A track a new room can play: a built-in song, or a Daw song offered to rooms
+export interface JamLobbyTrack {
+  id: string;
+  title: string;
+  bpm: number;
+  daw: boolean;
 }
 
 interface JamLobbyProps {
@@ -24,8 +33,9 @@ interface JamLobbyProps {
   rooms: JamRoomSummary[] | null;
   unreachable: boolean;
   check: (id: string, code: string) => Promise<boolean | null>;
-  songs: Lesson[];
+  tracks: JamLobbyTrack[];
   onEnter: (entry: JamRoomEntry) => void;
+  onBack: () => void;
   // Why the player is back here, when the room ended by itself
   ended?: JamRoomEnd | null;
 }
@@ -38,7 +48,7 @@ const ENDED: Record<JamRoomEnd, string> = {
 
 // Browsers (Safari above all) only start audio within a tap or click, and the
 // room's Jam opens after it: the click that leads into a room starts it
-function startJamAudio() {
+export function startJamAudio() {
   const audioSession = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
   if (audioSession) audioSession.type = 'playback'; // iPhone: play through the silent switch
   Tone.start().catch((err) => console.error('[JamLobby] Could not start the audio:', err));
@@ -51,16 +61,14 @@ const LockIcon = () => (
   </svg>
 );
 
-export function JamLobby({ rooms, unreachable, check, songs, onEnter: enterRoom, ended }: JamLobbyProps) {
+export function JamLobby({ rooms, unreachable, check, tracks, onEnter: enterRoom, onBack, ended }: JamLobbyProps) {
   const onEnter = (entry: JamRoomEntry) => {
     startJamAudio();
     enterRoom(entry);
   };
   return (
     <div className="jam-lobby">
-      <header className="jam-lobby-header">
-        <h1>Jam</h1>
-      </header>
+      <JamLobbyHeader title="Jam" onBack={onBack} />
       {/* Without the server the rooms are unknown and none can be opened or
           joined: only that is shown until it is back */}
       {unreachable ? (
@@ -70,12 +78,11 @@ export function JamLobby({ rooms, unreachable, check, songs, onEnter: enterRoom,
           {ended && <div className="jam-lobby-note">{ENDED[ended]}</div>}
           {rooms && (
             <div className="jam-lobby-grid">
-              <NewRoomCard onCreate={(create) => onEnter({ key: newJamRoomCode(), create })} />
+              <NewRoomCard tracks={tracks} onCreate={(create) => onEnter({ key: newJamRoomCode(), create })} />
               {rooms.map((room) => (
                 <RoomCard
                   key={room.id}
                   room={room}
-                  song={songs.find((song) => song.id === room.songId)}
                   onEnter={onEnter}
                   check={(code) => check(room.id, code)}
                 />
@@ -88,9 +95,29 @@ export function JamLobby({ rooms, unreachable, check, songs, onEnter: enterRoom,
   );
 }
 
-// The card that opens a new room: open to everyone, or private with a code
-function NewRoomCard({ onCreate }: { onCreate: (visibility: JamRoomVisibility) => void }) {
+// A section's header: back to the jam app's home, and the section's name
+export function JamLobbyHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <header className="jam-lobby-header">
+      <button className="jam-corner-btn jam-back-btn" onClick={onBack} title="Back">
+        <BackIcon />
+      </button>
+      <h1>{title}</h1>
+    </header>
+  );
+}
+
+// The card that opens a new room: its track first (the room plays it for as
+// long as it lasts), then open to everyone or private with a code
+function NewRoomCard({
+  tracks,
+  onCreate,
+}: {
+  tracks: JamLobbyTrack[];
+  onCreate: (create: { visibility: JamRoomVisibility; song: string }) => void;
+}) {
   const [choosing, setChoosing] = useState(false);
+  const [song, setSong] = useState('');
   if (!choosing) {
     return (
       <button className="jam-lobby-card jam-lobby-new" onClick={() => setChoosing(true)}>
@@ -99,16 +126,40 @@ function NewRoomCard({ onCreate }: { onCreate: (visibility: JamRoomVisibility) =
       </button>
     );
   }
+  const option = (track: JamLobbyTrack) => (
+    <option key={track.id} value={track.id}>
+      {track.title} · {track.bpm} BPM
+    </option>
+  );
+  const daw = tracks.filter((track) => track.daw);
   return (
     <div className="jam-lobby-card jam-lobby-new jam-lobby-choosing">
-      <button className="jam-lobby-choice" onClick={() => onCreate('open')}>
-        Open
-      </button>
-      <button className="jam-lobby-choice" onClick={() => onCreate('private')}>
-        <LockIcon />
-        Private
-      </button>
-      <button className="jam-lobby-cancel" onClick={() => setChoosing(false)} title="Cancel">
+      <select className="jam-lobby-select" value={song} onChange={(event) => setSong(event.target.value)} autoFocus>
+        <option value="" disabled>
+          Track
+        </option>
+        <optgroup label="Songs">{tracks.filter((track) => !track.daw).map(option)}</optgroup>
+        {daw.length > 0 && <optgroup label="Daw">{daw.map(option)}</optgroup>}
+      </select>
+      {song && (
+        <div className="jam-lobby-choices">
+          <button className="jam-lobby-choice" onClick={() => onCreate({ visibility: 'open', song })}>
+            Open
+          </button>
+          <button className="jam-lobby-choice" onClick={() => onCreate({ visibility: 'private', song })}>
+            <LockIcon />
+            Private
+          </button>
+        </div>
+      )}
+      <button
+        className="jam-lobby-cancel"
+        onClick={() => {
+          setChoosing(false);
+          setSong('');
+        }}
+        title="Cancel"
+      >
         &times;
       </button>
     </div>
@@ -117,14 +168,13 @@ function NewRoomCard({ onCreate }: { onCreate: (visibility: JamRoomVisibility) =
 
 interface RoomCardProps {
   room: JamRoomSummary;
-  song: Lesson | undefined;
   onEnter: (entry: JamRoomEntry) => void;
   check: (code: string) => Promise<boolean | null>;
 }
 
 // A live room: its song and players. An open room is joined with a click; a
 // private room asks for its code on the card first.
-function RoomCard({ room, song, onEnter, check }: RoomCardProps) {
+function RoomCard({ room, onEnter, check }: RoomCardProps) {
   const [asking, setAsking] = useState(false);
   const [code, setCode] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -144,8 +194,8 @@ function RoomCard({ room, song, onEnter, check }: RoomCardProps) {
       <div className="jam-lobby-title">{room.host}&apos;s room</div>
       <div className="jam-lobby-song">
         {room.playing && <span className="jam-lobby-live" />}
-        {song?.title ?? room.songId}
-        {song && <span className="jam-lobby-bpm">{song.bpm} BPM</span>}
+        {room.song.title}
+        <span className="jam-lobby-bpm">{room.song.bpm} BPM</span>
       </div>
       <div className="jam-lobby-players">
         {room.players.map((player, index) => (

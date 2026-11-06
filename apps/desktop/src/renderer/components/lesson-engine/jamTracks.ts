@@ -282,9 +282,33 @@ export const JAM_TRACKS: JamTrack[] = [
   SOFTER_TRACK,
 ];
 
+// Daw songs started empty: a track with no parts of its own at the chosen
+// tempo, made only of the parts added in the grid. Each is made once, so a
+// file always names the same track.
+export const JAM_DAW_MIN_BPM = 60;
+export const JAM_DAW_MAX_BPM = 180;
+const EMPTY_TRACK_FILE = /^empty-(\d+)\.wav$/;
+const emptyTracks = new Map<string, JamTrack>();
+export const jamEmptyTrackFile = (bpm: number): string => `empty-${bpm}.wav`;
+export const jamTrackIsEmpty = (track: JamTrack): boolean => EMPTY_TRACK_FILE.test(track.file);
+
+// The track a file names: one of JAM_TRACKS, or an empty one
+export function jamTrackByFile(file: string): JamTrack | undefined {
+  const builtIn = JAM_TRACKS.find((track) => track.file === file);
+  if (builtIn) return builtIn;
+  const bpm = Number(EMPTY_TRACK_FILE.exec(file)?.[1]);
+  if (!(bpm >= JAM_DAW_MIN_BPM && bpm <= JAM_DAW_MAX_BPM)) return undefined;
+  let track = emptyTracks.get(file);
+  if (!track) {
+    track = { file, bpm, chords: [], layers: [], drums: [] };
+    emptyTracks.set(file, track);
+  }
+  return track;
+}
+
 // A track's backing track file name, as in a song's `backingTrack` path
 export const jamTrackFor = (backingTrack: string | undefined): JamTrack | undefined =>
-  JAM_TRACKS.find((track) => backingTrack?.endsWith(`/${track.file}`));
+  backingTrack ? jamTrackByFile(backingTrack.slice(backingTrack.lastIndexOf('/') + 1)) : undefined;
 
 // One row of a track: every note over the whole loop, steps counted from the loop's start
 export interface JamTrackPart {
