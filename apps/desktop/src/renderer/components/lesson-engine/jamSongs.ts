@@ -1,4 +1,5 @@
 import { Lesson } from '../../types/lesson';
+import type { JamRoomSong } from './jamRoomProtocol';
 
 // Songs for the Jam tab, picked in its sidebar. Their notes are played with
 // the Jam tab's synth sounds (jamSynth.ts). A song's `backingTrack` names its
@@ -98,3 +99,17 @@ export const JAM_SONGS: Lesson[] = [
   jamSong('softer-script-jam', 'Softer Jam', 122, 'softer-jam.wav', 'The last 8 bars of Softer, cut by its own script', 1),
   jamSong('softer-jam', 'Softer Lesson', 122, 'softer.wav', "The last 8 bars of Softer, read by the Lessons tab's Ableton import", 1),
 ];
+
+// A built-in song as a room plays it
+export const jamRoomSongOf = (song: Lesson): JamRoomSong => ({
+  id: song.id,
+  title: song.title,
+  bpm: song.bpm,
+  file: song.backingTrack!.slice(song.backingTrack!.lastIndexOf('/') + 1),
+  transpose: song.steps[0].note - PENTATONIC_GROOVE_JAM.steps[0].note,
+});
+
+// A room's song to play: a built-in one as it is, a Daw song's rows over its backing track
+export const jamRoomSongLesson = (song: JamRoomSong): Lesson =>
+  JAM_SONGS.find((builtIn) => builtIn.id === song.id) ??
+  jamSong(song.id, song.title, song.bpm, song.file, '', song.transpose);

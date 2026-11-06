@@ -10,7 +10,7 @@ COPY apps/desktop/src/renderer apps/desktop/src/renderer
 COPY instrument-lab/engine instrument-lab/engine
 # The tracks zoom the grid shares with the Instrument Lab
 COPY instrument-lab/client/TrackZoom.jsx instrument-lab/client/timeline.mjs instrument-lab/client/track-zoom.css instrument-lab/client/
-COPY server/jamRooms.ts server/jam-rooms.ts server/
+COPY server/jamRooms.ts server/jamSongStore.ts server/jam-rooms.ts server/
 RUN npm run build:jam
 ENV NODE_ENV=production JAM_STATIC_DIR=apps/jam/dist PORT=8080
 EXPOSE 8080

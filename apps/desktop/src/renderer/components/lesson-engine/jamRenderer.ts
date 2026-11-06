@@ -1,5 +1,5 @@
 import type { JamSoundSource } from './jamSynth';
-import { JAM_TRACKS, type JamTrackNote } from './jamTracks';
+import { jamTrackByFile, type JamTrackNote } from './jamTracks';
 import type { JamAddedInstrument } from './jamAddedParts';
 
 // Renders Jam sounds and backing-track parts in workers, so long renders never
@@ -70,7 +70,7 @@ export async function renderJamBackingPart(
   added?: JamAddedInstrument,
   bars?: number
 ): Promise<JamPartAudio> {
-  const track = JAM_TRACKS.find((candidate) => candidate.file === trackFile);
+  const track = jamTrackByFile(trackFile);
   if (added || (track?.sampled && part >= track.drums.length + track.layers.length)) {
     const reply = await request({ trackFile, part, notes, ...(added ? { added } : {}), ...(bars ? { bars } : {}) });
     if (!reply.part) throw new Error(`No audio for ${trackFile} part ${part}`);

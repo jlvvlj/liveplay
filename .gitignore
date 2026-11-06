@@ -57,3 +57,6 @@ Thumbs.db
 *.exe
 *.msi
 *.AppImage
+
+# The jam app's Daw songs in development (apps/jam/vite.config.ts)
+.jam-songs/

@@ -87,6 +87,17 @@
   display: grid;
   grid-template-columns: var(--jam-timeline-head) 1fr;
   height: 5.5rem;
+  border-bottom: 1px solid var(--ds-border);
+}
+
+/* With no tracks yet the timeline is only its ruler and Add track */
+.jam-timeline.empty {
+  min-height: 0;
+}
+
+/* The ruler and the tracks: their bar lines and playhead stop at the last track */
+.jam-timeline-tracks {
+  position: relative;
 }
 
 .jam-timeline-row.jam-timeline-ruler {
@@ -264,7 +275,6 @@
 /* Under the tracks: a track added with one of the Jam's instruments or kits */
 .jam-timeline-add {
   position: relative;
-  z-index: 5; /* over the playhead and the bar lines, which belong to the tracks */
   padding: 0.75rem 0.85rem;
   background: var(--ds-panel);
 }
@@ -670,7 +680,7 @@
 }
 
 /* The grid, for a kit as for an instrument: square 16ths with gaps between
-   rows and columns, every other beat shaded, beat and bar lines */
+   rows and columns, every other beat shaded */
 .jam-editor-roll {
   --jam-step: calc(var(--cell) + var(--jam-cell-gap));
   position: relative;
@@ -682,18 +692,6 @@
       to bottom,
       transparent 0 var(--cell),
       var(--ds-panel) var(--cell) var(--jam-step)
-    ),
-    repeating-linear-gradient(
-      to right,
-      transparent 0 calc(16 * (var(--cell) + var(--jam-cell-gap)) - var(--jam-cell-gap)),
-      var(--ds-text-dim) calc(16 * (var(--cell) + var(--jam-cell-gap)) - var(--jam-cell-gap))
-        calc(16 * (var(--cell) + var(--jam-cell-gap)))
-    ),
-    repeating-linear-gradient(
-      to right,
-      transparent 0 calc(4 * (var(--cell) + var(--jam-cell-gap)) - var(--jam-cell-gap)),
-      var(--ds-raised-strong) calc(4 * (var(--cell) + var(--jam-cell-gap)) - var(--jam-cell-gap))
-        calc(4 * (var(--cell) + var(--jam-cell-gap)))
     ),
     repeating-linear-gradient(
       to right,
@@ -716,10 +714,6 @@
   pointer-events: none;
   background: var(--ds-panel);
   opacity: 0.6;
-}
-
-.jam-editor-roll-row.c {
-  background: var(--ds-raised);
 }
 
 /* The empty rows under a short kit, and a muted drum's row */

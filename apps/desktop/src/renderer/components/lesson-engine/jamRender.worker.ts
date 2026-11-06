@@ -1,5 +1,5 @@
 import { renderJamWavs, type JamSoundSource } from './jamSynth';
-import { JAM_TRACKS, type JamTrackNote } from './jamTracks';
+import { jamTrackByFile, type JamTrackNote } from './jamTracks';
 import { decodeWav16, renderJamAddedLoop, renderJamPartLoop, renderJamSampleWavs, renderJamSampledLoop } from './jamTrackRender';
 import type { JamAddedInstrument } from './jamAddedParts';
 import { jamSoundUrl } from './jamSoundFiles';
@@ -42,7 +42,7 @@ self.onmessage = async (event: MessageEvent<Request>) => {
       post({ id: request.id, clips }, Object.values(clips));
       return;
     }
-    const track = JAM_TRACKS.find((candidate) => candidate.file === request.trackFile);
+    const track = jamTrackByFile(request.trackFile);
     if (!track) throw new Error(`No backing track ${request.trackFile}`);
     const recorded = request.added ? undefined : track.sampled?.[request.part - track.drums.length - track.layers.length];
     const channels = request.added

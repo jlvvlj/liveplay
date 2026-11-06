@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import type { Server } from 'http';
 import { createJamRooms } from '../../server/jamRooms';
+import { createJamSongStore } from '../../server/jamSongStore';
 
 // The jam app (npm run dev:jam / build:jam): the Jam tab as a standalone static
 // site. Its sounds and backing tracks are rendered in the browser; in
@@ -34,12 +35,15 @@ function serveAudioPlugin() {
 }
 
 // Jam rooms (play together online) on the development server itself, so phones
-// on the same network can join a room on this machine
+// on the same network can join a room on this machine. Its Daw songs are kept
+// in the project's .jam-songs/ folder.
 function jamRoomsPlugin() {
   return {
     name: 'jam-rooms',
     configureServer(server: { httpServer: Server | null }) {
-      if (server.httpServer) createJamRooms().attach(server.httpServer);
+      if (server.httpServer) {
+        createJamRooms({ songs: createJamSongStore(path.join(projectRoot, '.jam-songs')) }).attach(server.httpServer);
+      }
     },
   };
 }

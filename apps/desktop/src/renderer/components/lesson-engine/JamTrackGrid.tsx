@@ -740,17 +740,7 @@ export function JamTrackGrid({
             onPointerCancel={releaseNote}
           >
             {rows.map((row, index) => {
-              const band = !row
-                ? 'empty'
-                : drum
-                  ? silent(row.part)
-                    ? 'silent'
-                    : null
-                  : row.pitch % 12 === 0
-                    ? 'c'
-                    : isBlackKey(row.pitch)
-                      ? 'black'
-                      : null;
+              const band = !row ? 'empty' : drum && silent(row.part) ? 'silent' : null;
               return band ? (
                 <span key={index} className={`jam-editor-roll-row ${band}`} style={{ top: index * step, height: cell }} />
               ) : null;
@@ -851,7 +841,9 @@ export function JamTrackGrid({
         )}
       </div>
 
-      <div className="jam-timeline" ref={timelineRef}>
+      <div className={`jam-timeline ${tracks.length ? '' : 'empty'}`} ref={timelineRef}>
+        {/* The ruler and the tracks, with their bar lines and playhead; Add track is under them */}
+        <div className="jam-timeline-tracks">
         {/* Bar (or, zoomed in, beat) lines behind the clips */}
         <div className="jam-timeline-lines">
           {marks.map((mark) => (
@@ -919,6 +911,10 @@ export function JamTrackGrid({
             </div>
           );
         })}
+        <div className="jam-timeline-overlay">
+          <div ref={timelinePlayheadRef} className="jam-timeline-playhead" />
+        </div>
+        </div>
         <div className="jam-timeline-add">
           <button
             className={`jam-timeline-add-btn ${adding ? 'on' : ''}`}
@@ -952,9 +948,6 @@ export function JamTrackGrid({
               </div>
             </div>
           )}
-        </div>
-        <div className="jam-timeline-overlay">
-          <div ref={timelinePlayheadRef} className="jam-timeline-playhead" />
         </div>
       </div>
 

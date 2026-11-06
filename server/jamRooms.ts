@@ -6,14 +6,29 @@ import {
   JAM_ROOM_CODE,
   JAM_ROOM_MAX_PLAYERS,
   JAM_ROOM_PATH,
+  JAM_SONG_TITLE_MAX,
   type JamClientMessage,
+  type JamDawSong,
+  type JamDawSongSummary,
   type JamRoomPeer,
+  type JamRoomSong,
   type JamRoomState,
   type JamRoomSummary,
   type JamRoomVisibility,
   type JamServerMessage,
   JAM_ROOM_NAME_MAX,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamRoomProtocol';
+import { JAM_SONGS, jamRoomSongOf } from '../apps/desktop/src/renderer/components/lesson-engine/jamSongs';
+import {
+  JAM_DAW_MAX_BPM,
+  JAM_DAW_MIN_BPM,
+  JAM_SECTION_BARS,
+  jamEmptyTrackFile,
+  jamTrackByFile,
+  jamTrackIsEmpty,
+} from '../apps/desktop/src/renderer/components/lesson-engine/jamTracks';
+import { validJamTrackEdit, type JamTrackEdit } from '../apps/desktop/src/renderer/components/lesson-engine/jamTrackEdits';
+import type { JamSongStore } from './jamSongStore';
 
 // Jam rooms: players who join the same room key play one jam together. The
 // server keeps each room's jam (song, when it started or where it paused, the
@@ -21,6 +36,9 @@ import {
 // introduces players to each other so they connect directly, and relays their
 // notes too, so a note takes whichever way arrives first. The lobby lists the
 // rooms as they change: an open room with its key, a private one without.
+// A Jam room plays the song its opener picked, as it was then: a built-in
+// song or a Daw song offered to rooms. Daw songs are edited together in
+// their own rooms, one per song, and kept in `songs` as they are edited.
 
 // One color per seat, in joining order
 const PEER_COLORS = ['#38bdf8', '#f472b6', '#a3e635', '#fbbf24', '#c084fc', '#fb7185', '#2dd4bf', '#f97316'];
@@ -39,6 +57,8 @@ interface Member {
 }
 
 interface Room {
+  // A Jam room, or the room where a Daw song is edited (`id` and `key` its id)
+  kind: 'jam' | 'daw';
   // Listed in the lobby by `id`; joined by `key` (an open room's id, a private room's code)
   id: string;
   key: string;
@@ -53,8 +73,16 @@ interface Room {
   closing: ReturnType<typeof setTimeout> | null;
 }
 
-export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: number } = {}) {
+// An empty song as it starts, and as it is again when reset: one section, no parts
+const EMPTY_SONG_EDIT: JamTrackEdit = { parts: [], bars: JAM_SECTION_BARS };
+
+const dawRoomSong = ({ id, title, bpm, file, transpose }: JamDawSong): JamRoomSong => ({ id, title, bpm, file, transpose });
+const songTracks = (song: JamDawSong): Record<string, JamTrackEdit> => (song.edit ? { [song.file]: song.edit } : {});
+
+export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: JamSongStore; emptyRoomMs?: number }) {
+  // Jam rooms by key, Daw songs' rooms by song id
   const rooms = new Map<string, Room>();
+  const dawRooms = new Map<string, Room>();
   const lobby = new Set<WebSocket>();
   let lobbyTimer: ReturnType<typeof setTimeout> | null = null;
   let nextId = 1;
@@ -67,6 +95,7 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
   const broadcast = (room: Room, message: JamServerMessage, except?: string) => {
     for (const [id, member] of room.members) if (id !== except) send(member.socket, message);
   };
+  const players = (room: Room) => [...room.members.values()].map(({ peer }) => ({ name: peer.name, color: peer.color }));
 
   // Rooms with players first, then the empty ones; the newest first in each
   const summaries = (): JamRoomSummary[] =>
@@ -77,18 +106,34 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
         host: room.host,
         visibility: room.visibility,
         key: room.visibility === 'open' ? room.key : null,
-        songId: room.state.songId,
+        song: room.state.song,
         playing: room.state.startAt !== null,
-        players: [...room.members.values()].map(({ peer }) => ({ name: peer.name, color: peer.color })),
+        players: players(room),
         full: room.members.size >= JAM_ROOM_MAX_PLAYERS,
       }));
+  const songSummaries = (): JamDawSongSummary[] =>
+    songs.list().map(({ edit: _edit, ...song }) => {
+      const room = dawRooms.get(song.id);
+      return { ...song, editors: room ? players(room) : [] };
+    });
+  // The song a new Jam room plays: a built-in one, or a Daw song offered to rooms
+  const roomSong = (id: string): { song: JamRoomSong; tracks: Record<string, JamTrackEdit> } | null => {
+    const builtIn = JAM_SONGS.find((song) => song.id === id);
+    if (builtIn) return { song: jamRoomSongOf(builtIn), tracks: {} };
+    const daw = songs.get(id);
+    return daw?.offered ? { song: dawRoomSong(daw), tracks: songTracks(daw) } : null;
+  };
   // The lobby hears of a change shortly after, once for a burst of changes
   const lobbyChanged = () => {
     if (lobbyTimer || lobby.size === 0) return;
     lobbyTimer = setTimeout(() => {
       lobbyTimer = null;
-      const message: JamServerMessage = { t: 'rooms', rooms: summaries() };
-      for (const socket of lobby) send(socket, message);
+      const roomList: JamServerMessage = { t: 'rooms', rooms: summaries() };
+      const songList: JamServerMessage = { t: 'songs', songs: songSummaries() };
+      for (const socket of lobby) {
+        send(socket, roomList);
+        send(socket, songList);
+      }
     }, LOBBY_MS);
   };
 
@@ -103,7 +148,10 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
       const left = room;
       room = null;
       left.members.delete(id);
-      if (left.members.size === 0) {
+      // A Daw song is kept as it is edited: its room closes with its last player
+      if (left.kind === 'daw' && left.members.size === 0) {
+        dawRooms.delete(left.id);
+      } else if (left.members.size === 0) {
         const { startAt } = left.state;
         if (startAt !== null) left.state = { ...left.state, startAt: null, position: Math.max(0, (performance.now() - startAt) / 1000) };
         left.closing = setTimeout(() => {
@@ -133,6 +181,36 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
       if (message.t === 'lobby') {
         lobby.add(socket);
         send(socket, { t: 'rooms', rooms: summaries() });
+        send(socket, { t: 'songs', songs: songSummaries() });
+        return;
+      }
+
+      if (message.t === 'newSong') {
+        const title = String(message.title).trim().slice(0, JAM_SONG_TITLE_MAX);
+        const builtIn = message.from === null ? null : JAM_SONGS.find((song) => song.id === message.from);
+        const bpm = message.bpm;
+        const valid =
+          title &&
+          (builtIn || (message.from === null && Number.isInteger(bpm) && bpm >= JAM_DAW_MIN_BPM && bpm <= JAM_DAW_MAX_BPM));
+        if (!valid) {
+          send(socket, { t: 'songMade', c: message.c, id: null });
+          return;
+        }
+        // A copy of a built-in song keeps its 8 bars; an empty one starts with one section
+        const made = songs.add(
+          builtIn
+            ? { ...jamRoomSongOf(builtIn), title, edit: null, offered: false }
+            : { title, bpm, file: jamEmptyTrackFile(bpm), transpose: 0, edit: EMPTY_SONG_EDIT, offered: false }
+        );
+        send(socket, { t: 'songMade', c: message.c, id: made.id });
+        lobbyChanged();
+        return;
+      }
+
+      if (message.t === 'offer') {
+        if (!songs.get(message.song)) return;
+        songs.update(message.song, { offered: message.offered === true });
+        lobbyChanged();
         return;
       }
 
@@ -142,30 +220,54 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
         return;
       }
 
-      if (message.t === 'join') {
-        if (room || !JAM_ROOM_CODE.test(message.room)) {
+      if (message.t === 'join' || message.t === 'edit') {
+        if (room || !JAM_ROOM_CODE.test(message.t === 'join' ? message.room : message.song)) {
           socket.close(1008, 'Bad join');
           return;
         }
-        let joining = rooms.get(message.room);
-        if (!joining && !message.create) {
-          send(socket, { t: 'missing' });
-          socket.close(1000, 'No such room');
-          return;
-        }
-        if (!joining) {
-          const visibility = message.create!;
-          joining = {
-            id: visibility === 'open' ? message.room : randomBytes(6).toString('hex'),
-            key: message.room,
-            visibility,
+        let joining: Room | undefined;
+        if (message.t === 'edit') {
+          const song = songs.get(message.song);
+          if (!song) {
+            send(socket, { t: 'missing' });
+            socket.close(1000, 'No such song');
+            return;
+          }
+          joining = dawRooms.get(song.id) ?? {
+            kind: 'daw',
+            id: song.id,
+            key: song.id,
+            visibility: 'open',
             opener: id,
             host: '',
             opened: nextRoom++,
-            state: message.state,
+            state: { song: dawRoomSong(song), startAt: null, position: 0, tracks: songTracks(song) },
             members: new Map(),
             closing: null,
           };
+        } else {
+          joining = rooms.get(message.room);
+          const opening = !joining && message.create ? roomSong(message.create.song) : null;
+          if (!joining && !opening) {
+            send(socket, { t: 'missing' });
+            socket.close(1000, 'No such room');
+            return;
+          }
+          if (!joining) {
+            const visibility = message.create!.visibility === 'private' ? 'private' : 'open';
+            joining = {
+              kind: 'jam',
+              id: visibility === 'open' ? message.room : randomBytes(6).toString('hex'),
+              key: message.room,
+              visibility,
+              opener: id,
+              host: '',
+              opened: nextRoom++,
+              state: { song: opening!.song, startAt: null, position: 0, tracks: opening!.tracks },
+              members: new Map(),
+              closing: null,
+            };
+          }
         }
         if (joining.members.size >= JAM_ROOM_MAX_PLAYERS) {
           send(socket, { t: 'full' });
@@ -173,7 +275,8 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
           return;
         }
         room = joining;
-        rooms.set(room.key, room);
+        if (room.kind === 'daw') dawRooms.set(room.id, room);
+        else rooms.set(room.key, room);
         if (room.closing) clearTimeout(room.closing);
         room.closing = null;
         const taken = new Set([...room.members.values()].map((member) => member.peer.color));
@@ -205,18 +308,19 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
         case 'leave':
           leaveRoom();
           break;
-        case 'state':
-          if (message.state.songId !== room.state.songId || (message.state.startAt === null) !== (room.state.startAt === null)) {
-            lobbyChanged();
-          }
-          room.state = { ...message.state, tracks: room.state.tracks };
+        case 'state': {
+          const { startAt, position } = message.state;
+          if ((startAt === null) !== (room.state.startAt === null)) lobbyChanged();
+          room.state = { ...room.state, startAt, position };
           broadcast(room, { t: 'state', state: room.state });
           break;
+        }
         case 'track': {
-          const tracks = { ...room.state.tracks };
-          if (message.edit) tracks[message.file] = message.edit;
-          else delete tracks[message.file];
-          room.state = { ...room.state, tracks };
+          const { file } = room.state.song;
+          if (room.kind !== 'daw' || message.file !== file || (message.edit !== null && !validJamTrackEdit(file, message.edit))) break;
+          const edit = message.edit ?? (jamTrackIsEmpty(jamTrackByFile(file)!) ? EMPTY_SONG_EDIT : null);
+          room.state = { ...room.state, tracks: edit ? { [file]: edit } : {} };
+          songs.update(room.id, { edit });
           broadcast(room, { t: 'state', state: room.state });
           break;
         }
@@ -267,6 +371,7 @@ export function createJamRooms({ emptyRoomMs = EMPTY_ROOM_MS }: { emptyRoomMs?: 
       });
     },
     close() {
+      songs.flush();
       if (lobbyTimer) clearTimeout(lobbyTimer);
       for (const room of rooms.values()) if (room.closing) clearTimeout(room.closing);
       for (const client of wss.clients) client.terminate();
