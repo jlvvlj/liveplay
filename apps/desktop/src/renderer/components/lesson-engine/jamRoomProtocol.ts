@@ -31,9 +31,17 @@ export interface JamDawSong extends JamRoomSong {
   created: number;
 }
 
-// A Daw song as the Daw lobby lists it, with the players editing it now
+// A Daw song as the lobbies list it, with the players editing it now and its
+// tracks (by the grid's ids), any of which a lesson room can play as its lesson
 export interface JamDawSongSummary extends Omit<JamDawSong, 'edit'> {
   editors: { name: string; color: string }[];
+  tracks: { id: string; name: string }[];
+}
+
+// A lesson room's lesson: one track of its song (by the grid's id), by name
+export interface JamRoomLesson {
+  track: string;
+  name: string;
 }
 
 // A Jam room as the lobby lists it
@@ -45,6 +53,8 @@ export interface JamRoomSummary {
   // The key to join with: an open room's; null for a private room
   key: string | null;
   song: JamRoomSong;
+  // A lesson room's lesson; null for a Jam room
+  lesson: JamRoomLesson | null;
   playing: boolean;
   players: { name: string; color: string }[];
   full: boolean;
@@ -53,6 +63,7 @@ export interface JamRoomSummary {
 // The room's jam, the same for every player in it
 export interface JamRoomState {
   song: JamRoomSong;
+  lesson: JamRoomLesson | null;
   // Server time (ms) of the song's first 16th while it plays; null while paused
   startAt: number | null;
   // Where the song stopped (s) while it is paused
@@ -100,7 +111,7 @@ export type JamClientMessage =
   | {
       t: 'join';
       room: string;
-      create?: { visibility: JamRoomVisibility; song: string };
+      create?: { visibility: JamRoomVisibility; song: string; lesson?: string };
       name: string;
       sound: JamRoomSound | null;
       need: number;
@@ -118,7 +129,7 @@ export type JamClientMessage =
   // Whether `code` opens the private room listed as `id`
   | { t: 'check'; id: string; code: string; c: number }
   | { t: 'ping'; c: number }
-  | { t: 'state'; state: Omit<JamRoomState, 'song' | 'tracks'> }
+  | { t: 'state'; state: Omit<JamRoomState, 'song' | 'lesson' | 'tracks'> }
   // A Daw song's grid as edited, and its tempo (a Jam room's song stays as it was opened)
   | { t: 'track'; file: string; edit: JamTrackEdit | null }
   | { t: 'tempo'; bpm: number }

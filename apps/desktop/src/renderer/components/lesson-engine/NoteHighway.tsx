@@ -55,6 +55,15 @@ interface NoteHighwayProps {
   holdNotes?: boolean; // long sounds are drawn as long as they last and must be held
   holdingSteps?: Set<number>; // hold notes whose key is down right now
   jamToolbar?: ReactNode; // Jam mode: buttons shown first in the toolbar at the top
+  // Lesson rooms: the steps come at the ship, which stays where it is, every
+  // `loopMs` again; `hits` are how each was played, by `${loop}:${step}`
+  jamLesson?: { loopMs: number; hits: Map<string, JamLessonHit> };
+}
+
+// A lesson room's step as it was played: its judgment and how far off it was
+export interface JamLessonHit {
+  accuracy: 'perfect' | 'good' | 'early' | 'late' | 'miss';
+  deltaMs: number;
 }
 
 interface NoteHitState {
@@ -112,6 +121,7 @@ export function NoteHighway({
   holdNotes = false,
   holdingSteps,
   jamToolbar,
+  jamLesson,
 }: NoteHighwayProps) {
   const [noteHitStates, setNoteHitStates] = useState<Map<number, NoteHitState>>(new Map());
   const [timingPopups, setTimingPopups] = useState<TimingPopup[]>([]);
@@ -139,9 +149,11 @@ export function NoteHighway({
   const jamWidth = containerWidth;
 
   // Calculate hit zone offset based on container width
+  // A lesson room's ship is its timing line, where lesson mode has it
+  const lessonRoom = !!jamLesson;
   const hitZoneOffset = useMemo(() => {
-    return mode === 'jam' ? jamWidth * JAM_CURSOR_HOME_PERCENT : containerWidth * HIT_ZONE_PERCENT;
-  }, [containerWidth, mode, jamWidth]);
+    return mode === 'jam' && !lessonRoom ? jamWidth * JAM_CURSOR_HOME_PERCENT : containerWidth * HIT_ZONE_PERCENT;
+  }, [containerWidth, mode, jamWidth, lessonRoom]);
 
   // Get unique notes from the lesson (sorted by MIDI value)
   const uniqueNotes = useMemo(() =>
@@ -387,7 +399,9 @@ export function NoteHighway({
   };
 
   const renderTimingPopups = () => {
-    if (mode !== 'play') return null;
+    if (mode !== 'play' && !jamLesson) return null;
+    // The jam's rows run from the highest lane at the top
+    const row = (laneIndex: number) => (jamLesson ? laneCount - 1 - laneIndex : laneIndex);
     return (
       <div className="timing-popups">
         {timingPopups.map(popup => (
@@ -398,7 +412,7 @@ export function NoteHighway({
               left: `${hitZoneOffset}px`,
               top: isCollapsed
                 ? '50%'
-                : `${((popup.laneIndex + 0.5) / Math.max(1, laneCount)) * 100}%`,
+                : `${((row(popup.laneIndex) + 0.5) / Math.max(1, laneCount)) * 100}%`,
             }}
           >
             <span className="timing-popup-text">{getPopupLabel(popup)}</span>
@@ -786,8 +800,9 @@ export function NoteHighway({
         x: Math.min(range, Math.max(0, motion.x)),
         dy: jamShipOffset(jamNote.note, jamShipYs.get(ship)),
       });
-      // Notes that sounded long before this tick (e.g. a remount) leave no push
-      if (currentTime - jamNote.timeMs < 250) {
+      // Notes that sounded long before this tick (e.g. a remount) leave no
+      // push, and in a lesson room the ship stays at the timing line
+      if (currentTime - jamNote.timeMs < 250 && !jamLesson) {
         motion.v += jamWidth * JAM_CURSOR_PUSH * JAM_CURSOR_BURST_DECAY;
       }
     }
@@ -837,6 +852,47 @@ export function NoteHighway({
           />
         );
       });
+  };
+
+  // Lesson rooms: the lane's steps coming at the ship, round and outlined in
+  // the lane's color, from a little behind it to the far edge, loop after
+  // loop. One played on time fills in that color with a burst, early or late
+  // in early's or late's, a missed one fades.
+  const LESSON_PAST_MS = 600;
+  const renderJamLessonNotes = (laneIndex: number) => {
+    if (!jamLesson || jamLesson.loopMs <= 0) return null;
+    const { loopMs, hits } = jamLesson;
+    const size = noteSize * 0.62;
+    const aheadMs = (jamWidth - hitZoneOffset) / JAM_PIXELS_PER_MS;
+    const firstLoop = Math.floor((currentTime - LESSON_PAST_MS) / loopMs);
+    const lastLoop = Math.floor((currentTime + aheadMs) / loopMs);
+    const color = getLaneColor(laneIndex);
+    const notes: ReactNode[] = [];
+    for (let loop = Math.max(0, firstLoop); loop <= lastLoop; loop++) {
+      steps.forEach((step, index) => {
+        if (noteToLane(step.note) !== laneIndex) return;
+        const at = loop * loopMs + stepTimes[index];
+        if (at < currentTime - LESSON_PAST_MS || at > currentTime + aheadMs) return;
+        const hit = hits.get(`${loop}:${index}`);
+        const timing = !hit
+          ? ''
+          : hit.accuracy === 'miss'
+            ? 'missed'
+            : Math.abs(hit.deltaMs) <= ON_TIME_MS
+              ? 'on-time'
+              : hit.deltaMs < 0
+                ? 'early'
+                : 'late';
+        notes.push(
+          <div
+            key={`${loop}:${index}`}
+            className={`jam-lesson-note ${timing}`}
+            style={{ left: `${at * JAM_PIXELS_PER_MS}px`, width: `${size}px`, height: `${size}px`, color }}
+          />
+        );
+      });
+    }
+    return notes;
   };
 
   // Jam mode pointer play: press a row to play its pitch, hold to keep playing,
@@ -1031,6 +1087,7 @@ export function NoteHighway({
                     transform: `translateX(${hitZoneOffset - currentTime * JAM_PIXELS_PER_MS}px)`,
                   }}
                 >
+                  {renderJamLessonNotes(laneIndex)}
                   {renderJamNotes(laneIndex)}
                 </div>
               </div>

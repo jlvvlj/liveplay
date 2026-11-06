@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { Lesson } from '../../types/lesson';
+import { useState, type ReactNode } from 'react';
+import type { Lesson, LessonScore } from '../../types/lesson';
 import { BackIcon, SYNTH_TAG_ICONS, SidebarIcon } from './JamIcons';
 import { CategoryArt } from './instruments/CategoryArt';
 import type { JamRoomPlayer } from './jamRoom';
@@ -15,6 +15,14 @@ interface JamSettingsPanelProps {
   // Playing together online: the room this player is in (a private room's
   // code, null for an open room) and its players once joined
   room?: { code: string | null; joined: boolean; players: JamRoomPlayer[] };
+  // A lesson room's lesson: this player's score, the lanes to practise and
+  // how loud its notes play by themselves (0: they don't)
+  lesson?: {
+    score: LessonScore;
+    lanes: ReactNode;
+    autoPlay: number;
+    onAutoPlayChange: (volume: number) => void;
+  };
   // This player's name on their ship in rooms; empty for the room's numbered name
   roomName?: string;
   onRoomNameChange?: (name: string) => void;
@@ -93,6 +101,7 @@ export function JamSettingsPanel({
   songId,
   onSongChange,
   room,
+  lesson,
   roomName = '',
   onRoomNameChange,
   view,
@@ -204,7 +213,39 @@ export function JamSettingsPanel({
           />
         </div>
 
-        {playing && (
+        {lesson && (
+          <div className="setting-group">
+            <label className="setting-label">
+              <span className="setting-icon">&#127919;</span>
+              Lesson
+              <span className="setting-value">{lesson.score.accuracy.toFixed(1)}%</span>
+            </label>
+            <div className="jam-lesson-score">
+              <span>
+                <b>{lesson.score.perfectHits}</b> perfect
+              </span>
+              <span>
+                <b>{lesson.score.hits}</b> hits
+              </span>
+              <span>
+                <b>{lesson.score.misses}</b> missed
+              </span>
+            </div>
+            <Slider
+              label="Auto-play"
+              value={lesson.autoPlay}
+              display={lesson.autoPlay === 0 ? 'Off' : `${Math.round(lesson.autoPlay * 100)}%`}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={lesson.onAutoPlayChange}
+            />
+            <div className="jam-subhead">Sounds</div>
+            {lesson.lanes}
+          </div>
+        )}
+
+        {playing && !lesson && (
         <div className="setting-group">
           <label className="setting-label">
             <span className="setting-icon">&#128257;</span>
@@ -330,6 +371,8 @@ export function JamSettingsPanel({
           </div>
         </div>
 
+        {/* A lesson room's hits play its lesson track's own sound */}
+        {!lesson && (
         <div className="setting-group">
           <label className="setting-label">
             <span className="setting-icon">&#127927;</span>
@@ -351,6 +394,7 @@ export function JamSettingsPanel({
             </button>
           )}
         </div>
+        )}
         </>
         )}
       </div>

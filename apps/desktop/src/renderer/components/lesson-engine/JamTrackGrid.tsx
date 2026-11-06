@@ -17,14 +17,13 @@ import {
   jamAddedInstrument,
   jamAddedIsDrum,
   jamAddedPartName,
-  jamAddedTrackName,
   jamNewAddedParts,
   type JamAddedPart,
 } from './jamAddedParts';
 import TrackZoom from '../../../../../../instrument-lab/client/TrackZoom.jsx';
 import { zoomWindow } from '../../../../../../instrument-lab/client/timeline.mjs';
 import { CollapseIcon, ExpandIcon, InstrumentsIcon, LanesIcon } from './JamIcons';
-import { SOUND_COLORS } from '../../styles/palette';
+import { gridTracks, type GridTrack } from './jamGridTracks';
 import './JamTrackGrid.css';
 
 // What a new track starts with, before its instrument is chosen: the first
@@ -58,7 +57,6 @@ const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 
 const noteName = (pitch: number) => `${NOTE_NAMES[pitch % 12]}${Math.floor(pitch / 12) - 1}`;
 const isBlackKey = (pitch: number) => [1, 3, 6, 8, 10].includes(pitch % 12);
-const partColor = (part: number) => SOUND_COLORS[part % SOUND_COLORS.length];
 const noteKey = (note: JamTrackNote) => `${note.step}|${note.pitch}`;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -75,41 +73,6 @@ const velocityColor = (color: string, velocity: number) =>
 
 // One row of the timeline: the track's drums together, one of its parts, or
 // a track added in the grid (`added`: its id; a kit's parts together)
-interface GridTrack {
-  id: string;
-  name: string;
-  kind: 'drum' | 'notes';
-  parts: number[];
-  color: string;
-  added?: string;
-}
-
-function gridTracks(own: JamTrackPart[], added: JamAddedPart[]): GridTrack[] {
-  const drums = own.flatMap((part, index) => (part.kind === 'drum' ? [index] : []));
-  const addedTracks: GridTrack[] = [];
-  added.forEach((part, index) => {
-    const at = own.length + index;
-    const existing = addedTracks.find((candidate) => candidate.added === part.track);
-    if (existing) existing.parts.push(at);
-    else
-      addedTracks.push({
-        id: `added-${part.track}`,
-        name: jamAddedTrackName(part),
-        kind: jamAddedIsDrum(part) ? 'drum' : 'notes',
-        parts: [at],
-        color: partColor(at),
-        added: part.track,
-      });
-  });
-  return [
-    ...(drums.length ? [{ id: 'drums', name: 'Drums', kind: 'drum' as const, parts: drums, color: partColor(drums[0]) }] : []),
-    ...own.flatMap((part, index) =>
-      part.kind === 'notes' ? [{ id: `part-${index}`, name: part.name, kind: 'notes' as const, parts: [index], color: partColor(index) }] : []
-    ),
-    ...addedTracks,
-  ];
-}
-
 // The pitches a part's roll shows, highest first: the part's own notes with a
 // little room around them, and any note put beyond (notes put in that room
 // leave the rows as they are)

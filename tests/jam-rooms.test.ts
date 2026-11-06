@@ -17,7 +17,7 @@ import type {
 import { JAM_SONGS, jamRoomSongOf } from '../apps/desktop/src/renderer/components/lesson-engine/jamSongs';
 
 const CHIP = jamRoomSongOf(JAM_SONGS.find((song) => song.id === 'chip-run-jam')!);
-const STATE: JamRoomState = { song: CHIP, startAt: null, position: 0, tracks: {} };
+const STATE: JamRoomState = { song: CHIP, lesson: null, startAt: null, position: 0, tracks: {} };
 const opening = (song = 'chip-run-jam') => ({ visibility: 'open' as const, song });
 
 // A test player: its socket and every message it got
@@ -216,6 +216,23 @@ describe('jam rooms', () => {
       if (rooms.length === 0) break;
     }
     lobby.socket.close();
+  });
+
+  it('opens a lesson room on one of its song\'s tracks, and lists it with its lesson', async () => {
+    const lobby = await player(url);
+    lobby.send({ t: 'lobby' });
+    await lobby.next('rooms');
+    const a = await player(url);
+    a.send({ t: 'join', room: 'LESSON', create: { visibility: 'open', song: 'chip-run-jam', lesson: 'part-3' }, name: 'Aiko', sound: null, need: 0 });
+    expect((await a.next('welcome')).state.lesson).toEqual({ track: 'part-3', name: 'Bass' });
+    let rooms = (await lobby.next('rooms')).rooms;
+    while (!rooms.length) rooms = (await lobby.next('rooms')).rooms;
+    expect(rooms[0]).toMatchObject({ id: 'LESSON', lesson: { track: 'part-3', name: 'Bass' } });
+    // A track the song does not have opens nothing
+    const b = await player(url);
+    b.send({ t: 'join', room: 'NOLESSON', create: { visibility: 'open', song: 'chip-run-jam', lesson: 'part-99' }, name: '', sound: null, need: 0 });
+    await b.next('missing');
+    [a, lobby].forEach((p) => p.socket.close());
   });
 
   it('opens a room only on a song it can play', async () => {

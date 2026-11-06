@@ -1999,3 +1999,18 @@
   border-radius: 50%;
 }
 
+
+/* A lesson room's score in the jam sidebar */
+.jam-lesson-score {
+  display: flex;
+  gap: 0.9rem;
+  margin-bottom: 0.25rem;
+  color: var(--ds-text-dim);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-lesson-score b {
+  color: var(--ds-text);
+  font-weight: 600;
+}

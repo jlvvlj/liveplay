@@ -17,15 +17,17 @@ import './JamLobby.css';
 
 export interface JamRoomEntry {
   key: string;
-  create?: { visibility: JamRoomVisibility; song: string };
+  create?: { visibility: JamRoomVisibility; song: string; lesson?: string };
 }
 
-// A track a new room can play: a built-in song, or a Daw song offered to rooms
+// A track a new room can play: a built-in song, or a Daw song offered to
+// rooms, with its own tracks (a lesson room's lesson is one of them)
 export interface JamLobbyTrack {
   id: string;
   title: string;
   bpm: number;
   daw: boolean;
+  tracks: { id: string; name: string }[];
 }
 
 interface JamLobbyProps {
@@ -39,6 +41,8 @@ interface JamLobbyProps {
   onBack: () => void;
   // Why the player is back here, when the room ended by itself
   ended?: JamRoomEnd | null;
+  // The Lessons section: its rooms are lesson rooms, each opened with a lesson track
+  lessons?: boolean;
 }
 
 const ENDED: Record<JamRoomEnd, string> = {
@@ -62,14 +66,14 @@ const LockIcon = () => (
   </svg>
 );
 
-export function JamLobby({ rooms, unreachable, check, tracks, onEnter: enterRoom, onBack, ended }: JamLobbyProps) {
+export function JamLobby({ rooms, unreachable, check, tracks, onEnter: enterRoom, onBack, ended, lessons = false }: JamLobbyProps) {
   const onEnter = (entry: JamRoomEntry) => {
     startJamAudio();
     enterRoom(entry);
   };
   return (
     <div className="jam-lobby">
-      <JamLobbyHeader title="Jam" onBack={onBack} />
+      <JamLobbyHeader title={lessons ? 'Lessons' : 'Jam'} onBack={onBack} />
       {/* Without the server the rooms are unknown and none can be opened or
           joined: only that is shown until it is back */}
       {unreachable ? (
@@ -79,8 +83,10 @@ export function JamLobby({ rooms, unreachable, check, tracks, onEnter: enterRoom
           {ended && <div className="jam-lobby-note">{ENDED[ended]}</div>}
           {rooms && (
             <div className="jam-lobby-grid">
-              <NewRoomCard tracks={tracks} onCreate={(create) => onEnter({ key: newJamRoomCode(), create })} />
-              {rooms.map((room) => (
+              <NewRoomCard tracks={tracks} lessons={lessons} onCreate={(create) => onEnter({ key: newJamRoomCode(), create })} />
+              {rooms
+                .filter((room) => (room.lesson !== null) === lessons)
+                .map((room) => (
                 <RoomCard
                   key={room.id}
                   room={room}
@@ -109,16 +115,20 @@ export function JamLobbyHeader({ title, onBack }: { title: string; onBack: () =>
 }
 
 // The card that opens a new room: its track first (the room plays it for as
-// long as it lasts), then open to everyone or private with a code
+// long as it lasts), for a lesson room then which of its tracks to learn, then
+// open to everyone or private with a code
 function NewRoomCard({
   tracks,
+  lessons,
   onCreate,
 }: {
   tracks: JamLobbyTrack[];
-  onCreate: (create: { visibility: JamRoomVisibility; song: string }) => void;
+  lessons: boolean;
+  onCreate: (create: { visibility: JamRoomVisibility; song: string; lesson?: string }) => void;
 }) {
   const [choosing, setChoosing] = useState(false);
   const [song, setSong] = useState('');
+  const [lesson, setLesson] = useState('');
   if (!choosing) {
     return (
       <button className="jam-lobby-card jam-lobby-new" onClick={() => setChoosing(true)}>
@@ -133,16 +143,36 @@ function NewRoomCard({
     { label: 'Songs', options: options(false) },
     { label: 'Daw', options: options(true) },
   ].filter((group) => group.options.length);
+  const lessonTracks = tracks.find((track) => track.id === song)?.tracks ?? [];
+  const ready = song && (!lessons || lesson);
+  const create = (visibility: JamRoomVisibility) => onCreate({ visibility, song, ...(lessons ? { lesson } : {}) });
   return (
     <div className="jam-lobby-card jam-lobby-new jam-lobby-choosing">
       <div className="jam-lobby-card-head">New room</div>
-      <JamDropdown groups={groups} value={song} onChange={setSong} placeholder="Track" autoFocus />
-      {song && (
+      <JamDropdown
+        groups={groups}
+        value={song}
+        onChange={(next) => {
+          setSong(next);
+          setLesson('');
+        }}
+        placeholder="Track"
+        autoFocus
+      />
+      {lessons && song && (
+        <JamDropdown
+          groups={[{ options: lessonTracks.map((track) => ({ value: track.id, label: track.name })) }]}
+          value={lesson}
+          onChange={setLesson}
+          placeholder="Lesson track"
+        />
+      )}
+      {ready && (
         <div className="jam-lobby-choices">
-          <button className="jam-lobby-choice" onClick={() => onCreate({ visibility: 'open', song })}>
+          <button className="jam-lobby-choice" onClick={() => create('open')}>
             Open
           </button>
-          <button className="jam-lobby-choice" onClick={() => onCreate({ visibility: 'private', song })}>
+          <button className="jam-lobby-choice" onClick={() => create('private')}>
             <LockIcon />
             Private
           </button>
@@ -153,6 +183,7 @@ function NewRoomCard({
         onClick={() => {
           setChoosing(false);
           setSong('');
+          setLesson('');
         }}
         title="Cancel"
       >
@@ -190,7 +221,7 @@ function RoomCard({ room, onEnter, check }: RoomCardProps) {
       <div className="jam-lobby-title">{room.host}&apos;s room</div>
       <div className="jam-lobby-song">
         {room.playing && <span className="jam-lobby-live" />}
-        {room.song.title}
+        {room.lesson ? `${room.lesson.name} · ${room.song.title}` : room.song.title}
         <span className="jam-lobby-bpm">{room.song.bpm} BPM</span>
       </div>
       <div className="jam-lobby-players">
