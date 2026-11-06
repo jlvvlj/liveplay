@@ -407,10 +407,15 @@
   overflow: hidden;
 }
 
-/* Dragged taller by its top edge: its own height, over the tracks' space */
+/* Dragged taller or shorter by its top edge: its own height, the tracks
+   taking the rest, so its foot stays at the bottom and only its top moves */
 .jam-editor.sized {
   flex: none;
   max-height: none;
+}
+
+.jam-grid.editor-sized .jam-timeline {
+  flex: 1 1 0;
 }
 
 /* The top edge: drag up for a taller editor, down for a shorter one */
