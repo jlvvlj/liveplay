@@ -96,9 +96,10 @@
 
 /* The timeline: a row per track, its header and its clip over the loop (or
    the part of it in view), as tall as Riffle's */
+/* It takes every height the editor leaves, so the editor sits at the bottom */
 .jam-timeline {
   position: relative;
-  flex: 0 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   min-height: 9rem;
   overflow-y: auto;
@@ -412,10 +413,6 @@
 .jam-editor.sized {
   flex: none;
   max-height: none;
-}
-
-.jam-grid.editor-sized .jam-timeline {
-  flex: 1 1 0;
 }
 
 /* The top edge: drag up for a taller editor, down for a shorter one */
