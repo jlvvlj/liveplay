@@ -13,6 +13,16 @@ import { JAM_TRACK_BARS, jamTrackParts, type JamTrack, type JamTrackNote, type J
 import type { JamTrackMix } from './jamBackingMixer';
 import { JamLaneStrip } from './JamLaneStrip';
 import { auditionJamPart } from './jamAudition';
+import {
+  JAM_ADDABLE_INSTRUMENTS,
+  JAM_ADDABLE_KITS,
+  jamAddedInstrument,
+  jamAddedIsDrum,
+  jamAddedPartName,
+  jamAddedTrackName,
+  jamNewAddedParts,
+  type JamAddedPart,
+} from './jamAddedParts';
 import TrackZoom from '../../../../../../instrument-lab/client/TrackZoom.jsx';
 import { zoomWindow } from '../../../../../../instrument-lab/client/timeline.mjs';
 import { LanesIcon } from './JamIcons';
@@ -28,9 +38,9 @@ import './JamTrackGrid.css';
 // the strip under it sets velocities. The page follows the playhead unless
 // one is picked.
 
-const PAGE_BARS = 4;
-const PAGE_STEPS = PAGE_BARS * 16;
-const PAGES = JAM_TRACK_BARS / PAGE_BARS;
+// The editor's page: 4 bars of a piano roll, 2 of the drums' step grid (its cells twice as big)
+const ROLL_PAGE_BARS = 4;
+const DRUM_PAGE_BARS = 2;
 const LOOP_STEPS = JAM_TRACK_BARS * 16;
 const NEW_VELOCITY = 127; // a new hit or note: full velocity, a fully coloured square
 // Dragging a hit this far (px) changes its velocity by the full range; less
@@ -65,22 +75,40 @@ const velocityFill = (color: string, velocity: number) => {
   return `linear-gradient(to top, ${color} ${level}%, color-mix(in srgb, ${color} 30%, var(--ds-panel)) ${level}%) border-box no-repeat`;
 };
 
-// One row of the timeline: the drums together, or one part
+// One row of the timeline: the track's drums together, one of its parts, or
+// a track added in the grid (`added`: its id; a kit's parts together)
 interface GridTrack {
   id: string;
   name: string;
   kind: 'drum' | 'notes';
   parts: number[];
   color: string;
+  added?: string;
 }
 
-function gridTracks(parts: JamTrackPart[]): GridTrack[] {
-  const drums = parts.flatMap((part, index) => (part.kind === 'drum' ? [index] : []));
+function gridTracks(own: JamTrackPart[], added: JamAddedPart[]): GridTrack[] {
+  const drums = own.flatMap((part, index) => (part.kind === 'drum' ? [index] : []));
+  const addedTracks: GridTrack[] = [];
+  added.forEach((part, index) => {
+    const at = own.length + index;
+    const existing = addedTracks.find((candidate) => candidate.added === part.track);
+    if (existing) existing.parts.push(at);
+    else
+      addedTracks.push({
+        id: `added-${part.track}`,
+        name: jamAddedTrackName(part),
+        kind: jamAddedIsDrum(part) ? 'drum' : 'notes',
+        parts: [at],
+        color: partColor(at),
+        added: part.track,
+      });
+  });
   return [
     ...(drums.length ? [{ id: 'drums', name: 'Drums', kind: 'drum' as const, parts: drums, color: partColor(drums[0]) }] : []),
-    ...parts.flatMap((part, index) =>
+    ...own.flatMap((part, index) =>
       part.kind === 'notes' ? [{ id: `part-${index}`, name: part.name, kind: 'notes' as const, parts: [index], color: partColor(index) }] : []
     ),
+    ...addedTracks,
   ];
 }
 
@@ -88,7 +116,8 @@ function gridTracks(parts: JamTrackPart[]): GridTrack[] {
 // little room around them, and any note put beyond (notes put in that room
 // leave the rows as they are)
 function rollPitches(original: JamTrackNote[], notes: JamTrackNote[]): number[] {
-  const own = original.length ? original.map((note) => note.pitch) : [60];
+  // A part with no notes of its own (an added one) shows two octaves around middle C
+  const own = original.length ? original.map((note) => note.pitch) : [50, 70];
   const put = notes.map((note) => note.pitch);
   const low = Math.max(0, Math.min(Math.min(...own) - ROLL_MARGIN, ...put));
   const high = Math.min(127, Math.max(Math.max(...own) + ROLL_MARGIN, ...put));
@@ -97,8 +126,10 @@ function rollPitches(original: JamTrackNote[], notes: JamTrackNote[]): number[] 
 
 interface JamTrackGridProps {
   track: JamTrack;
-  // The track's notes, one list per part (drums first, as jamTrackParts orders them)
+  // The track's notes, one list per part (drums first, as jamTrackParts orders
+  // them, then the parts added here, played by `added`)
   notes: JamTrackNote[][];
+  added: JamAddedPart[];
   mix: JamTrackMix;
   // Buttons shown first in the header (back, the sidebar's)
   toolbar?: ReactNode;
@@ -107,7 +138,7 @@ interface JamTrackGridProps {
   onLanesOpenChange: (open: boolean) => void;
   edited: boolean;
   paused: boolean;
-  onChange: (notes: JamTrackNote[][]) => void;
+  onChange: (notes: JamTrackNote[][], added: JamAddedPart[]) => void;
   onMixChange: (mix: JamTrackMix) => void;
   onReset: () => void;
   onTogglePause: () => void;
@@ -160,6 +191,7 @@ const TrashIcon = () => (
 export function JamTrackGrid({
   track,
   notes,
+  added,
   mix,
   toolbar,
   lanesOpen,
@@ -172,14 +204,37 @@ export function JamTrackGrid({
   onTogglePause,
   getStep,
 }: JamTrackGridProps) {
-  const original = useMemo(() => jamTrackParts(track), [track]);
-  const tracks = useMemo(() => gridTracks(original), [original]);
+  const own = useMemo(() => jamTrackParts(track), [track]);
+  // Every part: the track's own, then the ones added here (no notes of their own)
+  const original = useMemo(
+    () => [
+      ...own,
+      ...added.map((part): JamTrackPart => ({ name: jamAddedPartName(part), kind: jamAddedIsDrum(part) ? 'drum' : 'notes', notes: [] })),
+    ],
+    [own, added]
+  );
+  const tracks = useMemo(() => gridTracks(own, added), [own, added]);
+  const addedAt = (part: number) => (part < own.length ? undefined : added[part - own.length]);
+  // A part's sound on one pitch, an added part's from its instrument
+  const audition = (part: number, pitch: number) => {
+    const addedPart = addedAt(part);
+    const instrument = addedPart && jamAddedInstrument(addedPart);
+    if (addedPart && !instrument) return;
+    auditionJamPart(
+      track.file,
+      part,
+      pitch,
+      addedPart && instrument ? { id: `${addedPart.sound}:${addedPart.drum ?? ''}`, instrument } : undefined
+    );
+  };
   const [openId, setOpenId] = useState<string | null>(null);
   const [pinned, setPinned] = useState<number | null>(null);
   const [playing, setPlaying] = useState(0);
   const [selected, setSelected] = useState<{ part: number; key: string } | null>(null);
   // The editor's row headers (each drum's controls, the piano keys) shown, or folded away
   const [rowsOpen, setRowsOpen] = useState(true);
+  // The sounds to add a track with, shown
+  const [adding, setAdding] = useState(false);
   const [cell, setCell] = useState(MIN_CELL_PX);
   // The timeline's view: from `start`, `span` 16ths of the loop
   const [view, setView] = useState<[number, number]>([0, LOOP_STEPS]);
@@ -192,6 +247,9 @@ export function JamTrackGrid({
   const noteDragRef = useRef<NoteDrag | null>(null);
   const open = tracks.find((candidate) => candidate.id === openId) ?? null;
   const page = pinned ?? playing;
+  const pageBars = open?.kind === 'drum' ? DRUM_PAGE_BARS : ROLL_PAGE_BARS;
+  const PAGE_STEPS = pageBars * 16;
+  const PAGES = JAM_TRACK_BARS / pageBars;
   const first = page * PAGE_STEPS;
   const step = cell + CELL_GAP_PX;
   const soloing = mix.solos.some(Boolean);
@@ -240,7 +298,7 @@ export function JamTrackGrid({
     const observer = new ResizeObserver(measure);
     observer.observe(area);
     return () => observer.disconnect();
-  }, [open?.id]);
+  }, [open?.id, PAGE_STEPS]);
 
   // The playheads move every frame without re-rendering; the playing page is tracked for the editor
   const stepRef = useRef(step);
@@ -269,10 +327,34 @@ export function JamTrackGrid({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [getStep, page]);
+  }, [getStep, page, PAGE_STEPS]);
 
   const setPart = (part: number, next: JamTrackNote[]) =>
-    onChange(notes.map((current, p) => (p === part ? [...next].sort((a, b) => a.step - b.step || a.pitch - b.pitch) : current)));
+    onChange(
+      notes.map((current, p) => (p === part ? [...next].sort((a, b) => a.step - b.step || a.pitch - b.pitch) : current)),
+      added
+    );
+
+  // A new track: its sound's parts after the others, empty, and its editor open
+  const addTrack = (sound: string) => {
+    const id = Date.now().toString(36);
+    const parts = jamNewAddedParts(sound, id);
+    if (!parts.length) return;
+    onChange([...notes, ...parts.map(() => [])], [...added, ...parts]);
+    setAdding(false);
+    setOpenId(`added-${id}`);
+    setPinned(null);
+    setSelected(null);
+  };
+
+  // An added track taken out, with its notes and its mix
+  const removeTrack = (gridTrack: GridTrack) => {
+    const keep = (_: unknown, part: number) => !gridTrack.parts.includes(part);
+    onChange(notes.filter(keep), added.filter((_, index) => keep(null, own.length + index)));
+    onMixChange({ levels: mix.levels.filter(keep), mutes: mix.mutes.filter(keep), solos: mix.solos.filter(keep) });
+    setOpenId(null);
+    setSelected(null);
+  };
 
   // A track's solo, mute and level: the drums' set every drum's (their level
   // scales them all, keeping their balance)
@@ -375,7 +457,7 @@ export function JamTrackGrid({
       note = { pitch, step: clamp(Math.floor(at), first, first + PAGE_STEPS - 1), length: 1, velocity: NEW_VELOCITY };
       mode = 'length';
       setPart(part, [...notes[part], note]);
-      auditionJamPart(track.file, part, pitch);
+      audition(part, pitch);
     }
     noteDragRef.current = { part, mode, from: note!, key: noteKey(note!), startX: event.clientX, startY: event.clientY, pitches };
     setSelected({ part, key: noteKey(note!) });
@@ -419,7 +501,7 @@ export function JamTrackGrid({
     if (key !== current.key && others.some((note) => noteKey(note) === key)) return;
     const now = notes[part].find((note) => noteKey(note) === current.key);
     if (now && now.step === next.step && now.pitch === next.pitch && now.length === next.length && now.velocity === next.velocity) return;
-    if (current.mode === 'move' && next.pitch !== now?.pitch) auditionJamPart(track.file, part, next.pitch);
+    if (current.mode === 'move' && next.pitch !== now?.pitch) audition(part, next.pitch);
     current.key = key;
     setPart(part, [...others, next]);
     setSelected({ part, key });
@@ -471,7 +553,7 @@ export function JamTrackGrid({
   const ruler = (
     <div className="jam-editor-ruler">
       {Array.from({ length: PAGE_STEPS / 4 }, (_, beat) => {
-        const bar = page * PAGE_BARS + Math.floor(beat / 4) + 1;
+        const bar = page * pageBars + Math.floor(beat / 4) + 1;
         return (
           <span key={beat} className={beat % 4 === 0 ? 'bar' : undefined}>
             {beat % 4 === 0 ? bar : `${bar}.${(beat % 4) + 1}`}
@@ -494,7 +576,7 @@ export function JamTrackGrid({
                 solo={mix.solos[part]}
                 mute={mix.mutes[part]}
                 level={mix.levels[part]}
-                onNameClick={() => auditionJamPart(track.file, part, original[part].notes[0]?.pitch ?? 0)}
+                onNameClick={() => audition(part, original[part].notes[0]?.pitch ?? 0)}
                 onSolo={() => setMixOf([part], 'solos', !mix.solos[part])}
                 onMute={() => setMixOf([part], 'mutes', !mix.mutes[part])}
                 onLevel={(level) => setMixOf([part], 'levels', level)}
@@ -557,7 +639,7 @@ export function JamTrackGrid({
                 <button
                   key={pitch}
                   className={`jam-editor-key ${isBlackKey(pitch) ? 'black' : ''}`}
-                  onClick={blurAfter(() => auditionJamPart(track.file, part, pitch))}
+                  onClick={blurAfter(() => audition(part, pitch))}
                   aria-label={`Play ${noteName(pitch)}`}
                 >
                   {pitch % 12 === 0 && noteName(pitch)}
@@ -722,6 +804,7 @@ export function JamTrackGrid({
                   }`}
                   onClick={blurAfter(() => {
                     setOpenId(gridTrack.id);
+                    setPinned(null);
                     setSelected(null);
                   })}
                   aria-label={`Edit ${gridTrack.name}`}
@@ -735,6 +818,40 @@ export function JamTrackGrid({
             </div>
           );
         })}
+        <div className="jam-timeline-add">
+          <button
+            className={`jam-timeline-add-btn ${adding ? 'on' : ''}`}
+            onClick={blurAfter(() => setAdding(!adding))}
+            aria-expanded={adding}
+          >
+            <span className="jam-timeline-add-icon">
+              <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+                <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </span>
+            Add track
+          </button>
+          {adding && (
+            <div className="jam-timeline-add-sounds">
+              <div className="jam-timeline-add-group">Instruments</div>
+              <div className="jam-timeline-add-options">
+                {JAM_ADDABLE_INSTRUMENTS.map((sound) => (
+                  <button key={sound.id} onClick={blurAfter(() => addTrack(sound.id))}>
+                    {sound.label}
+                  </button>
+                ))}
+              </div>
+              <div className="jam-timeline-add-group">Drums</div>
+              <div className="jam-timeline-add-options">
+                {JAM_ADDABLE_KITS.map((sound) => (
+                  <button key={sound.id} onClick={blurAfter(() => addTrack(sound.id))}>
+                    {sound.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         <div className="jam-timeline-overlay">
           <div ref={timelinePlayheadRef} className="jam-timeline-playhead" />
         </div>
@@ -743,7 +860,7 @@ export function JamTrackGrid({
       {open && (
         <section
           className={`jam-editor ${rowsOpen ? '' : 'heads-closed'}`}
-          style={{ '--track-color': open.color, '--cell': `${cell}px` } as CSSProperties}
+          style={{ '--track-color': open.color, '--cell': `${cell}px`, '--steps': PAGE_STEPS, '--beats': PAGE_STEPS / 4 } as CSSProperties}
         >
           <div className="jam-editor-top">
             <button
@@ -765,10 +882,15 @@ export function JamTrackGrid({
                   className={`${pinned === index ? 'active' : ''} ${playing === index ? 'playing' : ''}`}
                   onClick={blurAfter(() => setPinned(index))}
                 >
-                  {index * PAGE_BARS + 1}–{(index + 1) * PAGE_BARS}
+                  {index * pageBars + 1}–{(index + 1) * pageBars}
                 </button>
               ))}
             </div>
+            {open.added && (
+              <button className="jam-editor-remove" onClick={blurAfter(() => removeTrack(open))}>
+                Remove track
+              </button>
+            )}
             {selected && (
               <button className="jam-editor-icon-btn" onClick={blurAfter(removeSelected)} aria-label="Delete note" title="Delete note">
                 <TrashIcon />

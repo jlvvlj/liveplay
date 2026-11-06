@@ -9,10 +9,12 @@ import { JamTrackGrid } from './JamTrackGrid';
 import { BackIcon, SidebarIcon } from './JamIcons';
 import { JAM_TRACKS, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
 import { renderJamBackingPart, renderJamSound } from './jamRenderer';
+import { jamAddedInstrument, jamPartKey, validJamAddedPart, type JamAddedPart } from './jamAddedParts';
 import { jamSoundUrl } from './jamSoundFiles';
 import {
   JamBackingMixer,
   defaultJamTrackMix,
+  fitJamTrackMix,
   jamTrackLevels,
   loadJamBackingMixer,
   type BackingPlayer,
@@ -108,9 +110,11 @@ interface JamSettings {
   swings: Record<string, number>;
 }
 
-// An edited backing track: its notes, one list per part
+// An edited backing track: its notes, one list per part (its own parts, then
+// the ones added in the grid, played by `added`)
 export interface JamTrackEdit {
   parts: JamTrackNote[][];
+  added?: JamAddedPart[];
 }
 
 // Edits that no longer match their track's parts are left out
@@ -120,18 +124,24 @@ function validTrackEdits(saved: unknown): Record<string, JamTrackEdit> {
     Object.entries(saved as Record<string, JamTrackEdit>).filter(([file, edit]) => {
       const track = JAM_TRACKS.find((candidate) => candidate.file === file);
       const partCount = track ? jamTrackParts(track).length : -1;
-      return Array.isArray(edit?.parts) && edit.parts.length === partCount;
+      const added = edit?.added ?? [];
+      return (
+        Array.isArray(added) &&
+        added.every(validJamAddedPart) &&
+        Array.isArray(edit?.parts) &&
+        edit.parts.length === partCount + added.length
+      );
     })
   );
 }
-// Mixes that no longer match their track's parts are left out
+// Mixes that no longer cover their track's own parts are left out (added parts come after them)
 function validTrackMixes(saved: unknown): Record<string, JamTrackMix> {
   if (!saved || typeof saved !== 'object') return {};
   return Object.fromEntries(
     Object.entries(saved as Record<string, JamTrackMix>).filter(([file, mix]) => {
       const track = JAM_TRACKS.find((candidate) => candidate.file === file);
       const partCount = track ? jamTrackParts(track).length : -1;
-      return [mix?.levels, mix?.mutes, mix?.solos].every((list) => Array.isArray(list) && list.length === partCount);
+      return [mix?.levels, mix?.mutes, mix?.solos].every((list) => Array.isArray(list) && list.length >= partCount);
     })
   );
 }
@@ -953,22 +963,48 @@ export function LessonPlayer({
   const jamTrackEdit = jamTrack ? (jamRoomState ?? jamSettings)?.tracks[jamTrack.file] : undefined;
   const jamTrackOriginal = useMemo(() => (jamTrack ? jamTrackParts(jamTrack).map((part) => part.notes) : null), [jamTrack]);
   const jamTrackNotes = jamTrackEdit?.parts ?? jamTrackOriginal;
+  const jamTrackAdded = useMemo(() => jamTrackEdit?.added ?? [], [jamTrackEdit]);
   const jamTrackNotesRef = useRef(jamTrackNotes);
   jamTrackNotesRef.current = jamTrackNotes;
-  const renderedTrackNotesRef = useRef<JamTrackNote[][] | null>(null);
+  const jamTrackAddedRef = useRef(jamTrackAdded);
+  jamTrackAddedRef.current = jamTrackAdded;
+  // The notes each mixer part was rendered from, and which part it is (see jamPartKey)
+  const renderedTrackNotesRef = useRef<(JamTrackNote[] | null)[] | null>(null);
+  const renderedTrackKeysRef = useRef<string[]>([]);
 
-  // After an edit: render the edited parts again and swap them in at the same point of the loop
+  // After an edit: take out the parts of removed tracks, add lanes for added
+  // ones, render the edited parts again and swap them in at the same point of the loop
   useEffect(() => {
     const mixer = backingTrackRef.current;
     if (!jamTrack || !jamTrackNotes || !backingTrackLoaded || !(mixer instanceof JamBackingMixer)) return;
     const rendered = renderedTrackNotesRef.current;
-    const changed = jamTrackNotes.map((_, part) => part).filter((part) => rendered?.[part] !== jamTrackNotes[part]);
-    if (!rendered || changed.length === 0) return;
+    if (!rendered) return;
+    const own = jamTrackNotes.length - jamTrackAdded.length;
+    const addedAt = (part: number) => (part < own ? undefined : jamTrackAdded[part - own]);
+    const keys = jamTrackNotes.map((_, part) => jamPartKey(part, addedAt(part)));
+    const renderedKeys = renderedTrackKeysRef.current;
+    for (let part = renderedKeys.length - 1; part >= 0; part--) {
+      if (keys.includes(renderedKeys[part])) continue;
+      mixer.remove(part);
+      renderedKeys.splice(part, 1);
+      rendered.splice(part, 1);
+    }
+    for (let part = renderedKeys.length; part < keys.length; part++) {
+      mixer.add();
+      renderedKeys.push(keys[part]);
+      // A new part with no notes is already right: silent
+      rendered.push(jamTrackNotes[part].length ? null : jamTrackNotes[part]);
+    }
+    const changed = jamTrackNotes.map((_, part) => part).filter((part) => rendered[part] !== jamTrackNotes[part]);
+    if (changed.length === 0) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       for (const part of changed) {
         const notes = jamTrackNotes[part];
-        renderJamBackingPart(jamTrack.file, part, notes).then(
+        const added = addedAt(part);
+        const instrument = added ? jamAddedInstrument(added) : null;
+        if (added && !instrument) continue;
+        renderJamBackingPart(jamTrack.file, part, notes, instrument ?? undefined).then(
           (audio) => {
             if (cancelled || backingTrackRef.current !== mixer) return;
             mixer.replace(part, audio);
@@ -982,13 +1018,14 @@ export function LessonPlayer({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [jamTrack, jamTrackNotes, backingTrackLoaded]);
+  }, [jamTrack, jamTrackNotes, jamTrackAdded, backingTrackLoaded]);
 
   // The grid's mixer settings: levels, mutes and solos per part
   const jamSavedMix = jamTrack ? jamSettings?.mixes[jamTrack.file] : undefined;
   const jamPartCount = jamTrackNotes?.length ?? 0;
   const jamTrackMix = useMemo(
-    () => (jamSavedMix ?? (jamPartCount ? defaultJamTrackMix(jamPartCount) : undefined)),
+    () =>
+      jamSavedMix ? fitJamTrackMix(jamSavedMix, jamPartCount) : jamPartCount ? defaultJamTrackMix(jamPartCount) : undefined,
     [jamSavedMix, jamPartCount]
   );
   useEffect(() => {
@@ -1015,7 +1052,8 @@ export function LessonPlayer({
     if (jamTrackToLoad) {
       let cancelled = false;
       const notes = jamTrackNotesRef.current!;
-      loadJamBackingMixer(jamTrackToLoad, notes).then(
+      const added = jamTrackAddedRef.current;
+      loadJamBackingMixer(jamTrackToLoad, notes, added).then(
         (mixer) => {
           if (cancelled) {
             mixer.dispose();
@@ -1024,6 +1062,8 @@ export function LessonPlayer({
           mixer.volume.value = -Infinity; // Start muted
           backingTrackRef.current = mixer;
           renderedTrackNotesRef.current = [...notes];
+          const own = notes.length - added.length;
+          renderedTrackKeysRef.current = notes.map((_, part) => jamPartKey(part, part < own ? undefined : added[part - own]));
           setBackingTrackLoaded(true);
         },
         (err) => console.error('[LessonPlayer] Could not render the backing track:', err)
@@ -2622,6 +2662,7 @@ export function LessonPlayer({
             toolbar={jamToolbar}
             track={jamTrack}
             notes={jamTrackNotes}
+            added={jamTrackAdded}
             edited={!!jamTrackEdit || !!jamSettings.mixes[jamTrack.file]}
             lanesOpen={jamSettings.lanesOpen}
             onLanesOpenChange={(lanesOpen) => setJamSettings({ ...jamSettings, lanesOpen })}
@@ -2629,8 +2670,8 @@ export function LessonPlayer({
             onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamTrack.file]: mix } })}
             paused={jamIsPaused}
             onTogglePause={toggleJamPause}
-            onChange={(parts) => {
-              const edit = { parts };
+            onChange={(parts, added) => {
+              const edit = { parts, ...(added.length ? { added } : {}) };
               if (jamRoom && jamRoomState) {
                 setJamRoomState({ ...jamRoomState, tracks: { ...jamRoomState.tracks, [jamTrack.file]: edit } });
                 jamRoom.setTrack(jamTrack.file, edit);

@@ -2,6 +2,8 @@ import { patchData, renderNotes } from '../../../../../../instrument-lab/engine/
 import { prepareDrum } from '../../../../../../instrument-lab/engine/drums.mjs';
 import { JAM_TRACK_BARS, type JamTrack, type JamTrackNote } from './jamTracks';
 import { matchJamLoudness } from './jamLoudness';
+import { renderJamClip, renderJamDrum } from './jamSynth';
+import type { JamAddedInstrument } from './jamAddedParts';
 
 // Renders backing-track loops from their instruments and notes, one part (as
 // jamTrackParts orders them) at a time: the Jam tab plays each part through its
@@ -55,6 +57,34 @@ export function renderJamPartLoop(
       rendered.set(key, sound);
     }
     mixIn([sound], offsetOf(step), sides);
+  }
+  return withRoom(track, withEcho(track, loop, sampleRate));
+}
+
+// An added part's loop (see jamAddedParts.ts): an instrument's notes, each
+// held for its length, or a drum's hits. Its sounds are the Jam's own (the
+// played instruments and kits), at this level next to the track's parts.
+const ADDED_GAIN = 0.5;
+export function renderJamAddedLoop(
+  track: JamTrack,
+  instrument: JamAddedInstrument,
+  notes: JamTrackNote[],
+  sampleRate: number
+): [Float32Array, Float32Array] {
+  const sixteenth = 60 / track.bpm / 4;
+  const loopLength = Math.round(jamLoopSeconds(track) * sampleRate);
+  const loop: [Float32Array, Float32Array] = [new Float32Array(loopLength), new Float32Array(loopLength)];
+  const rendered = new Map<string, Float32Array>();
+  for (const { pitch, step, length, velocity } of notes) {
+    const key = 'drum' in instrument ? '' : `${pitch}|${length}`;
+    let sound = rendered.get(key);
+    if (!sound) {
+      sound = 'drum' in instrument ? renderJamDrum(instrument.drum) : renderJamClip({ ...instrument.patch, hold: length * sixteenth }, pitch);
+      rendered.set(key, sound);
+    }
+    const offset = Math.round(swung(track, step) * sixteenth * sampleRate);
+    const gain = (ADDED_GAIN * velocity) / 127;
+    for (const channel of loop) for (let i = 0; i < sound.length; i++) channel[(offset + i) % loopLength] += sound[i] * gain;
   }
   return withRoom(track, withEcho(track, loop, sampleRate));
 }

@@ -1,12 +1,13 @@
 import { renderJamWavs, type JamSoundSource } from './jamSynth';
 import { JAM_TRACKS, type JamTrackNote } from './jamTracks';
-import { decodeWav16, renderJamPartLoop, renderJamSampleWavs, renderJamSampledLoop } from './jamTrackRender';
+import { decodeWav16, renderJamAddedLoop, renderJamPartLoop, renderJamSampleWavs, renderJamSampledLoop } from './jamTrackRender';
+import type { JamAddedInstrument } from './jamAddedParts';
 import { jamSoundUrl } from './jamSoundFiles';
 
 // Renders Jam sounds and pieces of backing-track parts off the main thread (see jamRenderer.ts)
 type Request =
   | { id: number; source: JamSoundSource; notes: number[] }
-  | { id: number; trackFile: string; part: number; notes: JamTrackNote[] };
+  | { id: number; trackFile: string; part: number; notes: JamTrackNote[]; added?: JamAddedInstrument };
 
 const SAMPLE_RATE = 44100;
 
@@ -43,8 +44,10 @@ self.onmessage = async (event: MessageEvent<Request>) => {
     }
     const track = JAM_TRACKS.find((candidate) => candidate.file === request.trackFile);
     if (!track) throw new Error(`No backing track ${request.trackFile}`);
-    const recorded = track.sampled?.[request.part - track.drums.length - track.layers.length];
-    const channels = recorded
+    const recorded = request.added ? undefined : track.sampled?.[request.part - track.drums.length - track.layers.length];
+    const channels = request.added
+      ? renderJamAddedLoop(track, request.added, request.notes, SAMPLE_RATE)
+      : recorded
       ? renderJamSampledLoop(track, request.part, request.notes, await Promise.all(recorded.sounds.map((sound) => loadSound(sound.file))), SAMPLE_RATE)
       : renderJamPartLoop(track, request.part, request.notes, SAMPLE_RATE);
     post({ id: request.id, part: { channels, sampleRate: SAMPLE_RATE } }, channels.map((c) => c.buffer));

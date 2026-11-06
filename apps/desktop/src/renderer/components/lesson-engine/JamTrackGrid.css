@@ -242,6 +242,81 @@
   fill: color-mix(in srgb, var(--track-color) 55%, black);
 }
 
+/* Under the tracks: a track added with one of the Jam's instruments or kits */
+.jam-timeline-add {
+  position: relative;
+  z-index: 5; /* over the playhead and the bar lines, which belong to the tracks */
+  padding: 0.75rem 0.85rem;
+  background: var(--ds-panel);
+}
+
+.jam-timeline-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ds-text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.jam-timeline-add-btn:hover,
+.jam-timeline-add-btn.on {
+  color: var(--ds-text);
+}
+
+.jam-timeline-add-icon {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--ds-text);
+  color: var(--ds-on-light);
+}
+
+.jam-timeline-add-sounds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.jam-timeline-add-group {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-text-dim);
+}
+
+.jam-timeline-add-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.jam-timeline-add-options button,
+.jam-editor-remove {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-panel-2);
+  color: var(--ds-text);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.jam-timeline-add-options button:hover,
+.jam-editor-remove:hover {
+  background: var(--ds-raised);
+}
+
 /* The playhead spans every track, over the clips only */
 .jam-timeline-overlay {
   position: absolute;
@@ -384,7 +459,7 @@
 .jam-editor-content {
   display: flex;
   width: 100%;
-  min-width: calc(var(--jam-head) + 64 * 10px + 63 * var(--jam-cell-gap) + 0.75rem); /* MIN_CELL_PX */
+  min-width: calc(var(--jam-head) + var(--steps) * 10px + (var(--steps) - 1) * var(--jam-cell-gap) + 0.75rem); /* MIN_CELL_PX */
   padding: 0 0.75rem 0.75rem 0;
 }
 
@@ -444,7 +519,7 @@
   z-index: 2;
   flex: none;
   display: grid;
-  grid-template-columns: repeat(16, calc(4 * var(--cell) + 3 * var(--jam-cell-gap)));
+  grid-template-columns: repeat(var(--beats), calc(4 * var(--cell) + 3 * var(--jam-cell-gap)));
   column-gap: var(--jam-cell-gap);
   height: 1.6rem;
   align-items: center;
@@ -467,7 +542,7 @@
 .jam-editor-cells {
   flex: none;
   display: grid;
-  grid-template-columns: repeat(64, var(--cell));
+  grid-template-columns: repeat(var(--steps), var(--cell));
   column-gap: var(--jam-cell-gap);
   height: var(--cell);
 }
