@@ -56,10 +56,11 @@ export const jamAddedIsDrum = (part: JamAddedPart): boolean => part.drum !== und
 export const jamPartKey = (part: number, added: JamAddedPart | undefined): string =>
   added ? `${added.track}:${added.drum ?? ''}` : `own:${part}`;
 
-// A saved or shared added part that still names a sound
+// A saved or shared added part: its track, the instrument it was added with
+// (the track's instrument is in the edit's `instruments`) and a drum's pad
 export function validJamAddedPart(part: unknown): part is JamAddedPart {
   if (!part || typeof part !== 'object') return false;
   const { track, sound, drum } = part as Partial<JamAddedPart>;
-  if (typeof track !== 'string' || typeof sound !== 'string') return false;
-  return jamAddedInstrument({ track, sound, ...(typeof drum === 'number' ? { drum } : {}) }) !== null;
+  if (typeof track !== 'string' || typeof sound !== 'string' || !sound) return false;
+  return drum === undefined || (Number.isInteger(drum) && drum >= 0);
 }

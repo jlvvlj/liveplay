@@ -14,8 +14,6 @@ import type { JamTrackMix } from './jamBackingMixer';
 import { JamLaneStrip } from './JamLaneStrip';
 import { auditionJamPart } from './jamAudition';
 import {
-  JAM_ADDABLE_INSTRUMENTS,
-  JAM_ADDABLE_KITS,
   jamAddedInstrument,
   jamAddedIsDrum,
   jamAddedPartName,
@@ -24,9 +22,14 @@ import {
 } from './jamAddedParts';
 import TrackZoom from '../../../../../../instrument-lab/client/TrackZoom.jsx';
 import { zoomWindow } from '../../../../../../instrument-lab/client/timeline.mjs';
-import { CollapseIcon, ExpandIcon, LanesIcon } from './JamIcons';
+import { CollapseIcon, ExpandIcon, InstrumentsIcon, LanesIcon } from './JamIcons';
 import { gridTracks, type GridTrack } from './jamGridTracks';
 import './JamTrackGrid.css';
+
+// What a new track starts with, before its instrument is chosen: the first
+// synth sound, or the Groove kit (16 pads)
+const NEW_INSTRUMENT = 'square-stab';
+const NEW_KIT = 'groove-kit';
 
 // The Jam tab's backing track as tracks and clips, like a DAW's timeline: the
 // drums as one track, every other part as its own, each a clip over the whole
@@ -112,6 +115,15 @@ interface JamTrackGridProps {
   // The song's tempo, when it can be changed here (a Daw song)
   tempo?: number;
   onTempoChange?: (bpm: number) => void;
+  // The instrument each track plays, by its key (see jamTrackInstruments.ts):
+  // its name and a kit's pads' names; none for a track of the song's own
+  // playing its original sound
+  trackSounds: Record<string, { name: string; pads?: string[] }>;
+  // Opens a track's instruments
+  onTrackInstrument: (key: string) => void;
+  // One note of a part played by its live instrument; false for a part played
+  // by its original sound
+  onLiveAudition: (part: number, pitch: number) => boolean;
 }
 
 // One row of the editor: a pitch of an instrument, or a drum of a kit (its
@@ -199,20 +211,34 @@ export function JamTrackGrid({
   getStep,
   tempo,
   onTempoChange,
+  trackSounds,
+  onTrackInstrument,
+  onLiveAudition,
 }: JamTrackGridProps) {
   const own = useMemo(() => jamTrackParts(track), [track]);
   // Every part: the track's own, then the ones added here (no notes of their own)
   const original = useMemo(
     () => [
       ...own,
-      ...added.map((part): JamTrackPart => ({ name: jamAddedPartName(part), kind: jamAddedIsDrum(part) ? 'drum' : 'notes', notes: [] })),
+      ...added.map((part): JamTrackPart => {
+        const sound = trackSounds[`added-${part.track}`];
+        const name =
+          part.drum !== undefined && sound?.pads?.length
+            ? sound.pads[part.drum % sound.pads.length]
+            : (sound?.name ?? jamAddedPartName(part));
+        return { name, kind: jamAddedIsDrum(part) ? 'drum' : 'notes', notes: [] };
+      }),
     ],
-    [own, added]
+    [own, added, trackSounds]
   );
-  const tracks = useMemo(() => gridTracks(own, added), [own, added]);
+  const tracks = useMemo(
+    () => gridTracks(own, added).map((gridTrack) => (gridTrack.added && trackSounds[gridTrack.id] ? { ...gridTrack, name: trackSounds[gridTrack.id].name } : gridTrack)),
+    [own, added, trackSounds]
+  );
   const addedAt = (part: number) => (part < own.length ? undefined : added[part - own.length]);
   // A part's sound on one pitch, an added part's from its instrument
   const audition = (part: number, pitch: number) => {
+    if (onLiveAudition(part, pitch)) return;
     const addedPart = addedAt(part);
     const instrument = addedPart && jamAddedInstrument(addedPart);
     if (addedPart && !instrument) return;
@@ -386,16 +412,18 @@ export function JamTrackGrid({
     setPinned(bars / PAGE_BARS);
   };
 
-  // A new track: its sound's parts after the others, empty, and its editor open
-  const addTrack = (sound: string) => {
+  // A new track: an instrument's part or a kit's (one per pad) after the
+  // others, empty, its editor open and its instruments to choose from
+  const addTrack = (kind: 'notes' | 'drum') => {
     const id = Date.now().toString(36);
-    const parts = jamNewAddedParts(sound, id);
+    const parts = jamNewAddedParts(kind === 'drum' ? NEW_KIT : NEW_INSTRUMENT, id);
     if (!parts.length) return;
     onChange([...notes, ...parts.map(() => [])], [...added, ...parts], bars);
     setAdding(false);
     setOpenId(`added-${id}`);
     setPinned(null);
     setSelected(null);
+    onTrackInstrument(`added-${id}`);
   };
 
   // An added track taken out, with its notes and its mix
@@ -929,6 +957,7 @@ export function JamTrackGrid({
                   <JamLaneStrip
                     name={gridTrack.name}
                     tag=""
+                    onNameClick={() => onTrackInstrument(gridTrack.id)}
                     solo={solo}
                     mute={mute}
                     level={level}
@@ -979,21 +1008,9 @@ export function JamTrackGrid({
           </button>
           {adding && (
             <div className="jam-timeline-add-sounds">
-              <div className="jam-timeline-add-group">Instruments</div>
               <div className="jam-timeline-add-options">
-                {JAM_ADDABLE_INSTRUMENTS.map((sound) => (
-                  <button key={sound.id} onClick={blurAfter(() => addTrack(sound.id))}>
-                    {sound.label}
-                  </button>
-                ))}
-              </div>
-              <div className="jam-timeline-add-group">Drums</div>
-              <div className="jam-timeline-add-options">
-                {JAM_ADDABLE_KITS.map((sound) => (
-                  <button key={sound.id} onClick={blurAfter(() => addTrack(sound.id))}>
-                    {sound.label}
-                  </button>
-                ))}
+                <button onClick={blurAfter(() => addTrack('notes'))}>Instrument</button>
+                <button onClick={blurAfter(() => addTrack('drum'))}>Drums</button>
               </div>
             </div>
           )}
@@ -1035,6 +1052,10 @@ export function JamTrackGrid({
             </button>
             <span className="jam-editor-dot" />
             <span className="jam-editor-name">{open.name}</span>
+            <button className="jam-editor-instrument" onClick={blurAfter(() => onTrackInstrument(open.id))}>
+              <InstrumentsIcon />
+              {trackSounds[open.id]?.name ?? 'Original'}
+            </button>
             <div className="jam-grid-sections">
               <button className={pinned === null ? 'active' : ''} onClick={blurAfter(() => setPinned(null))}>
                 Auto

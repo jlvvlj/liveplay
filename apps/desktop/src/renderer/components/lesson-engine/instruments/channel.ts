@@ -17,6 +17,12 @@ export class InstrumentChannel {
     this.volume.connect(destination);
   }
 
+  // Sends the channel somewhere else (a new mixer)
+  route(destination: Tone.InputNode) {
+    this.volume.disconnect();
+    this.volume.connect(destination);
+  }
+
   // Resolves once the chosen instrument can sound
   set(instrument: InstrumentDef, choice: InstrumentChoice, bpm: number): Promise<void> {
     if (instrument.id !== this.instrumentId || !this.instrument) {

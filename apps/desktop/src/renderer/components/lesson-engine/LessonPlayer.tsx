@@ -11,9 +11,13 @@ import { InstrumentPanel } from './instruments/InstrumentPanel';
 import { JAM_TRACK_BARS, jamTrackBaseFile, jamTrackByFile, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
 import { validJamTrackEdit, type JamTrackEdit } from './jamTrackEdits';
 import { renderJamBackingPart } from './jamRenderer';
-import { jamAddedInstrument, jamPartKey } from './jamAddedParts';
+import { jamPartKey, type JamAddedPart } from './jamAddedParts';
+import { jamPartTracks, type JamTrackInstruments } from './jamTrackInstruments';
+import { JamLiveTracks, type LiveTrack } from './instruments/liveTracks';
+import { swung } from './jamTrackRender';
 import {
   JamBackingMixer,
+  silentJamPart,
   defaultJamTrackMix,
   fitJamTrackMix,
   jamTrackLevels,
@@ -23,7 +27,7 @@ import {
 } from './jamBackingMixer';
 import { loadJamReferenceSounds, jamNotesDb, type JamSoundPreset, type JamSampleSound, type JamSynthPatch } from './jamSynth';
 import { InstrumentChannel } from './instruments/channel';
-import { INSTRUMENTS, findInstrument, jamRowNote, presetChoice, referenceInstruments } from './instruments/catalog';
+import { INSTRUMENTS, choiceForSound, findInstrument, jamRowNote, presetChoice, referenceInstruments } from './instruments/catalog';
 import { paramsPatch, patchParams } from './instruments/engines/melodicsSynth';
 import type { InstrumentChoice } from './instruments/types';
 import { audioTimeAt, hitSlot, remoteNoteSlot, swungPosition } from './jamClock';
@@ -482,8 +486,9 @@ export function LessonPlayer({
   jamNotesVolumeRef.current = jamNotesVolume;
   // The Jam's sidebar starts folded away, leaving the room to the highway or the grid
   const [showJamSettings, setShowJamSettings] = useState<boolean>(false);
-  // The instruments panel, down the left side
-  const [showInstruments, setShowInstruments] = useState(false);
+  // The instruments panel, down the left side: for the played sound ('jam')
+  // or for a track of the backing track's grid (its key)
+  const [instrumentsFor, setInstrumentsFor] = useState<string | null>(null);
   // A new instrument or a changed setting, remembered for that instrument too
   const setJamChoice = useCallback((choice: InstrumentChoice) => {
     setJamSettings((settings) =>
@@ -944,9 +949,51 @@ export function LessonPlayer({
   jamTrackNotesRef.current = jamTrackNotes;
   const jamTrackAddedRef = useRef(jamTrackAdded);
   jamTrackAddedRef.current = jamTrackAdded;
-  // The notes each mixer part was rendered from, and which part it is (see jamPartKey)
+  // The instrument each track plays: as chosen in the grid, else an added
+  // track's own (the one it was added with); none for a track of the song's
+  // own playing its original sound
+  const jamPartTrackList = useMemo(
+    () => (jamTrack ? jamPartTracks(jamTrackParts(jamTrack), jamTrackAdded) : []),
+    [jamTrack, jamTrackAdded]
+  );
+  const jamTrackChoices = useMemo(() => {
+    const choices: JamTrackInstruments = {};
+    jamPartTrackList.forEach((partTrack, part) => {
+      if (choices[partTrack.key]) return;
+      const own = jamTrackNotes ? jamTrackNotes.length - jamTrackAdded.length : 0;
+      const chosen =
+        jamTrackEdit?.instruments?.[partTrack.key] ?? (part >= own ? choiceForSound(jamTrackAdded[part - own].sound) : null);
+      if (chosen && findInstrument(jamInstruments, chosen.instrument)) choices[partTrack.key] = chosen;
+    });
+    return choices;
+  }, [jamPartTrackList, jamTrackEdit, jamTrackAdded, jamTrackNotes, jamInstruments]);
+  // Each track's instrument as the grid shows it: a synth's sound by its
+  // preset's name, the others by theirs, and a kit's pads
+  const jamTrackSounds = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(jamTrackChoices).flatMap(([key, choice]) => {
+          const instrument = findInstrument(jamInstruments, choice.instrument);
+          if (!instrument) return [];
+          const preset = instrument.presets.find((candidate) => candidate.id === choice.preset);
+          const name = instrument.engine === 'melodics-synth' ? (preset?.name ?? instrument.name) : instrument.name;
+          return [[key, { name, ...(instrument.pads ? { pads: instrument.pads } : {}) }]];
+        })
+      ),
+    [jamTrackChoices, jamInstruments]
+  );
+  // Which parts live instruments play (the others are rendered)
+  const jamLiveParts = useMemo(
+    () => jamPartTrackList.map((partTrack) => !!jamTrackChoices[partTrack.key]),
+    [jamPartTrackList, jamTrackChoices]
+  );
+  const jamLivePartsRef = useRef(jamLiveParts);
+  jamLivePartsRef.current = jamLiveParts;
+  // The notes each mixer part was rendered from, which part it is (see
+  // jamPartKey), and whether a live instrument plays it (left silent)
   const renderedTrackNotesRef = useRef<(JamTrackNote[] | null)[] | null>(null);
   const renderedTrackKeysRef = useRef<string[]>([]);
+  const renderedTrackLiveRef = useRef<boolean[]>([]);
 
   // After an edit: take out the parts of removed tracks, add lanes for added
   // ones, render the edited parts again and swap them in at the same point of the loop
@@ -959,32 +1006,44 @@ export function LessonPlayer({
     const addedAt = (part: number) => (part < own ? undefined : jamTrackAdded[part - own]);
     const keys = jamTrackNotes.map((_, part) => jamPartKey(part, addedAt(part)));
     const renderedKeys = renderedTrackKeysRef.current;
+    const renderedLive = renderedTrackLiveRef.current;
     for (let part = renderedKeys.length - 1; part >= 0; part--) {
       if (keys.includes(renderedKeys[part])) continue;
       mixer.remove(part);
       renderedKeys.splice(part, 1);
       rendered.splice(part, 1);
+      renderedLive.splice(part, 1);
     }
     for (let part = renderedKeys.length; part < keys.length; part++) {
       mixer.add();
       renderedKeys.push(keys[part]);
       // A new part with no notes is already right: silent
       rendered.push(jamTrackNotes[part].length ? null : jamTrackNotes[part]);
+      renderedLive.push(true);
     }
-    const changed = jamTrackNotes.map((_, part) => part).filter((part) => rendered[part] !== jamTrackNotes[part]);
+    // Parts a live instrument now plays go silent here at once
+    jamLiveParts.forEach((live, part) => {
+      if (!live || renderedLive[part]) return;
+      mixer.replace(part, silentJamPart());
+      renderedLive[part] = true;
+    });
+    const changed = jamTrackNotes
+      .map((_, part) => part)
+      .filter((part) => !jamLiveParts[part] && (rendered[part] !== jamTrackNotes[part] || renderedLive[part]));
+    jamTrackNotes.forEach((notes, part) => {
+      if (jamLiveParts[part]) rendered[part] = notes;
+    });
     if (changed.length === 0) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       for (const part of changed) {
         const notes = jamTrackNotes[part];
-        const added = addedAt(part);
-        const instrument = added ? jamAddedInstrument(added) : null;
-        if (added && !instrument) continue;
-        renderJamBackingPart(jamTrack.file, part, notes, instrument ?? undefined, jamTrackBarsRef.current).then(
+        renderJamBackingPart(jamTrack.file, part, notes, undefined, jamTrackBarsRef.current).then(
           (audio) => {
             if (cancelled || backingTrackRef.current !== mixer) return;
             mixer.replace(part, audio);
             rendered[part] = notes;
+            renderedLive[part] = false;
           },
           (err) => console.error('[LessonPlayer] Could not render the edited backing track:', err)
         );
@@ -994,7 +1053,7 @@ export function LessonPlayer({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [jamTrack, jamTrackNotes, jamTrackAdded, backingTrackLoaded]);
+  }, [jamTrack, jamTrackNotes, jamTrackAdded, jamLiveParts, backingTrackLoaded]);
 
   // The grid's mixer settings: levels, mutes and solos per part
   // Mixer settings are kept by track, whatever its tempo
@@ -1028,6 +1087,56 @@ export function LessonPlayer({
     };
   }, [jamLesson, jamTrack]);
 
+  // The tracks live instruments play, in time with the backing track's loop
+  // and through its mixer (levels, mutes and solos as the grid sets them)
+  const jamTrackMixRef = useRef(jamTrackMix);
+  jamTrackMixRef.current = jamTrackMix;
+  const jamTrackRef = useRef(jamTrack);
+  jamTrackRef.current = jamTrack;
+  const jamBpmRef = useRef(lesson.bpm);
+  jamBpmRef.current = lesson.bpm;
+  const liveTracksRef = useRef<JamLiveTracks | null>(null);
+  useEffect(() => {
+    const mixer = backingTrackRef.current;
+    if (!jamOnly || !backingTrackLoaded || !(mixer instanceof JamBackingMixer)) return;
+    if (liveTracksRef.current) {
+      liveTracksRef.current.route(mixer.input);
+      return;
+    }
+    liveTracksRef.current = new JamLiveTracks(mixer.input, {
+      start: () => (backingTrackRef.current?.state === 'started' ? jamStartRef.current : null),
+      sixteenth: () => 60 / jamBpmRef.current / 4,
+      loopSteps: () => jamTrackBarsRef.current * 16,
+      swing: (step) => (jamTrackRef.current ? swung(jamTrackRef.current, step) : step),
+      notes: () => jamTrackNotesRef.current ?? [],
+      levels: () => (jamTrackMixRef.current ? jamTrackLevels(jamTrackMixRef.current) : []),
+    });
+  }, [jamOnly, backingTrackLoaded]);
+  useEffect(
+    () => () => {
+      liveTracksRef.current?.dispose();
+      liveTracksRef.current = null;
+    },
+    []
+  );
+  useEffect(() => {
+    const live = liveTracksRef.current;
+    if (!live) return;
+    const tracks: LiveTrack[] = [];
+    jamPartTrackList.forEach((partTrack, part) => {
+      const choice = jamTrackChoices[partTrack.key];
+      const instrument = choice && findInstrument(jamInstruments, choice.instrument);
+      if (!choice || !instrument) return;
+      let track = tracks.find((candidate) => candidate.key === partTrack.key);
+      if (!track) {
+        track = { key: partTrack.key, instrument, choice, parts: [] };
+        tracks.push(track);
+      }
+      track.parts.push({ part, pad: partTrack.kind === 'drum' ? partTrack.pad : null });
+    });
+    live.set(tracks, lesson.bpm);
+  }, [jamPartTrackList, jamTrackChoices, jamInstruments, lesson.bpm, backingTrackLoaded]);
+
   // Load backing track if defined
   useEffect(() => {
     // Cleanup previous backing track
@@ -1052,7 +1161,8 @@ export function LessonPlayer({
       let cancelled = false;
       const notes = jamTrackNotesRef.current!;
       const added = jamTrackAddedRef.current;
-      loadJamBackingMixer(jamTrackToLoad, notes, added, jamTrackBarsRef.current).then(
+      const live = jamLivePartsRef.current;
+      loadJamBackingMixer(jamTrackToLoad, notes, live, jamTrackBarsRef.current).then(
         (mixer) => {
           if (cancelled) {
             mixer.dispose();
@@ -1061,6 +1171,7 @@ export function LessonPlayer({
           mixer.volume.value = -Infinity; // Start muted
           backingTrackRef.current = mixer;
           renderedTrackNotesRef.current = [...notes];
+          renderedTrackLiveRef.current = [...live];
           const own = notes.length - added.length;
           renderedTrackKeysRef.current = notes.map((_, part) => jamPartKey(part, part < own ? undefined : added[part - own]));
           setBackingTrackLoaded(true);
@@ -2462,6 +2573,76 @@ export function LessonPlayer({
 
   // Jam tab, with the sidebar hidden: back and the sidebar's button lead the
   // highway's or the grid's toolbar, where the sidebar's own header has them
+  // A grid edit saved: in the room (and so to the Daw song), or in this
+  // browser. Instruments of tracks no longer there are left out.
+  const saveJamTrackEdit = (
+    parts: JamTrackNote[][],
+    added: JamAddedPart[],
+    bars: number,
+    instruments: JamTrackInstruments,
+    mix?: JamTrackMix
+  ) => {
+    if (!jamTrack || !jamSettings) return;
+    const mixes = mix ? { ...jamSettings.mixes, [jamMixKey]: mix } : jamSettings.mixes;
+    const keys = new Set(jamPartTracks(jamTrackParts(jamTrack), added).map((partTrack) => partTrack.key));
+    const kept = Object.fromEntries(Object.entries(instruments).filter(([key]) => keys.has(key)));
+    const edit: JamTrackEdit = {
+      parts,
+      ...(added.length ? { added } : {}),
+      ...(bars !== JAM_TRACK_BARS ? { bars } : {}),
+      ...(Object.keys(kept).length ? { instruments: kept } : {}),
+    };
+    if (jamRoom && jamRoomState) {
+      setJamRoomState({ ...jamRoomState, tracks: { ...jamRoomState.tracks, [jamTrack.file]: edit } });
+      jamRoom.setTrack(jamTrack.file, edit);
+      if (mix) setJamSettings({ ...jamSettings, mixes });
+    } else {
+      setJamSettings({ ...jamSettings, tracks: { ...jamSettings.tracks, [jamTrack.file]: edit }, mixes });
+    }
+  };
+  // A track's instrument chosen in the panel (null: back to its original sound)
+  const setJamTrackInstrument = (key: string, choice: InstrumentChoice | null) => {
+    if (!jamTrackNotes) return;
+    const instruments = { ...(jamTrackEdit?.instruments ?? {}) };
+    if (choice) instruments[key] = choice;
+    else delete instruments[key];
+    // An added kit track gets a row per pad of its new kit: rows added after
+    // every other part (the mixer adds parts at the end), or its last rows
+    // taken out when none of them holds a note
+    const addedId = key.startsWith('added-') ? key.slice('added-'.length) : null;
+    const pads = (choice && findInstrument(jamInstruments, choice.instrument)?.pads?.length) ?? 0;
+    const own = jamTrackNotes.length - jamTrackAdded.length;
+    const rows = jamTrackAdded.flatMap((part, index) => (part.track === addedId && part.drum !== undefined ? [own + index] : []));
+    const mix = jamTrackMix ?? defaultJamTrackMix(jamTrackNotes.length);
+    let parts = jamTrackNotes;
+    let added = jamTrackAdded;
+    let { levels, mutes, solos } = mix;
+    if (addedId && pads && rows.length > pads && rows.slice(pads).every((part) => jamTrackNotes[part].length === 0)) {
+      const drop = new Set(rows.slice(pads));
+      const keep = (_: unknown, part: number) => !drop.has(part);
+      parts = parts.filter(keep);
+      added = added.filter((_, index) => keep(null, own + index));
+      [levels, mutes, solos] = [levels.filter(keep), mutes.filter(keep), solos.filter(keep)];
+    } else if (addedId && pads && rows.length && rows.length < pads) {
+      const count = pads - rows.length;
+      parts = [...parts, ...Array.from({ length: count }, () => [])];
+      added = [...added, ...Array.from({ length: count }, (_, i): JamAddedPart => ({ track: addedId, sound: choice!.instrument, drum: rows.length + i }))];
+      [levels, mutes, solos] = [[...levels, ...Array(count).fill(1)], [...mutes, ...Array(count).fill(false)], [...solos, ...Array(count).fill(false)]];
+    }
+    const resized = parts !== jamTrackNotes;
+    saveJamTrackEdit(parts, added, jamTrackBars, instruments, resized ? { levels, mutes, solos } : undefined);
+  };
+  // The panel's view of a track: its name, kind, and its original sound when it is the song's own
+  const jamTrackInstrumentTarget = (() => {
+    if (!instrumentsFor || instrumentsFor === 'jam' || !jamTrack) return null;
+    const part = jamPartTrackList.findIndex((partTrack) => partTrack.key === instrumentsFor);
+    if (part < 0) return null;
+    const kind = jamPartTrackList[part].kind;
+    const own = instrumentsFor === 'drums' || instrumentsFor.startsWith('part-');
+    const name = instrumentsFor === 'drums' ? 'Drums' : own ? (jamTrackParts(jamTrack)[part]?.name ?? '') : (jamTrackSounds[instrumentsFor]?.name ?? '');
+    return { name, kind, ...(own ? { original: () => setJamTrackInstrument(instrumentsFor, null) } : {}) };
+  })();
+
   const jamToolbar =
     jamOnly && !showJamSettings ? (
       <>
@@ -2474,7 +2655,7 @@ export function LessonPlayer({
           <SidebarIcon />
         </button>
         {jamSection !== 'daw' && (
-          <button className="jam-corner-btn" onClick={() => setShowInstruments(true)} title="Instruments">
+          <button className="jam-corner-btn" onClick={() => setInstrumentsFor('jam')} title="Instruments">
             <InstrumentsIcon />
           </button>
         )}
@@ -2804,14 +2985,13 @@ export function LessonPlayer({
             onTempoChange={(bpm) => jamRoom?.setTempo(bpm)}
             paused={jamIsPaused}
             onTogglePause={toggleJamPause}
-            onChange={(parts, added, bars) => {
-              const edit = { parts, ...(added.length ? { added } : {}), ...(bars !== JAM_TRACK_BARS ? { bars } : {}) };
-              if (jamRoom && jamRoomState) {
-                setJamRoomState({ ...jamRoomState, tracks: { ...jamRoomState.tracks, [jamTrack.file]: edit } });
-                jamRoom.setTrack(jamTrack.file, edit);
-              } else {
-                setJamSettings({ ...jamSettings, tracks: { ...jamSettings.tracks, [jamTrack.file]: edit } });
-              }
+            onChange={(parts, added, bars) => saveJamTrackEdit(parts, added, bars, jamTrackEdit?.instruments ?? {})}
+            trackSounds={jamTrackSounds}
+            onTrackInstrument={(key) => setInstrumentsFor(key)}
+            onLiveAudition={(part, pitch) => {
+              const partTrack = jamPartTrackList[part];
+              if (!partTrack || !jamTrackChoices[partTrack.key]) return false;
+              return !!liveTracksRef.current?.audition(partTrack.key, { pitch, pad: partTrack.kind === 'drum' ? partTrack.pad : null });
             }}
             onReset={() => {
               const mixes = { ...jamSettings.mixes };
@@ -2898,7 +3078,7 @@ export function LessonPlayer({
                   }
                 : null
             }
-            onOpenInstruments={() => setShowInstruments(true)}
+            onOpenInstruments={() => setInstrumentsFor('jam')}
             holdDivisions={JAM_HOLD_DIVISIONS}
             holdDivision={jamKeyDivisions.length ? jamKeyDivisions[jamKeyDivisions.length - 1] : jamHoldDivision}
             onHoldDivisionChange={setJamHoldDivision}
@@ -2923,14 +3103,26 @@ export function LessonPlayer({
           />
         )}
 
-        {jamOnly && showInstruments && jamSettings && jamChoice && (
+        {jamOnly && instrumentsFor === 'jam' && jamSettings && jamChoice && (
           <InstrumentPanel
             instruments={jamInstruments}
             choice={jamChoice}
             loading={jamReadyInstrument !== jamChoice.instrument}
             saved={jamSettings.instruments}
             onChange={setJamChoice}
-            onClose={() => setShowInstruments(false)}
+            onClose={() => setInstrumentsFor(null)}
+          />
+        )}
+        {jamOnly && instrumentsFor && instrumentsFor !== 'jam' && jamSettings && jamTrackInstrumentTarget && (
+          <InstrumentPanel
+            key={instrumentsFor}
+            instruments={jamInstruments}
+            choice={jamTrackChoices[instrumentsFor] ?? null}
+            track={jamTrackInstrumentTarget}
+            loading={false}
+            saved={jamSettings.instruments}
+            onChange={(choice) => setJamTrackInstrument(instrumentsFor, choice)}
+            onClose={() => setInstrumentsFor(null)}
           />
         )}
 
