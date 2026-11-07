@@ -19,10 +19,12 @@ const COLOURS: [string, string][] = [
 const PATTERNS = ['stripes', 'dots', 'waves', 'rings', 'zigzag', 'bars', 'grid'] as const;
 
 // `seed` picks the colours and the pattern: cards next to each other (seeds
-// one apart) never share either
+// one apart) never share either, and the colours move on by three each time
+// the colours and patterns have all been paired, so no two cards repeat
+const PAIRINGS = COLOURS.length * PATTERNS.length;
 export function CategoryArt({ seed }: { seed: number }) {
   const id = useId().replace(/:/g, '');
-  const [back, fore] = COLOURS[seed % COLOURS.length];
+  const [back, fore] = COLOURS[(seed + 3 * Math.floor(seed / PAIRINGS)) % COLOURS.length];
   const pattern = PATTERNS[(seed * 3) % PATTERNS.length];
   const turn = (seed % 4) * 15 - 30;
   const shape = (() => {

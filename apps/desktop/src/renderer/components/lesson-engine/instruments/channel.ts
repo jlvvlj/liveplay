@@ -30,10 +30,11 @@ export class InstrumentChannel {
       const old = this.instrument;
       // The old instrument's last notes fade before it goes
       if (old) setTimeout(() => old.dispose(), 300);
-      this.instrument = createInstrument(instrument, choice.params);
+      this.instrument = createInstrument(instrument, choice.params, choice.preset);
       this.instrument.output.connect(this.effects.input);
       this.instrumentId = instrument.id;
     } else {
+      this.instrument.setPreset?.(choice.preset);
       this.instrument.setParams(choice.params);
     }
     this.effects.set(choice.effects, bpm);

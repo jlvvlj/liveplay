@@ -27,7 +27,9 @@ import {
 } from './jamBackingMixer';
 import { loadJamReferenceSounds, jamNotesDb, type JamSoundPreset, type JamSampleSound, type JamSynthPatch } from './jamSynth';
 import { InstrumentChannel } from './instruments/channel';
-import { INSTRUMENTS, choiceForSound, findInstrument, jamRowNote, presetChoice, referenceInstruments } from './instruments/catalog';
+import { INSTRUMENTS, choiceForSound, findInstrument, jamRowNote, portInstruments, presetChoice, referenceInstruments } from './instruments/catalog';
+import { loadPortCatalog, type PortEntry } from './instruments/engines/port';
+import { registerPortEffects } from './instruments/effects';
 import { paramsPatch, patchParams } from './instruments/engines/melodicsSynth';
 import { PAD_BASE_NOTE, type InstrumentChoice } from './instruments/types';
 import { audioTimeAt, hitSlot, remoteNoteSlot, swungPosition } from './jamClock';
@@ -361,20 +363,41 @@ export function LessonPlayer({
       cancelled = true;
     };
   }, [jamOnly]);
+  // The instrument ports (synths compiled to WebAssembly), once their catalog
+  // has loaded; none where they were not built
+  const [jamPorts, setJamPorts] = useState<PortEntry[] | null>(null);
+  useEffect(() => {
+    if (!jamOnly) return;
+    let cancelled = false;
+    loadPortCatalog()
+      .then((entries) => {
+        if (cancelled) return;
+        registerPortEffects(entries);
+        setJamPorts(entries);
+      })
+      .catch((err) => {
+        console.error('[LessonPlayer] Could not load the instrument ports catalog:', err);
+        if (!cancelled) setJamPorts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [jamOnly]);
   // Every instrument there is to play, the one chosen and how it is set
   const jamInstruments = useMemo(
-    () => [...INSTRUMENTS, ...referenceInstruments(jamReferenceSounds ?? [])],
-    [jamReferenceSounds]
+    () => [...INSTRUMENTS, ...portInstruments(jamPorts ?? []), ...referenceInstruments(jamReferenceSounds ?? [])],
+    [jamReferenceSounds, jamPorts]
   );
   const jamChoice = jamSettings?.instrument;
   const jamInstrument = jamChoice ? findInstrument(jamInstruments, jamChoice.instrument) : undefined;
   const jamInstrumentRef = useRef(jamInstrument);
   jamInstrumentRef.current = jamInstrument;
-  // A remembered reference sound that is no longer on this machine: back to the first instrument
+  // A remembered reference sound no longer on this machine (or a port no
+  // longer built): back to the first instrument, once both lists have loaded
   useEffect(() => {
-    if (!jamSettings || jamReferenceSounds === null || jamInstrument) return;
+    if (!jamSettings || jamReferenceSounds === null || jamPorts === null || jamInstrument) return;
     setJamSettings({ ...jamSettings, instrument: presetChoice(INSTRUMENTS[0]) });
-  }, [jamSettings, jamReferenceSounds, jamInstrument]);
+  }, [jamSettings, jamReferenceSounds, jamPorts, jamInstrument]);
   const fullLesson = lessonProp;
 
   // Sounds (lanes) the player switched off are removed from the practice
@@ -755,7 +778,8 @@ export function LessonPlayer({
     return () => {
       current = false;
     };
-  }, [jamInstrument, jamChoice, lessonProp.bpm]);
+    // (again once the ports have loaded: an effect port joins the chain)
+  }, [jamInstrument, jamChoice, lessonProp.bpm, jamPorts]);
 
   // Load audio samples when lesson has samples defined
   useEffect(() => {
@@ -967,10 +991,12 @@ export function LessonPlayer({
       const own = jamTrackNotes ? jamTrackNotes.length - jamTrackAdded.length : 0;
       const chosen =
         jamTrackEdit?.instruments?.[partTrack.key] ?? (part >= own ? choiceForSound(jamTrackAdded[part - own].sound) : null);
-      if (chosen && findInstrument(jamInstruments, chosen.instrument)) choices[partTrack.key] = chosen;
+      // A port's track waits for the ports' catalog, silent, rather than play something else
+      const pending = jamPorts === null && chosen?.instrument.startsWith('port:');
+      if (chosen && (pending || findInstrument(jamInstruments, chosen.instrument))) choices[partTrack.key] = chosen;
     });
     return choices;
-  }, [jamPartTrackList, jamTrackEdit, jamTrackAdded, jamTrackNotes, jamInstruments]);
+  }, [jamPartTrackList, jamTrackEdit, jamTrackAdded, jamTrackNotes, jamInstruments, jamPorts]);
   // Each track's instrument as the grid shows it: a synth's sound by its
   // preset's name, the others by theirs, and a kit's pads
   const jamTrackSounds = useMemo(

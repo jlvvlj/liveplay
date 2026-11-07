@@ -60,3 +60,6 @@ Thumbs.db
 
 # The jam app's Daw songs in development (apps/jam/vite.config.ts)
 .jam-songs/
+
+# The instrument ports as the jam app serves them (npm run ports:catalog)
+apps/jam/public/instrument-ports/
