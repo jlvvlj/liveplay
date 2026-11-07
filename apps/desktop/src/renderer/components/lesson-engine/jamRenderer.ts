@@ -1,10 +1,14 @@
 import type { JamSoundSource, JamSynthPatch } from './jamSynth';
 import { jamTrackByFile, type JamTrackNote } from './jamTracks';
 import type { JamAddedInstrument } from './jamAddedParts';
+import { jamSoundUrl } from './jamSoundFiles';
+import { jamTrackHasEffects } from './jamTrackRender';
+import { startJamRenderWorker } from './jamRenderWorker';
 
 // Renders Jam sounds and backing-track parts in workers, so long renders never
 // stall the highway. A part's notes are split over several workers and the
-// pieces added up, so a part renders about as fast as the device has cores.
+// pieces added up, so a part renders about as fast as the device has cores;
+// the track's echo and room are then added to the sum, once, by one worker.
 export interface JamPartAudio {
   channels: Float32Array[];
   sampleRate: number;
@@ -19,9 +23,10 @@ type Reply = {
 };
 
 const POOL_SIZE = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
-const workers: { worker: Worker; busy: number }[] = [];
+type Slot = { worker: Worker; busy: number };
+const workers: Slot[] = [];
 let nextId = 0;
-const pending = new Map<number, { resolve: (reply: Reply) => void; reject: (error: Error) => void }>();
+const pending = new Map<number, { slot: Slot; resolve: (reply: Reply) => void; reject: (error: Error) => void }>();
 
 const onReply = (event: MessageEvent<Reply>) => {
   const reply = event.data;
@@ -32,29 +37,50 @@ const onReply = (event: MessageEvent<Reply>) => {
   else waiting.resolve(reply);
 };
 
-// Sends to the least busy worker, starting the pool on first use
-function request(message: object): Promise<Reply> {
-  if (workers.length === 0) {
-    for (let i = 0; i < POOL_SIZE; i++) {
-      const worker = new Worker(new URL('./jamRender.worker.ts', import.meta.url), { type: 'module' });
-      worker.onmessage = onReply;
-      workers.push({ worker, busy: 0 });
+// A worker that failed (to load, or later) is dropped, and everything sent to
+// it fails with its error; the next request starts a new one in its place
+const onFailure = (slot: Slot, reason: string) => {
+  slot.worker.terminate();
+  workers.splice(workers.indexOf(slot), 1);
+  for (const [id, waiting] of pending)
+    if (waiting.slot === slot) {
+      pending.delete(id);
+      waiting.reject(new Error(`The Jam render worker failed: ${reason}`));
     }
-  }
+};
+
+function startWorker(): Slot {
+  const slot: Slot = { worker: startJamRenderWorker(), busy: 0 };
+  slot.worker.onmessage = onReply;
+  slot.worker.onerror = (event) => {
+    event.preventDefault();
+    onFailure(slot, event.message || 'it could not be loaded');
+  };
+  slot.worker.onmessageerror = () => onFailure(slot, 'its reply could not be read');
+  return slot;
+}
+
+// Sends to the least busy worker, starting the pool on first use
+function request(message: object, transfer: Transferable[] = []): Promise<Reply> {
+  while (workers.length < POOL_SIZE) workers.push(startWorker());
   const slot = workers.reduce((least, candidate) => (candidate.busy < least.busy ? candidate : least));
   slot.busy++;
   const id = ++nextId;
   return new Promise<Reply>((resolve, reject) => {
-    pending.set(id, { resolve, reject });
-    slot.worker.postMessage({ id, ...message });
+    pending.set(id, { slot, resolve, reject });
+    slot.worker.postMessage({ id, ...message }, transfer);
   }).finally(() => {
     slot.busy--;
   });
 }
 
+// Where recorded sounds are fetched from, by file
+const soundUrls = (files: string[]) => Object.fromEntries(files.map((file) => [file, jamSoundUrl(file)]));
+
 // One blob URL per note, keyed by MIDI note
 export async function renderJamSound(source: JamSoundSource, notes: number[]): Promise<{ [note: number]: string }> {
-  const { clips = {} } = await request({ source, notes });
+  const urls = 'sample' in source ? soundUrls(source.sample.map((note) => note.file)) : {};
+  const { clips = {} } = await request({ source, notes, urls });
   return Object.fromEntries(
     Object.entries(clips).map(([note, wav]) => [note, URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }))])
   );
@@ -84,7 +110,9 @@ export async function renderJamBackingPart(
 ): Promise<JamPartAudio> {
   const track = jamTrackByFile(trackFile);
   if (added || (track?.sampled && part >= track.drums.length + track.layers.length)) {
-    const reply = await request({ trackFile, part, notes, ...(added ? { added } : {}), ...(bars ? { bars } : {}) });
+    const recorded = added ? undefined : track?.sampled?.[part - track.drums.length - track.layers.length];
+    const urls = recorded ? soundUrls(recorded.sounds.map((sound) => sound.file)) : undefined;
+    const reply = await request({ trackFile, part, notes, ...(added ? { added } : {}), ...(bars ? { bars } : {}), ...(urls ? { urls } : {}) });
     if (!reply.part) throw new Error(`No audio for ${trackFile} part ${part}`);
     return reply.part;
   }
@@ -100,8 +128,12 @@ export async function renderJamBackingPart(
     piece.cost += group[0].length + 1;
   }
   const used = pieces.filter((piece) => piece.notes.length);
+  // Pieces are rendered dry when there are several, the effects added to their sum
+  const dry = used.length > 1 && !!track && jamTrackHasEffects(track);
   const replies = await Promise.all(
-    (used.length ? used : [pieces[0]]).map((piece) => request({ trackFile, part, notes: piece.notes, ...(bars ? { bars } : {}) }))
+    (used.length ? used : [pieces[0]]).map((piece) =>
+      request({ trackFile, part, notes: piece.notes, ...(bars ? { bars } : {}), ...(dry ? { dry } : {}) })
+    )
   );
   const [first, ...rest] = replies.map((reply) => {
     if (!reply.part) throw new Error(`No audio for ${trackFile} part ${part}`);
@@ -113,5 +145,8 @@ export async function renderJamBackingPart(
       const source = piece.channels[c];
       for (let i = 0; i < target.length; i++) target[i] += source[i];
     }
-  return first;
+  if (!dry) return first;
+  const { part: wet } = await request({ trackFile, effects: first.channels }, first.channels.map((channel) => channel.buffer));
+  if (!wet) throw new Error(`No audio for ${trackFile} part ${part}`);
+  return wet;
 }
