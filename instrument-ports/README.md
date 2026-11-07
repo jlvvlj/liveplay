@@ -9,7 +9,7 @@ Synths with no web build, compiled from their own C++ to WebAssembly and run as 
 | `dexed/` | Dexed (MSFA engine, Dexed's filter and tuning, its bundled cartridges) | `melodics-dexed` | GPL-3.0, MSFA Apache-2.0 |
 | `helm/` | Helm (`mopo` engine, factory patches) | `melodics-helm` | GPL-3.0, patches CC BY 4.0 |
 | `surge-xt/` | Surge XT (`surge-common`, factory patches and wavetables) | `melodics-surge-xt` | GPL-3.0 |
-| `vital/` | Vital (its `SoundEngine`; 528 presets from free banks, fetched when played) | `melodics-vital` | GPL-3.0; banks GPL-3.0, CC0, Unlicense, one unstated |
+| `vital/` | Vital (its `SoundEngine`; 536 presets from free banks, fetched when played) | `melodics-vital` | GPL-3.0; banks GPL-3.0, CC0, Unlicense, one unstated |
 
 Each folder has:
 

@@ -35,18 +35,20 @@ Stereo, polyphonic, single-threaded, Vital's SSE2 code on wasm SIMD.
 
 ## Presets
 
-528 presets from six free banks, each a `.vital` file the browser fetches when
+536 presets from six free banks, each a `.vital` file the browser fetches when
 the preset is played (`dist/presets/<id>.vital`):
 
 | Bank | Commit | Presets | Licence |
 | --- | --- | --- | --- |
 | [jpriebe/qub1t-vital-presets](https://github.com/jpriebe/qub1t-vital-presets) vol 1 and 2 | `a45e933` | 174 | none stated |
-| [nahush2321/Vitalium-presets](https://github.com/nahush2321/Vitalium-presets) | `025728f` | 219 | GPL-3.0 |
+| [nahush2321/Vitalium-presets](https://github.com/nahush2321/Vitalium-presets) | `025728f` | 227 | GPL-3.0 |
 | [Mxm40b/vital-presets](https://github.com/Mxm40b/vital-presets) | `c6e8bc1` | 124 | Unlicense |
 | [abstractionmage/Vital-Presets](https://github.com/abstractionmage/Vital-Presets) | `023763a` | 8 | CC0 |
 | [christ-offer/vitalium-presets](https://github.com/christ-offer/vitalium-presets) | `8c6c93c` | 3 | CC0 |
 
-Each keeps its own name, and its style (Keys, Bass, Lead, Pad, SFX,
+The banks are read from their git checkouts, not their folders: nahush has
+eight pairs of files whose names differ only in case, which a case-insensitive
+file system (macOS's) keeps only one of. Each preset keeps its own name, and its style (Keys, Bass, Lead, Pad, SFX,
 Percussion, Sequence, Experiment) as its tag. Left out, as the build prints:
 
 - 21 qub1t vol 2 presets saved by Vital 1.5.1, a newer feature version than
@@ -108,7 +110,7 @@ presets), and writes `dist/` (git-ignored):
 | `dist/vital.wasm` | 1.4 MB | 345 KB |
 | `dist/vital.worklet.js` | 10 KB | 3 KB |
 | `dist/vital.loader.js` | 3 KB | 1 KB |
-| `dist/presets/*.vital` (528) | 333 MB, median 250 KB, largest 5.2 MB | 209 MB |
+| `dist/presets/*.vital` (536) | 335 MB, median 250 KB, largest 5.2 MB | 211 MB |
 
 A build takes about 35 seconds.
 
@@ -136,5 +138,5 @@ python3 -m http.server -d instrument-ports 8731   # http://127.0.0.1:8731/vital/
 
 - Each instance holds its preset's wavetables and sample, up to 60 MB, and
   takes about as much again while a pack is copied in.
-- A 4-note chord renders at 3 to 24% of real time in Node on an M-series Mac,
+- A 4-note chord renders at 3 to 27% of real time in Node on an M-series Mac,
   depending on the preset (unison and oversampling cost the most).
