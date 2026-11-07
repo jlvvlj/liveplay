@@ -506,10 +506,12 @@ export function LessonPlayer({
   const jamHoldRef = useRef<{ note: number; step: number; nextSlot: number } | null>(null);
   const jamHoldTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const jamPointerNoteRef = useRef<number | null>(null); // Row under a held pointer
+  const jamPlayedOnceRef = useRef<number | null>(null); // Row a held pointer played, with no repeat
   const jamCursorNoteRef = useRef<number | null>(null); // Row the ship is on
   // Jam tab: how often a held note repeats, in notes per bar, straight or as triplets
-  const [jamHoldDivision, setJamHoldDivision] = useState<number>(DEFAULT_JAM_HOLD_DIVISION);
-  const jamHoldDivisionRef = useRef<number>(DEFAULT_JAM_HOLD_DIVISION);
+  // None: a held pointer plays its row once
+  const [jamHoldDivision, setJamHoldDivision] = useState<number | null>(DEFAULT_JAM_HOLD_DIVISION);
+  const jamHoldDivisionRef = useRef<number | null>(DEFAULT_JAM_HOLD_DIVISION);
   jamHoldDivisionRef.current = jamHoldDivision;
   const [jamHoldTriplet, setJamHoldTriplet] = useState<boolean>(false);
   const jamHoldTripletRef = useRef<boolean>(false);
@@ -1941,11 +1943,12 @@ export function LessonPlayer({
     if (jamChannelRef.current) jamChannelRef.current.level = jamNotesDb(jamNotesVolume);
   }, [jamNotesVolume, jamOnly]);
 
-  // Repeat spacing in 16ths: the latest held number key's rate, else the chosen one
-  const jamHoldStep = useCallback(() => {
+  // Repeat spacing in 16ths: the latest held number key's rate, else the
+  // chosen one; none when no repeat is chosen
+  const jamHoldStep = useCallback((): number | null => {
     const keys = jamKeyDivisionsRef.current;
     const division = keys.length ? keys[keys.length - 1] : jamHoldDivisionRef.current;
-    return (16 / division) * (jamHoldTripletRef.current ? 2 / 3 : 1);
+    return division === null ? null : (16 / division) * (jamHoldTripletRef.current ? 2 / 3 : 1);
   }, []);
 
   // Starts, steers or stops the repeat. A held pointer plays its row, a held
@@ -1953,17 +1956,21 @@ export function LessonPlayer({
   // again every step. A changed rate continues on its own grid.
   const updateJamHold = useCallback(() => {
     const note = jamPointerNoteRef.current ?? (jamKeyDivisionsRef.current.length ? jamCursorNoteRef.current : null);
-    if (note === null) {
+    const step = jamHoldStep();
+    if (note === null || step === null) {
       if (jamHoldTimerRef.current) clearInterval(jamHoldTimerRef.current);
       jamHoldTimerRef.current = null;
       jamHoldRef.current = null;
+      // No repeat: each row the pointer presses or is dragged onto plays once
+      if (note !== null && jamPlayedOnceRef.current !== note) playJamNote(note, undefined, 1, JAM_KEY_VELOCITY, 0.9);
+      jamPlayedOnceRef.current = note;
       return;
     }
+    jamPlayedOnceRef.current = null;
     if (jamHoldRef.current) {
       jamHoldRef.current.note = note;
       return;
     }
-    const step = jamHoldStep();
     // Swung, 8ths and slower start on an 8th: from an odd 16th they would not swing
     const grid = jamHoldTripletRef.current ? Math.min(step, 2 / 3) : jamSwingRef.current > 0.5 && step >= 2 ? 2 : 1;
     // Each repeat lasts nearly to the next
@@ -1976,6 +1983,7 @@ export function LessonPlayer({
       if (!hold || start === null) return;
       const sixteenth = 60 / lesson.bpm / 4;
       const step = jamHoldStep();
+      if (step === null) return;
       if (step !== hold.step) {
         const played = hold.nextSlot - hold.step;
         const now = (Tone.now() - start) / sixteenth;
