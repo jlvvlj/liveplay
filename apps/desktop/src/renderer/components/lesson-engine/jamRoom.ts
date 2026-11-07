@@ -1,6 +1,8 @@
 import { ServerClock, roundTripP90 } from './jamClock';
 import {
+  JAM_ROOM_NAME_MAX,
   type JamClientMessage,
+  type JamDawPresence,
   type JamDirectMessage,
   type JamRoomNote,
   type JamRoomPeer,
@@ -26,6 +28,8 @@ const ROUND_TRIPS_KEPT = 20;
 const SEEN_NOTES_KEPT = 512;
 // The ship's position goes out at most this often while it moves
 const CURSOR_MS = 40;
+// Where a player is in a Daw song goes out at most this often while it changes
+const PRESENCE_MS = 50;
 // A hit never waits longer than this for the slowest player; notes that reach
 // a slower player late are handled there like late hits
 export const JAM_ROOM_MAX_LEAD_S = 0.15;
@@ -43,7 +47,8 @@ export interface JamRoomPlayer extends JamRoomPeer {
 export type JamRoomEnd = 'full' | 'missing' | 'lost' | 'song';
 
 export interface JamRoomEvents {
-  onState: (state: JamRoomState) => void;
+  // `by`: the player whose edit of a Daw song's grid this is
+  onState: (state: JamRoomState, by?: string) => void;
   onPlayers: (players: JamRoomPlayer[]) => void;
   onNote: (from: string, note: JamRoomNote) => void;
   onClosed: (reason: JamRoomEnd) => void;
@@ -82,6 +87,8 @@ export class JamRoom {
   private cursorTimer: ReturnType<typeof setTimeout> | null = null;
   private cursorPending: number | null = null;
   private cursorLast: number | null = null;
+  private presenceTimer: ReturnType<typeof setTimeout> | null = null;
+  private presencePending: JamDawPresence | null = null;
   private timers: ReturnType<typeof setInterval | typeof setTimeout>[] = [];
   private closed = false;
 
@@ -160,8 +167,10 @@ export class JamRoom {
 
   setPeer(name: string, sound: JamRoomSound | null, need: number): void {
     const you = this.id ? this.peers.get(this.id) : undefined;
-    if (you) this.peers.set(you.id, { ...you, sound, need });
+    // The server sends a new name to the others only; this player's own list keeps it too
+    if (you) this.peers.set(you.id, { ...you, name: name.trim().slice(0, JAM_ROOM_NAME_MAX) || you.name, sound, need });
     this.send({ t: 'peer', name, sound, need });
+    this.emitPlayers();
   }
 
   // Where this player's ship is, in rows from the top; sent right away, then
@@ -186,6 +195,22 @@ export class JamRoom {
     flush();
   }
 
+  // Where this player is in a Daw song: sent right away, then at most every
+  // PRESENCE_MS while it keeps changing
+  setPresence(presence: JamDawPresence): void {
+    this.presencePending = presence;
+    if (this.presenceTimer) return;
+    const flush = () => {
+      this.presenceTimer = null;
+      const pending = this.presencePending;
+      if (pending === null) return;
+      this.presencePending = null;
+      this.send({ t: 'presence', presence: pending });
+      this.presenceTimer = setTimeout(flush, PRESENCE_MS);
+    };
+    flush();
+  }
+
   sendNote(note: Omit<JamRoomNote, 'seq'>): void {
     const full: JamRoomNote = { ...note, seq: ++this.seq };
     const direct = JSON.stringify({ t: 'note', note: full } satisfies JamDirectMessage);
@@ -205,6 +230,7 @@ export class JamRoom {
   private shutDown() {
     this.closed = true;
     if (this.cursorTimer) clearTimeout(this.cursorTimer);
+    if (this.presenceTimer) clearTimeout(this.presenceTimer);
     this.timers.forEach((timer) => clearTimeout(timer));
     this.timers = [];
     for (const link of this.links.values()) link.pc.close();
@@ -228,8 +254,8 @@ export class JamRoom {
     this.events.onPlayers(this.players());
   }
 
-  private emitStateWhenReady() {
-    if (this.ready) this.events.onState(this.state!);
+  private emitStateWhenReady(by?: string) {
+    if (this.ready) this.events.onState(this.state!, by);
   }
 
   private receive(message: JamServerMessage) {
@@ -261,7 +287,7 @@ export class JamRoom {
       }
       case 'state':
         this.state = message.state;
-        this.emitStateWhenReady();
+        this.emitStateWhenReady(message.by);
         break;
       case 'joined':
       case 'peer':
@@ -285,6 +311,12 @@ export class JamRoom {
       case 'cursor':
         this.moveCursor(message.from, message.seq, message.row);
         break;
+      case 'presence': {
+        const peer = this.peers.get(message.from);
+        if (peer) this.peers.set(message.from, { ...peer, presence: message.presence });
+        this.emitPlayers();
+        break;
+      }
       case 'probe':
         if (!message.back) this.send({ t: 'probe', to: message.from, c: message.c, back: true });
         else {

@@ -106,7 +106,21 @@ export interface JamRoomPeer {
   // Where the player's ship is: 0 on the top row, 1 per row down, in between
   // while it moves; null until it is on the highway
   row: number | null;
+  // Where the player is in a Daw song; null until they say
+  presence?: JamDawPresence | null;
 }
+
+// Where a player is in a Daw song: the track whose editor they have open and
+// the section it shows, and their pointer: over a track's lane (at a 16th of
+// the song), or over the open editor's grid (at a 16th, on a part's pitch)
+export interface JamDawPresence {
+  track: string | null;
+  page: number;
+  pointer: JamDawPointer | null;
+}
+export type JamDawPointer =
+  | { on: 'lane'; track: string; step: number }
+  | { on: 'grid'; step: number; part: number; pitch: number };
 
 // A note on the room's grid: its 16th since the song's first, its row and velocity
 // (velocity 1-127). A note with a `length` (16ths) ends by itself; one
@@ -157,6 +171,7 @@ export type JamClientMessage =
   | { t: 'signal'; to: string; data: JamSignal }
   | { t: 'note'; note: JamRoomNote }
   | { t: 'cursor'; seq: number; row: number }
+  | { t: 'presence'; presence: JamDawPresence }
   | { t: 'probe'; to: string; c: number; back: boolean };
 
 export type JamServerMessage =
@@ -169,13 +184,15 @@ export type JamServerMessage =
   | { t: 'songMade'; c: number; id: string | null }
   | { t: 'checked'; c: number; ok: boolean }
   | { t: 'pong'; c: number; s: number }
-  | { t: 'state'; state: JamRoomState }
+  // `by`: the player whose edit of a Daw song's grid this is
+  | { t: 'state'; state: JamRoomState; by?: string }
   | { t: 'joined'; peer: JamRoomPeer }
   | { t: 'left'; id: string }
   | { t: 'peer'; peer: JamRoomPeer }
   | { t: 'signal'; from: string; data: JamSignal }
   | { t: 'note'; from: string; note: JamRoomNote }
   | { t: 'cursor'; from: string; seq: number; row: number }
+  | { t: 'presence'; from: string; presence: JamDawPresence }
   | { t: 'probe'; from: string; c: number; back: boolean };
 
 // WebRTC set-up passed between two players through the server

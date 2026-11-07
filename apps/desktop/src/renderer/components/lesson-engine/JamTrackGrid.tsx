@@ -24,6 +24,7 @@ import TrackZoom from '../../../../../../instrument-lab/client/TrackZoom.jsx';
 import { zoomWindow } from '../../../../../../instrument-lab/client/timeline.mjs';
 import { CollapseIcon, ExpandIcon, InstrumentsIcon, LanesIcon } from './JamIcons';
 import { gridTracks, type GridTrack } from './jamGridTracks';
+import type { JamDawPresence } from './jamRoomProtocol';
 import './JamTrackGrid.css';
 
 // What a new track starts with, before its instrument is chosen: the first
@@ -58,6 +59,8 @@ const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 const noteName = (pitch: number) => `${NOTE_NAMES[pitch % 12]}${Math.floor(pitch / 12) - 1}`;
 const isBlackKey = (pitch: number) => [1, 3, 6, 8, 10].includes(pitch % 12);
 const noteKey = (note: JamTrackNote) => `${note.step}|${note.pitch}`;
+// A note added by another player shines in their color this long (ms)
+const FLASH_MS = 1400;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 // The timeline's zoom, as Instrument Lab's tracks: it shows `span` 16ths
@@ -88,6 +91,49 @@ function rollPitches(original: JamTrackNote[], notes: JamTrackNote[], least = 0)
     if (high - low + 1 < least && low > 0) low--;
   }
   return Array.from({ length: high - low + 1 }, (_, index) => high - index);
+}
+
+// A player editing the song: their name and color, whether it is this
+// player, and where they are in it
+export interface JamGridPlayer {
+  id: string;
+  name: string;
+  color: string;
+  you: boolean;
+  presence: JamDawPresence | null;
+}
+
+// A player's initials, for their avatar: a name's first two words' first letters
+const initials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? '')
+    .join('');
+
+// Another player's pointer: an arrow in their color with their name by it
+function RemoteCursor({ name, color, left, top }: { name: string; color: string; left: number | string; top: number | string }) {
+  return (
+    <span className="jam-remote-cursor" style={{ left, top, '--peer-color': color } as CSSProperties}>
+      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+        <path d="M2 1.5 14 7.6 8.4 9.2 5.9 14.5Z" />
+      </svg>
+      <span className="jam-remote-cursor-name">{name}</span>
+    </span>
+  );
+}
+
+function PlayerAvatar({ player, small }: { player: Pick<JamGridPlayer, 'name' | 'color' | 'you'>; small?: boolean }) {
+  return (
+    <span
+      className={`jam-presence-avatar ${player.you ? 'you' : ''} ${small ? 'small' : ''}`}
+      style={{ '--peer-color': player.color } as CSSProperties}
+      title={player.you ? `${player.name} (you)` : player.name}
+    >
+      {initials(player.name)}
+    </span>
+  );
 }
 
 interface JamTrackGridProps {
@@ -124,6 +170,13 @@ interface JamTrackGridProps {
   // One note of a part played by its live instrument; false for a part played
   // by its original sound
   onLiveAudition: (part: number, pitch: number) => boolean;
+  // The players editing this song together, this one with them (a Daw
+  // song's room), and where this player is going out to them
+  players?: JamGridPlayer[];
+  onPresence?: (presence: JamDawPresence) => void;
+  // The color of the player whose edit last changed the notes, and a count
+  // telling one edit from the next; null while the last change was this player's
+  remoteEdit?: { color: string; seq: number } | null;
 }
 
 // One row of the editor: a pitch of an instrument, or a drum of a kit (its
@@ -214,6 +267,9 @@ export function JamTrackGrid({
   trackSounds,
   onTrackInstrument,
   onLiveAudition,
+  players = [],
+  onPresence,
+  remoteEdit = null,
 }: JamTrackGridProps) {
   const own = useMemo(() => jamTrackParts(track), [track]);
   // Every part: the track's own, then the ones added here (no notes of their own)
@@ -286,6 +342,61 @@ export function JamTrackGrid({
   const step = cell + CELL_GAP_PX;
   const soloing = mix.solos.some(Boolean);
   const silent = (part: number) => mix.mutes[part] || (soloing && !mix.solos[part]);
+
+  // Where this player is: the open track and its section as they change, the
+  // pointer as it moves (straight out, without re-rendering)
+  const presenceRef = useRef<JamDawPresence>({ track: null, page: 0, pointer: null });
+  const onPresenceRef = useRef(onPresence);
+  onPresenceRef.current = onPresence;
+  const sendPresence = (change: Partial<JamDawPresence>) => {
+    presenceRef.current = { ...presenceRef.current, ...change };
+    onPresenceRef.current?.(presenceRef.current);
+  };
+  const shownTrack = open?.id ?? null;
+  useEffect(() => {
+    sendPresence({ track: shownTrack, page });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownTrack, page, onPresence]);
+  // A player who leaves the window (or its tab) no longer points anywhere
+  useEffect(() => {
+    const away = () => {
+      if (document.visibilityState === 'hidden' || !document.hasFocus()) sendPresence({ pointer: null });
+    };
+    window.addEventListener('blur', away);
+    document.addEventListener('visibilitychange', away);
+    return () => {
+      window.removeEventListener('blur', away);
+      document.removeEventListener('visibilitychange', away);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const others = players.filter((player) => !player.you && player.presence);
+  const onTrack = (id: string) => others.filter((player) => player.presence!.track === id);
+
+  // Notes another player just added or moved shine in their color for a moment
+  const notesBefore = useRef(notes);
+  const editSeen = useRef(remoteEdit?.seq);
+  const [flashes, setFlashes] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    const before = notesBefore.current;
+    notesBefore.current = notes;
+    if (!remoteEdit || remoteEdit.seq === editSeen.current) return;
+    editSeen.current = remoteEdit.seq;
+    const had = new Set(before.flatMap((part, p) => part.map((note) => `${p}|${noteKey(note)}`)));
+    const fresh = notes.flatMap((part, p) => part.map((note) => `${p}|${noteKey(note)}`)).filter((key) => !had.has(key));
+    if (!fresh.length) return;
+    setFlashes((current) => new Map([...current, ...fresh.map((key): [string, string] => [key, remoteEdit.color])]));
+    const timer = setTimeout(
+      () => setFlashes((current) => new Map([...current].filter(([key]) => !fresh.includes(key)))),
+      FLASH_MS
+    );
+    return () => clearTimeout(timer);
+  }, [notes, remoteEdit]);
+  const flashOf = (part: number, note: JamTrackNote) => flashes.get(`${part}|${noteKey(note)}`);
+  const flashedTrack = (gridTrack: GridTrack) => {
+    for (const [key, color] of flashes) if (gridTrack.parts.includes(Number(key.split('|')[0]))) return color;
+    return null;
+  };
 
   // Another song's tracks: nothing of the last one stays open or selected
   useEffect(() => {
@@ -512,6 +623,14 @@ export function JamTrackGrid({
     if (noteDragRef.current) return;
     const hit = gridHit(event, rows);
     event.currentTarget.style.cursor = hit ? HOVER_CURSORS[hit.mode] : 'default';
+  };
+
+  // This player's pointer over the grid, for the others
+  const pointGrid = (event: ReactPointerEvent<HTMLDivElement>, rows: GridRow[]) => {
+    if (!onPresence) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const row = rows[clamp(Math.floor((event.clientY - rect.top) / step), 0, rows.length - 1)];
+    sendPresence({ pointer: row ? { on: 'grid', step: first + (event.clientX - rect.left) / step, part: row.part, pitch: row.pitch } : null });
   };
 
   const pressGrid = (event: ReactPointerEvent<HTMLDivElement>, rows: GridRow[]) => {
@@ -798,16 +917,21 @@ export function JamTrackGrid({
           <div
             className={`jam-editor-roll ${!drum && silent(gridTrack.parts[0]) ? 'silent' : ''}`}
             style={{ height: rows.length * step - CELL_GAP_PX }}
-            onPointerDown={(event) => pressGrid(event, rows)}
+            onPointerDown={(event) => {
+              pointGrid(event, rows);
+              pressGrid(event, rows);
+            }}
             onPointerMove={(event) => {
               dragNote(event);
               hoverGrid(event, rows);
+              pointGrid(event, rows);
             }}
             onPointerUp={(event) => {
               releaseNote(event);
               hoverGrid(event, rows);
             }}
             onPointerCancel={releaseNote}
+            onPointerLeave={() => sendPresence({ pointer: null })}
           >
             {rows.map((row, index) => {
               const band = !row ? 'empty' : drum && silent(row.part) ? 'silent' : null;
@@ -823,19 +947,21 @@ export function JamTrackGrid({
                     .map((note) => {
                       const start = Math.max(note.step, first) - first;
                       const end = Math.min(note.step + note.length, first + PAGE_STEPS) - first;
+                      const flash = flashOf(row.part, note);
                       return (
                         <span
                           key={`${row.part}|${noteKey(note)}`}
                           className={`jam-editor-note ${isSelected(row.part, note) ? 'selected' : ''} ${
                             drum && silent(row.part) ? 'silent' : ''
-                          }`}
+                          } ${flash ? 'flash' : ''}`}
                           style={{
                             left: start * step,
                             width: Math.max(4, (end - start) * step - CELL_GAP_PX),
                             top: index * step,
                             height: cell,
                             background: velocityColor(color, note.velocity),
-                          }}
+                            ...(flash ? { '--peer-color': flash } : {}),
+                          } as CSSProperties}
                         >
                           {note.step >= first && <i className="jam-editor-note-edge start" />}
                           <i className="jam-editor-note-edge end" />
@@ -843,6 +969,28 @@ export function JamTrackGrid({
                       );
                     })
             )}
+            {/* The other players in this track's editor: the cell under each one's pointer, and the pointer */}
+            {onTrack(gridTrack.id).flatMap((player) => {
+              const pointer = player.presence!.pointer;
+              if (pointer?.on !== 'grid' || pointer.step < first || pointer.step >= first + PAGE_STEPS) return [];
+              const index = rows.findIndex((row) => row?.part === pointer.part && row.pitch === pointer.pitch);
+              if (index < 0) return [];
+              const style = { '--peer-color': player.color } as CSSProperties;
+              return [
+                <span
+                  key={`${player.id}-cell`}
+                  className="jam-remote-cell"
+                  style={{ ...style, left: Math.floor(pointer.step - first) * step, top: index * step, width: cell, height: cell }}
+                />,
+                <RemoteCursor
+                  key={`${player.id}-cursor`}
+                  name={player.name}
+                  color={player.color}
+                  left={(pointer.step - first) * step}
+                  top={(index + 0.5) * step}
+                />,
+              ];
+            })}
           </div>
           <div
             className="jam-editor-velocities"
@@ -916,6 +1064,13 @@ export function JamTrackGrid({
             Reset
           </button>
         )}
+        {players.length > 0 && (
+          <div className="jam-presence-avatars">
+            {[...players.filter((player) => !player.you), ...players.filter((player) => player.you)].map((player) => (
+              <PlayerAvatar key={player.id} player={player} />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={`jam-timeline ${tracks.length ? '' : 'empty'}`} ref={timelineRef}>
@@ -944,6 +1099,8 @@ export function JamTrackGrid({
           </div>
         </div>
         {tracks.map((gridTrack) => {
+          const watchers = onTrack(gridTrack.id);
+          const flashed = flashedTrack(gridTrack);
           const solo = gridTrack.parts.every((part) => mix.solos[part]);
           const mute = gridTrack.parts.every((part) => mix.mutes[part]);
           const level = Math.max(...gridTrack.parts.map((part) => mix.levels[part]));
@@ -967,7 +1124,21 @@ export function JamTrackGrid({
                   />
                 )}
               </div>
-              <div className="jam-timeline-lane">
+              <div
+                className={`jam-timeline-lane ${watchers.length ? 'watched' : ''} ${flashed ? 'flash' : ''}`}
+                style={
+                  {
+                    ...(watchers.length ? { '--watch-color': watchers[0].color } : {}),
+                    ...(flashed ? { '--peer-color': flashed } : {}),
+                  } as CSSProperties
+                }
+                onPointerMove={(event) => {
+                  if (!onPresence) return;
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  sendPresence({ pointer: { on: 'lane', track: gridTrack.id, step: viewStart + ((event.clientX - rect.left) / rect.width) * viewSpan } });
+                }}
+                onPointerLeave={() => sendPresence({ pointer: null })}
+              >
                 {/* Empty sections are only the lane: pressing anywhere on it opens the track there */}
                 <button className="jam-timeline-lane-hit" onClick={(event) => openAt(gridTrack, event)} aria-label={`Edit ${gridTrack.name}`} />
                 {clipRuns(gridTrack).map(([from, to]) => (
@@ -985,6 +1156,22 @@ export function JamTrackGrid({
                     </svg>
                   </button>
                 ))}
+                {/* Who has this track's editor open, and the other players' pointers over its lane */}
+                {watchers.length > 0 && (
+                  <span className="jam-lane-tags">
+                    {watchers.map((player) => (
+                      <span key={player.id} className="jam-lane-tag" style={{ '--peer-color': player.color } as CSSProperties}>
+                        {player.name}
+                      </span>
+                    ))}
+                  </span>
+                )}
+                {others.map((player) => {
+                  const pointer = player.presence!.pointer;
+                  if (pointer?.on !== 'lane' || pointer.track !== gridTrack.id) return null;
+                  if (pointer.step < viewStart || pointer.step > viewStart + viewSpan) return null;
+                  return <RemoteCursor key={player.id} name={player.name} color={player.color} left={at(pointer.step)} top="50%" />;
+                })}
               </div>
             </div>
           );
@@ -1052,6 +1239,13 @@ export function JamTrackGrid({
             </button>
             <span className="jam-editor-dot" />
             <span className="jam-editor-name">{open.name}</span>
+            {onTrack(open.id).length > 0 && (
+              <span className="jam-editor-peers">
+                {onTrack(open.id).map((player) => (
+                  <PlayerAvatar key={player.id} player={player} small />
+                ))}
+              </span>
+            )}
             <button className="jam-editor-instrument" onClick={blurAfter(() => onTrackInstrument(open.id))}>
               <InstrumentsIcon />
               {trackSounds[open.id]?.name ?? 'Original'}
@@ -1068,6 +1262,16 @@ export function JamTrackGrid({
                   >
                     {index * PAGE_BARS + 1}–{(index + 1) * PAGE_BARS}
                   </button>
+                  {/* The other players looking at these bars of this track */}
+                  {onTrack(open.id).some((player) => player.presence!.page === index) && (
+                    <span className="jam-section-peers">
+                      {onTrack(open.id)
+                        .filter((player) => player.presence!.page === index)
+                        .map((player) => (
+                          <i key={player.id} style={{ background: player.color }} title={player.name} />
+                        ))}
+                    </span>
+                  )}
                   {PAGES > 1 && (
                     <button
                       className="jam-grid-section-remove"
