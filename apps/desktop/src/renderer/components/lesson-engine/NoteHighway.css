@@ -421,9 +421,22 @@
   -webkit-touch-callout: none; /* no long-press menu on phones */
 }
 
-/* Notes leave at the ship's height, which can be near a row's edge */
+/* Notes leave at the ship's height, which can be near a row's edge. The
+   rows are open to the space behind them, parted by the faintest of lines. */
 .jam-lanes .lane {
   overflow: visible;
+  background: transparent;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: none;
+}
+
+.jam-lanes .lane:first-child {
+  border-top: none;
+}
+
+/* The row being played lights up softly from the left */
+.jam-lanes .lane.lane-active {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0%, transparent 55%);
 }
 
 /* Lesson rooms: a step coming at the ship, a ring in its lane's color
@@ -626,15 +639,13 @@
   z-index: 0;
 }
 
-/* Far and near specks, drifting at different speeds */
-.jam-motion-specks {
+/* Deep space behind the rows (JamSpace.tsx) */
+.jam-space {
   position: absolute;
   inset: 0;
-  background-repeat: repeat;
-  background-image:
-    var(--ds-info);
-  background-size: 173px 131px, 251px 197px;
-  background-position-y: 17px, 83px;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* Jam cursor: a small ship pointing right, colored by its row, with an engine
