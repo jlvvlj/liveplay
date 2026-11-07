@@ -84,6 +84,7 @@
 .instrument-section-head {
   display: flex;
   align-items: center;
+  min-height: 36px;
   margin-bottom: 0.6rem;
 }
 
@@ -99,14 +100,22 @@
   gap: 0.25rem;
 }
 
-/* A row scrolls sideways; its cards keep their size */
+.instrument-icon-btn:disabled {
+  opacity: 0.3;
+  background: transparent;
+  cursor: default;
+}
+
+/* A row scrolls sideways a page of whole cards at a time, as wide as the
+   grids' columns, so its cards line up with the panel's edges */
 .instrument-row {
+  --instrument-columns: 4;
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 150px;
+  grid-auto-columns: calc((100% - (var(--instrument-columns) - 1) * 0.6rem) / var(--instrument-columns));
   gap: 0.6rem;
   overflow-x: auto;
-  scroll-snap-type: x proximity;
+  scroll-snap-type: x mandatory;
   scrollbar-width: none;
 }
 
@@ -116,8 +125,18 @@
 
 .instrument-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.6rem;
+}
+
+@media (max-width: 520px) {
+  .instrument-row {
+    --instrument-columns: 2;
+  }
+
+  .instrument-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .instrument-card {
@@ -166,6 +185,12 @@
   justify-content: center;
   color: var(--ds-text);
   background: linear-gradient(180deg, var(--ds-raised) 0%, var(--ds-panel-2) 100%);
+}
+
+/* On a card the icon grows with it */
+.instrument-card .instrument-card-icon svg {
+  width: 34%;
+  height: auto;
 }
 
 .instrument-card-name {
@@ -324,12 +349,6 @@
 .jam-instrument-current .instrument-card-icon svg {
   width: 22px;
   height: 22px;
-}
-
-/* A track's original sound: its initial, large */
-.instrument-card-original {
-  font-size: 2.6rem;
-  font-weight: 300;
 }
 
 /* The editor's button to a track's instruments */
