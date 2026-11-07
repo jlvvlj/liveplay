@@ -38,3 +38,15 @@ describe('lesson rooms', () => {
     expect(jamLessonFromSong(CHIP, null, 'part-99')).toBeNull();
   });
 });
+
+describe('a lesson room at another tempo', () => {
+  it('plays its built-in song over the track at that tempo, its lesson too', () => {
+    const faster = { ...CHIP, bpm: 130, file: `${CHIP.file}@130` };
+    const made = jamLessonFromSong(faster, null, 'drums')!;
+    expect(made.lesson.bpm).toBe(130);
+    expect(made.lesson.backingTrack).toBe(`samples/pentatonic_jam/${CHIP.file}@130`);
+    // The same notes, at the new tempo
+    expect(made.lesson.steps).toEqual(jamLessonFromSong(CHIP, null, 'drums')!.lesson.steps);
+    expect(jamLessonFromSong(CHIP, null, 'drums')!.lesson.bpm).toBe(CHIP.bpm);
+  });
+});

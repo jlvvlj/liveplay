@@ -16,6 +16,11 @@ export interface BackingPlayer {
   dispose(): unknown;
 }
 
+// The Jam tab's backing track at full volume: about 12 dB louder than in
+// lessons (x1.3 on +4 dB; its peaks are limited), so the groove stays clearly
+// audible under the played notes
+export const JAM_BACKING_TOP_DB = 4 + 20 * Math.log10(1.3);
+
 // A level of 0 is silent
 const toDb = (level: number) => (level > 0 ? 20 * Math.log10(level) : -Infinity);
 
@@ -35,7 +40,9 @@ export class JamBackingMixer implements BackingPlayer {
   playbackRate = 1; // The jam always plays at its own tempo
   readonly loaded = true;
 
-  constructor(parts: JamPartAudio[], scale: number, readonly loopSeconds: number) {
+  // `scale`: the track's loudness, the gain that brings it to every original
+  // track's loudness
+  constructor(parts: JamPartAudio[], readonly scale: number, readonly loopSeconds: number) {
     this.trim = new Tone.Gain(scale).connect(this.master);
     this.lanes = parts.map((audio) => {
       const level = new Tone.Volume().connect(this.trim);

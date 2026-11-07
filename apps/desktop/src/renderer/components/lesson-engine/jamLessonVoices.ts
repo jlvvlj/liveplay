@@ -1,5 +1,6 @@
 import * as Tone from 'tone';
 import { renderJamPartSound } from './jamAudition';
+import { JAM_BACKING_TOP_DB } from './jamBackingMixer';
 import { jamAddedInstrument, type JamAddedPart } from './jamAddedParts';
 import type { JamLessonLane } from './jamLessonRooms';
 import { InstrumentChannel } from './instruments/channel';
@@ -10,8 +11,15 @@ import type { InstrumentChoice, InstrumentDef } from './instruments/types';
 // pitch), else each lane's part on its pitch, rendered once when the room's
 // lesson is known.
 
-// Parts render unscaled: held under 0 dBFS, like the mixer's parts
-const LEVEL_DB = -6;
+// Parts render unscaled. A hit plays at its track's loudness and the backing
+// track's full level, as its part plays in the backing, and this much above
+// it: at the default Notes volume (75%) a hit stands about 5 dB over its own
+// part, at 100% 8 dB
+export const JAM_LESSON_HIT_LIFT_DB = 8;
+
+// The hits' level, for a track whose loudness gain is `scale` (the backing
+// mixer's), before each hit's velocity and volume
+export const jamLessonHitsDb = (scale: number): number => 20 * Math.log10(scale) + JAM_BACKING_TOP_DB + JAM_LESSON_HIT_LIFT_DB;
 // A live instrument's hit is let go this long after it starts
 const LIVE_HOLD_S = 0.3;
 
@@ -24,7 +32,8 @@ export interface JamLessonLive {
 }
 
 export class JamLessonVoices {
-  private readonly output = new Tone.Volume(LEVEL_DB);
+  // Silent until the track's loudness is known (setScale)
+  private readonly output = new Tone.Volume(-Infinity);
   private readonly limiter = new Tone.Limiter(-1).toDestination();
   private buffers = new Map<number, Tone.ToneAudioBuffer>();
   private channel: InstrumentChannel | null = null;
@@ -58,6 +67,11 @@ export class JamLessonVoices {
     });
   }
 
+  // The track's loudness gain, as the backing mixer has it
+  setScale(scale: number) {
+    this.output.volume.value = jamLessonHitsDb(scale);
+  }
+
   // A lane's sound at `time` (audio time), at `velocity` and `volume` (0-1);
   // false while its sound is still being prepared
   play(note: number, time: number, velocity: number, volume: number): boolean {
@@ -71,7 +85,8 @@ export class JamLessonVoices {
     }
     const buffer = this.buffers.get(note);
     if (!buffer) return false;
-    const gain = new Tone.Gain((velocity / 127) * volume).connect(this.output);
+    // Each lane's sound is rendered at velocity 100
+    const gain = new Tone.Gain((velocity / 100) * volume).connect(this.output);
     const player = new Tone.Player(buffer).connect(gain);
     player.onstop = () => {
       player.dispose();

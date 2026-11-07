@@ -4,6 +4,15 @@ import { BackIcon, SYNTH_TAG_ICONS, SidebarIcon } from './JamIcons';
 import { CategoryArt } from './instruments/CategoryArt';
 import type { JamRoomPlayer } from './jamRoom';
 import { JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
+import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM } from './jamTracks';
+import type { HighwayMode } from './NoteHighway';
+
+const LESSON_MODES: { mode: HighwayMode; label: string }[] = [
+  { mode: 'free', label: 'Free' },
+  { mode: 'wait', label: 'Wait' },
+  { mode: 'play', label: 'Play' },
+  { mode: 'jam', label: 'Jam' },
+];
 
 interface JamSettingsPanelProps {
   // The Daw has only the backing track's settings and the room; the played
@@ -15,13 +24,37 @@ interface JamSettingsPanelProps {
   // Playing together online: the room this player is in (a private room's
   // code, null for an open room) and its players once joined
   room?: { code: string | null; joined: boolean; players: JamRoomPlayer[] };
-  // A lesson room's lesson: this player's score, the lanes to practise and
-  // how loud its notes play by themselves (0: they don't)
+  // A lesson room's lesson, with lesson mode's settings: this player's
+  // score, the lanes to practise and how loud its notes play by themselves
+  // (0: they don't)
   lesson?: {
     score: LessonScore;
     lanes: ReactNode;
     autoPlay: number;
     onAutoPlayChange: (volume: number) => void;
+    // This player's mode: lesson mode's Free, Wait and Play, or Jam (on the
+    // room's clock); `game` while a game started with Start runs
+    mode: HighwayMode;
+    game: boolean;
+    onModeChange: (mode: HighwayMode) => void;
+    // Wait mode: the step waited for, counted from 1
+    waitStep?: { step: number; total: number };
+    // The room's tempo on the Jam tab; null when its song keeps its own (an
+    // imported song's recordings)
+    tempo: number | null;
+    onTempoChange: (bpm: number) => void;
+    // Play mode's speed, 0 to 2
+    speed: number;
+    onSpeedChange: (speed: number) => void;
+    metronome: number;
+    onMetronomeChange: (volume: number) => void;
+    // Jam: the room's pause; Play: this player's
+    paused: boolean;
+    onTogglePause: () => void;
+    onRestart: () => void;
+    onStartGame: () => void;
+    collapsed: boolean;
+    onCollapsedChange: (collapsed: boolean) => void;
   };
   // This player's name on their ship in rooms; empty for the room's numbered name
   roomName?: string;
@@ -89,6 +122,38 @@ function Slider({
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="volume-slider"
+      />
+    </div>
+  );
+}
+
+// The room's tempo: its value follows the slider while it moves, and the room
+// changes tempo once it is let go (each change renders the track again)
+function TempoSlider({ tempo, onChange }: { tempo: number; onChange: (bpm: number) => void }) {
+  const [draft, setDraft] = useState<number | null>(null);
+  const shown = draft ?? tempo;
+  const commit = () => {
+    if (draft !== null && draft !== tempo) onChange(draft);
+    setDraft(null);
+  };
+  return (
+    <div className="jam-slider">
+      <div className="jam-slider-head">
+        <span>Tempo</span>
+        <span className="jam-slider-value">{shown} BPM</span>
+      </div>
+      <input
+        type="range"
+        min={JAM_DAW_MIN_BPM}
+        max={JAM_DAW_MAX_BPM}
+        step={1}
+        value={shown}
+        aria-label="Tempo"
+        onChange={(event) => setDraft(Number(event.target.value))}
+        onPointerUp={commit}
+        onKeyUp={commit}
+        onBlur={commit}
         className="volume-slider"
       />
     </div>
@@ -231,6 +296,68 @@ export function JamSettingsPanel({
                 <b>{lesson.score.misses}</b> missed
               </span>
             </div>
+            <div className="jam-sound-options jam-hold-options jam-lesson-modes">
+              {LESSON_MODES.map(({ mode, label }) => (
+                <button
+                  key={mode}
+                  className={`jam-sound-option ${mode === lesson.mode && !lesson.game ? 'active' : ''}`}
+                  onClick={() => lesson.onModeChange(mode)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="jam-sound-options jam-hold-options jam-lesson-controls">
+              {(lesson.mode === 'jam' || lesson.mode === 'play') && (
+                <button className="jam-sound-option" onClick={lesson.onTogglePause}>
+                  {lesson.paused ? '\u25B6 Play' : '\u275A\u275A Pause'}
+                </button>
+              )}
+              <button className="jam-sound-option" onClick={lesson.onRestart}>
+                &#8635; Restart
+              </button>
+              <button className={`jam-sound-option ${lesson.game ? 'active' : ''}`} onClick={lesson.onStartGame}>
+                Start
+              </button>
+              {/* Lesson mode's lane collapse (the Jam tab always shows one row per pitch) */}
+              {lesson.mode !== 'jam' && (
+                <button
+                  className={`jam-sound-option jam-lesson-collapse ${lesson.collapsed ? 'active' : ''}`}
+                  onClick={() => lesson.onCollapsedChange(!lesson.collapsed)}
+                  title={lesson.collapsed ? 'Expand lanes' : 'Collapse lanes'}
+                >
+                  {lesson.collapsed ? '\u2B0D' : '\u2B0C'}
+                </button>
+              )}
+            </div>
+            {lesson.waitStep && (
+              <div className="jam-lesson-score jam-lesson-step">
+                <span>
+                  <b>{lesson.waitStep.step}</b> / {lesson.waitStep.total}
+                </span>
+              </div>
+            )}
+            {lesson.mode === 'jam' && lesson.tempo !== null && <TempoSlider tempo={lesson.tempo} onChange={lesson.onTempoChange} />}
+            {lesson.mode === 'play' && !lesson.game && (
+              <Slider
+                label="Speed"
+                value={lesson.speed}
+                display={`${Math.round(lesson.speed * 100)}%`}
+                min={0}
+                max={2}
+                step={0.05}
+                onChange={lesson.onSpeedChange}
+              />
+            )}
+            <Slider
+              label="Metronome"
+              value={lesson.metronome}
+              display={lesson.metronome === 0 ? 'Off' : `${Math.round(lesson.metronome * 100)}%`}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={lesson.onMetronomeChange}
+            />
             <Slider
               label="Auto-play"
               value={lesson.autoPlay}
@@ -245,7 +372,8 @@ export function JamSettingsPanel({
           </div>
         )}
 
-        {playing && !lesson && (
+        {/* Hold repeat plays on the room's clock: in a lesson room, on the Jam tab */}
+        {playing && (!lesson || lesson.mode === 'jam') && (
         <div className="setting-group">
           <label className="setting-label">
             <span className="setting-icon">&#128257;</span>
