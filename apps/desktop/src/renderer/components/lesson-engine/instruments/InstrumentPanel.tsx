@@ -3,9 +3,8 @@ import { BackIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, SYNTH_TAG_ICONS
 import { JamDropdown } from '../JamDropdown';
 import { CategoryArt } from './CategoryArt';
 import { CATEGORY_ORDER, SYNTH_TAG_ORDER, choiceEdited, presetChoice } from './catalog';
-import { EFFECTS, effectSlot } from './effects';
+import { EFFECTS, availableEffects, effectSlot } from './effects';
 import type { EffectKind, EffectSlot, InstrumentChoice, InstrumentDef, ParamSpec, ParamValues, Preset } from './types';
-import { EFFECT_KINDS } from './types';
 import { paramValue } from './types';
 import './InstrumentPanel.css';
 
@@ -53,7 +52,24 @@ function formatParam(spec: ParamSpec, value: number): string {
   return Number(value.toFixed(2)).toString();
 }
 
+// A choice of more options than fit as buttons opens as a list
+const MAX_OPTION_BUTTONS = 8;
+
 function Param({ spec, value, onChange }: { spec: ParamSpec; value: number; onChange: (value: number) => void }) {
+  if (spec.options && spec.options.length > MAX_OPTION_BUTTONS)
+    return (
+      <div className="jam-slider">
+        <div className="jam-slider-head">
+          <span>{spec.label}</span>
+        </div>
+        <JamDropdown
+          className="instrument-choice"
+          value={String(Math.round(value))}
+          groups={[{ options: spec.options.map((option, i) => ({ value: String(i), label: option })) }]}
+          onChange={(index) => onChange(Number(index))}
+        />
+      </div>
+    );
   if (spec.options)
     return (
       <div className="jam-slider">
@@ -142,6 +158,35 @@ function Card({ art, name, detail, active, onClick }: { art: ReactNode; name: st
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
+// More presets than fit as buttons: a list to search, by kind of sound
+const MAX_PRESET_BUTTONS = 12;
+
+function PresetList({ presets, chosen, onPick }: { presets: Preset[]; chosen: string; onPick: (preset: Preset) => void }) {
+  const [filter, setFilter] = useState('');
+  const words = filter.trim().toLowerCase();
+  const shown = words ? presets.filter((preset) => `${preset.name} ${preset.tag ?? ''}`.toLowerCase().includes(words)) : presets;
+  const tags = [...new Set(shown.map((preset) => preset.tag ?? ''))];
+  return (
+    <div className="instrument-preset-list">
+      <input className="instrument-search instrument-preset-search" value={filter} placeholder={`Search ${presets.length} presets`} onChange={(e) => setFilter(e.target.value)} />
+      <div className="instrument-preset-rows">
+        {tags.map((tag) => (
+          <div key={tag}>
+            {tag && <div className="instrument-preset-tag">{tag}</div>}
+            {shown
+              .filter((preset) => (preset.tag ?? '') === tag)
+              .map((preset) => (
+                <button key={preset.id} className={`instrument-preset-row ${preset.id === chosen ? 'active' : ''}`} onClick={() => onPick(preset)}>
+                  {preset.name}
+                </button>
+              ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function InstrumentPanel({ instruments: all, choice, track, loading, saved, onChange, onClose }: InstrumentPanelProps) {
   const instruments = track ? all.filter((instrument) => !!instrument.pads === (track.kind === 'drum')) : all;
   // Opens on what plays now, its presets and settings at hand
@@ -150,7 +195,8 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
   const [query, setQuery] = useState('');
 
   const synths = instruments.filter((instrument) => instrument.engine === 'melodics-synth');
-  const sampled = instruments.filter((instrument) => instrument.engine !== 'melodics-synth');
+  const engines = instruments.filter((instrument) => instrument.engine === 'port');
+  const sampled = instruments.filter((instrument) => instrument.engine === 'sampler');
   const rank = (category: string) => (CATEGORY_ORDER.includes(category) ? CATEGORY_ORDER.indexOf(category) : CATEGORY_ORDER.length);
   const categories = [...new Set(sampled.map((instrument) => instrument.category))].sort((a, b) => rank(a) - rank(b));
   const tagged = (tag: string) =>
@@ -171,7 +217,16 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
         return instrument.presets
           .filter((preset) => `${preset.name} ${preset.tag}`.toLowerCase().includes(words))
           .map((preset) => ({ instrument, preset }));
-      return `${instrument.name} ${instrument.category}`.toLowerCase().includes(words) ? [{ instrument }] : [];
+      const named = `${instrument.name} ${instrument.category}`.toLowerCase().includes(words) ? [{ instrument }] : [];
+      // A synth engine's presets by name too
+      if (instrument.engine !== 'port') return named;
+      return [
+        ...named,
+        ...instrument.presets
+          .filter((preset) => `${preset.name} ${preset.tag ?? ''}`.toLowerCase().includes(words))
+          .slice(0, 24)
+          .map((preset) => ({ instrument, preset })),
+      ];
     });
   }, [instruments, query]);
 
@@ -180,7 +235,7 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
     return (
       <Card
         key={`${instrument.id}:${preset.id}`}
-        art={<span className="instrument-card-icon">{Icon && <Icon />}</span>}
+        art={instrument.engine === 'port' ? <CategoryArt seed={artSeed(instrument)} /> : <span className="instrument-card-icon">{Icon && <Icon />}</span>}
         name={preset.name}
         detail={instrument.name}
         active={choice?.instrument === instrument.id && choice?.preset === preset.id}
@@ -188,6 +243,16 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
       />
     );
   };
+  const engineCard = (instrument: InstrumentDef) => (
+    <Card
+      key={instrument.id}
+      art={<CategoryArt seed={artSeed(instrument)} />}
+      name={instrument.name}
+      detail={plural(instrument.presets.length, 'preset')}
+      active={choice?.instrument === instrument.id}
+      onClick={() => pick(instrument)}
+    />
+  );
   const sampledCard = (instrument: InstrumentDef) => (
     <Card
       key={instrument.id}
@@ -209,7 +274,7 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
           if (view.at === 'instrument' && current?.engine === 'melodics-synth') {
             const preset = current.presets.find((candidate) => candidate.id === choice?.preset);
             setView(preset?.tag ? { at: 'tag', tag: preset.tag } : { at: 'home' });
-          } else if (view.at === 'instrument' && current) setView({ at: 'category', category: current.category });
+          } else if (view.at === 'instrument' && current && current.engine === 'sampler') setView({ at: 'category', category: current.category });
           else setView({ at: 'home' });
         };
 
@@ -253,7 +318,9 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
       <div className="instrument-panel-body">
         {searching && query.trim() ? (
           <div className="instrument-grid">
-            {results.map(({ instrument, preset }) => (preset ? synthCard(instrument, preset) : sampledCard(instrument)))}
+            {results.map(({ instrument, preset }) =>
+              preset ? synthCard(instrument, preset) : instrument.engine === 'port' ? engineCard(instrument) : sampledCard(instrument)
+            )}
           </div>
         ) : view.at === 'home' ? (
           <>
@@ -282,6 +349,7 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
                 );
               })}
             </CardRow>}
+            {engines.length > 0 && <CardRow title="Synth engines">{engines.map(engineCard)}</CardRow>}
             <CardRow title="Samplers">
               {categories.map((category) => (
                 <Card
@@ -325,17 +393,21 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
             </div>
 
             <div className="jam-subhead">Presets</div>
-            <div className="instrument-options">
-              {current.presets.map((preset) => (
-                <button
-                  key={preset.id}
-                  className={`jam-sound-option ${preset.id === choice.preset ? 'active' : ''}`}
-                  onClick={() => onChange(presetChoice(current, preset.id))}
-                >
-                  {preset.name}
-                </button>
-              ))}
-            </div>
+            {current.presets.length > MAX_PRESET_BUTTONS ? (
+              <PresetList presets={current.presets} chosen={choice.preset} onPick={(preset) => onChange(presetChoice(current, preset.id))} />
+            ) : (
+              <div className="instrument-options">
+                {current.presets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    className={`jam-sound-option ${preset.id === choice.preset ? 'active' : ''}`}
+                    onClick={() => onChange(presetChoice(current, preset.id))}
+                  >
+                    {preset.name}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <Params specs={current.params} values={choice.params} onChange={(params) => onChange({ ...choice, params })} />
 
@@ -345,7 +417,7 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
                 className="instrument-add-effect"
                 placeholder="Add effect"
                 value=""
-                groups={[{ options: EFFECT_KINDS.map((kind) => ({ value: kind, label: EFFECTS[kind].label })) }]}
+                groups={[{ options: availableEffects().map((kind) => ({ value: kind, label: EFFECTS[kind].label })) }]}
                 onChange={(kind) => setEffects([...choice.effects, effectSlot(kind as EffectKind)])}
               />
             </div>

@@ -1,3 +1,4 @@
+import fs from 'fs';
 import http from 'http';
 import path from 'path';
 import express from 'express';
@@ -19,7 +20,18 @@ const app = express();
 const songs = createJamSongStore(path.resolve(songsDir));
 app.use(createJamHttp({ songsDir: path.resolve(songsDir), songs, repoRoot: path.resolve(__dirname, '..') }));
 if (process.env.JAM_STATIC_DIR) {
-  app.use(express.static(path.resolve(process.env.JAM_STATIC_DIR)));
+  const staticDir = path.resolve(process.env.JAM_STATIC_DIR);
+  // Big files have a gzipped copy beside them (instrument-ports/catalog.mjs),
+  // sent to browsers that take it
+  app.use((req, res, next) => {
+    const file = path.join(staticDir, decodeURIComponent(req.path));
+    if (!file.startsWith(staticDir + path.sep) || !req.acceptsEncodings('gzip') || !fs.existsSync(`${file}.gz`)) return next();
+    res.setHeader('Content-Encoding', 'gzip');
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.type(path.extname(file));
+    res.sendFile(`${path.relative(staticDir, file)}.gz`, { root: staticDir });
+  });
+  app.use(express.static(staticDir));
 }
 const server = http.createServer(app);
 createJamRooms({ songs, audioExists: (id) => jamAudioExists(path.resolve(songsDir), id) }).attach(server);

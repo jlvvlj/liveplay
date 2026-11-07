@@ -1,4 +1,14 @@
 # The hosted jam (fly.toml): the built jam app and its room server
+
+# The instrument ports (synths compiled to WebAssembly), built from their
+# pinned sources, with their catalog for the app
+FROM emscripten/emsdk:6.0.13 AS ports
+RUN apt-get update && apt-get install -y --no-install-recommends cmake ninja-build git && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY instrument-ports instrument-ports
+RUN for port in mutable obxf dexed helm surge-xt; do instrument-ports/$port/build.sh || exit 1; done
+RUN node instrument-ports/catalog.mjs /out
+
 FROM node:20-slim
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -11,6 +21,7 @@ COPY instrument-lab/engine instrument-lab/engine
 # The tracks zoom the grid shares with the Instrument Lab
 COPY instrument-lab/client/TrackZoom.jsx instrument-lab/client/timeline.mjs instrument-lab/client/track-zoom.css instrument-lab/client/
 COPY server/jamRooms.ts server/jamSongStore.ts server/jamHttp.ts server/analyze-audio.ts server/charting.ts server/jam-rooms.ts server/
+COPY --from=ports /out apps/jam/public/instrument-ports
 RUN npm run build:jam
 # Audio tracks of imported Ableton projects: their hits are found by the full
 # app's analysis script (librosa), run through uv; its Python and packages are
