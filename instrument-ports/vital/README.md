@@ -58,7 +58,7 @@ Percussion, Sequence, Experiment) as its tag. Left out, as the build prints:
 
 ### Loading off the audio thread
 
-Reading a preset's file takes up to 400 ms, most of it rendering its three
+Reading a preset's file takes up to 500 ms, most of it rendering its three
 wavetables and preparing its sample, and the audio thread every instrument
 shares cannot stop that long. So the app has a second instance of the module
 in a Worker, `dist/vital.loader.js`, read each file and pack the result:
@@ -69,9 +69,9 @@ in a Worker, `dist/vital.loader.js`, read each file and pack the result:
    upgrades older presets), then each oscillator's rendered wavetable data and
    the sample's band-limited buffers.
 3. The app sends the pack with the preset message. The worklet reads the
-   settings and copies the wavetables and sample in, in 2 to 19 ms.
+   settings and copies the wavetables and sample in, in 2 to 30 ms.
 
-A pack is 1 to 45 MB, transferred rather than copied. The worklet also reads a
+A pack is 1 to 62 MB, transferred rather than copied. The worklet also reads a
 plain `.vital` file, as `catalog.mjs` does when it measures each preset.
 
 ## Parameters
@@ -134,7 +134,7 @@ python3 -m http.server -d instrument-ports 8731   # http://127.0.0.1:8731/vital/
 
 ## Limits
 
-- Each instance holds its three wavetables, up to 25 MB, and takes about as
-  much again while a pack is copied in.
-- A 4-note chord renders at 3 to 21% of real time in Node on an M-series Mac,
+- Each instance holds its preset's wavetables and sample, up to 60 MB, and
+  takes about as much again while a pack is copied in.
+- A 4-note chord renders at 3 to 24% of real time in Node on an M-series Mac,
   depending on the preset (unison and oversampling cost the most).
