@@ -662,6 +662,11 @@
   will-change: transform;
 }
 
+/* Taken to a key's row, the ship glides there */
+.jam-cursor.gliding {
+  transition: transform 0.09s ease-out;
+}
+
 .jam-cursor-ship {
   position: absolute;
   left: -12px;
