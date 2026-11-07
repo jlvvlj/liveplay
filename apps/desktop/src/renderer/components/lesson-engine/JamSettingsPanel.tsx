@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import type { Lesson, LessonScore } from '../../types/lesson';
-import { BackIcon, SYNTH_TAG_ICONS, SidebarIcon } from './JamIcons';
+import { BackIcon, CheckIcon, LinkIcon, PauseIcon, PlayIcon, RestartIcon, SYNTH_TAG_ICONS, SidebarIcon } from './JamIcons';
 import { CategoryArt } from './instruments/CategoryArt';
 import type { JamRoomPlayer } from './jamRoom';
 import { JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
@@ -88,6 +88,58 @@ interface JamSettingsPanelProps {
   onBack?: () => void;
   onClose: () => void;
 }
+
+// A section of the sidebar: its title, and a control beside it
+function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="setting-group jam-side-section">
+      <div className="jam-side-head">
+        <h3>{title}</h3>
+        {aside}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// One choice of a few, as pills in a track; clicking the chosen one again
+// lets it go when `clearable`
+function Segmented<T extends string | number | boolean>({
+  options,
+  value,
+  onChange,
+  small,
+  clearable,
+}: {
+  options: { value: T; label: ReactNode }[];
+  value: T | null;
+  onChange: (value: T | null) => void;
+  small?: boolean;
+  clearable?: boolean;
+}) {
+  return (
+    <div className={`jam-segmented ${small ? 'small' : ''}`}>
+      {options.map((option) => (
+        <button
+          key={String(option.value)}
+          className={option.value === value ? 'active' : ''}
+          onClick={() => onChange(clearable && option.value === value ? null : option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// A player's initials, for their avatar
+const initials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? '')
+    .join('');
 
 function Slider({
   label,
@@ -196,7 +248,7 @@ export function JamSettingsPanel({
   const [linkCopied, setLinkCopied] = useState(false);
 
   return (
-    <div className="game-settings-sidebar">
+    <div className="game-settings-sidebar jam-sidebar">
       <div className="game-settings-header jam-settings-header">
         {onBack && (
           <button className="jam-corner-btn jam-back-btn" onClick={onBack} title="Back">
@@ -214,24 +266,22 @@ export function JamSettingsPanel({
 
       <div className="game-settings-content">
         {(songs.length > 1 || onViewChange) && (
-          <div className="setting-group">
-            <label className="setting-label">
-              <span className="setting-icon">&#127926;</span>
-              Track
-              {onViewChange && (
-                <span className="jam-feel-switch">
-                  {(['highway', 'grid'] as const).map((option) => (
-                    <button
-                      key={option}
-                      className={option === view ? 'active' : ''}
-                      onClick={() => onViewChange(option)}
-                    >
-                      {option === 'highway' ? 'Highway' : 'Grid'}
-                    </button>
-                  ))}
-                </span>
-              )}
-            </label>
+          <Section
+            title="Track"
+            aside={
+              onViewChange && (
+                <Segmented
+                  small
+                  options={[
+                    { value: 'highway' as const, label: 'Highway' },
+                    { value: 'grid' as const, label: 'Grid' },
+                  ]}
+                  value={view}
+                  onChange={(option) => option && onViewChange(option)}
+                />
+              )
+            }
+          >
             {songs.length > 1 && (
               <div className="jam-sound-grid">
                 {songs.map((song) => (
@@ -245,14 +295,10 @@ export function JamSettingsPanel({
                 ))}
               </div>
             )}
-          </div>
+          </Section>
         )}
 
-        <div className="setting-group">
-          <label className="setting-label">
-            <span className="setting-icon">&#128266;</span>
-            Volume
-          </label>
+        <Section title="Volume">
           {playing && (
             <Slider
               label="Notes"
@@ -273,15 +319,10 @@ export function JamSettingsPanel({
             step={0.05}
             onChange={onBackingVolumeChange}
           />
-        </div>
+        </Section>
 
         {lesson && (
-          <div className="setting-group">
-            <label className="setting-label">
-              <span className="setting-icon">&#127919;</span>
-              Lesson
-              <span className="setting-value">{lesson.score.accuracy.toFixed(1)}%</span>
-            </label>
+          <Section title="Lesson" aside={<span className="jam-side-value">{lesson.score.accuracy.toFixed(1)}%</span>}>
             <div className="jam-lesson-score">
               <span>
                 <b>{lesson.score.perfectHits}</b> perfect
@@ -293,27 +334,23 @@ export function JamSettingsPanel({
                 <b>{lesson.score.misses}</b> missed
               </span>
             </div>
-            <div className="jam-sound-options jam-hold-options jam-lesson-modes">
-              {LESSON_MODES.map(({ mode, label }) => (
-                <button
-                  key={mode}
-                  className={`jam-sound-option ${mode === lesson.mode && !lesson.game ? 'active' : ''}`}
-                  onClick={() => lesson.onModeChange(mode)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="jam-sound-options jam-hold-options jam-lesson-controls">
+            <Segmented
+              options={LESSON_MODES.map(({ mode, label }) => ({ value: mode, label }))}
+              value={lesson.game ? null : lesson.mode}
+              onChange={(mode) => mode && lesson.onModeChange(mode)}
+            />
+            <div className="jam-side-buttons">
               {(lesson.mode === 'jam' || lesson.mode === 'play') && (
-                <button className="jam-sound-option" onClick={lesson.onTogglePause}>
-                  {lesson.paused ? '\u25B6 Play' : '\u275A\u275A Pause'}
+                <button className="jam-pill-btn" onClick={lesson.onTogglePause}>
+                  {lesson.paused ? <PlayIcon /> : <PauseIcon />}
+                  {lesson.paused ? 'Play' : 'Pause'}
                 </button>
               )}
-              <button className="jam-sound-option" onClick={lesson.onRestart}>
-                &#8635; Restart
+              <button className="jam-pill-btn" onClick={lesson.onRestart}>
+                <RestartIcon />
+                Restart
               </button>
-              <button className={`jam-sound-option ${lesson.game ? 'active' : ''}`} onClick={lesson.onStartGame}>
+              <button className={`jam-pill-btn primary ${lesson.game ? 'active' : ''}`} onClick={lesson.onStartGame}>
                 Start
               </button>
             </div>
@@ -354,39 +391,31 @@ export function JamSettingsPanel({
             )}
             <div className="jam-subhead">Sounds</div>
             {lesson.lanes}
-          </div>
+          </Section>
         )}
 
         {/* Hold repeat plays on the room's clock: in a lesson room, on the Jam tab */}
         {playing && (!lesson || lesson.mode === 'jam') && (
-        <div className="setting-group">
-          <label className="setting-label">
-            <span className="setting-icon">&#128257;</span>
-            Hold repeat
-            <span className="jam-feel-switch">
-              {[false, true].map((triplet) => (
-                <button
-                  key={String(triplet)}
-                  className={triplet === holdTriplet ? 'active' : ''}
-                  onClick={() => onHoldTripletChange(triplet)}
-                >
-                  {triplet ? 'Triplet' : 'Straight'}
-                </button>
-              ))}
-            </span>
-          </label>
-          <div className="jam-sound-options jam-hold-options">
-            {holdDivisions.map((division) => (
-              <button
-                key={division}
-                className={`jam-sound-option ${division === holdDivision ? 'active' : ''}`}
-                onClick={() => onHoldDivisionChange(division === holdDivision ? null : division)}
-              >
-                {division}
-                {holdTriplet ? 'T' : ''}
-              </button>
-            ))}
-          </div>
+        <Section
+          title="Hold repeat"
+          aside={
+            <Segmented
+              small
+              options={[
+                { value: false, label: 'Straight' },
+                { value: true, label: 'Triplet' },
+              ]}
+              value={holdTriplet}
+              onChange={(triplet) => triplet !== null && onHoldTripletChange(triplet)}
+            />
+          }
+        >
+          <Segmented
+            clearable
+            options={holdDivisions.map((division) => ({ value: division, label: `${division}${holdTriplet ? 'T' : ''}` }))}
+            value={holdDivision}
+            onChange={onHoldDivisionChange}
+          />
           <Slider
             label="Swing"
             value={swing}
@@ -396,20 +425,16 @@ export function JamSettingsPanel({
             step={0.01}
             onChange={onSwingChange}
           />
-        </div>
+        </Section>
         )}
 
         {room && (
-          <div className="setting-group">
-            <label className="setting-label">
-              <span className="setting-icon">&#127760;</span>
-              Together
-            </label>
-            <div className="jam-room-code">
-              <span className={room.code ? undefined : 'jam-room-open'}>{room.code ?? 'Open'}</span>
-              {navigator.clipboard && (
+          <Section
+            title="Together"
+            aside={
+              navigator.clipboard && (
                 <button
-                  className="jam-sound-option"
+                  className="jam-pill-btn small"
                   onClick={() =>
                     navigator.clipboard.writeText(location.href).then(() => {
                       setLinkCopied(true);
@@ -417,16 +442,23 @@ export function JamSettingsPanel({
                     })
                   }
                 >
+                  {linkCopied ? <CheckIcon /> : <LinkIcon />}
                   {linkCopied ? 'Copied' : 'Copy link'}
                 </button>
-              )}
+              )
+            }
+          >
+            <div className="jam-room-code">
+              {room.code ? <span className="jam-room-key">{room.code}</span> : <span className="jam-room-open">Open room</span>}
             </div>
             {room.joined && (
               <div className="jam-room-players">
                 {room.players.map((player) =>
                   player.you ? (
                     <label key={player.id} className="jam-room-player jam-room-you">
-                      <span className="jam-room-dot" style={{ background: player.color }} />
+                      <span className="jam-room-avatar" style={{ background: player.color }}>
+                        {initials(roomName || player.name)}
+                      </span>
                       <input
                         className="jam-room-name"
                         value={roomName}
@@ -439,8 +471,10 @@ export function JamSettingsPanel({
                     </label>
                   ) : (
                     <span key={player.id} className="jam-room-player" title={player.direct ? 'Direct' : 'Through the server'}>
-                      <span className="jam-room-dot" style={{ background: player.color }} />
-                      {player.name}
+                      <span className="jam-room-avatar" style={{ background: player.color }}>
+                        {initials(player.name)}
+                      </span>
+                      <span className="jam-room-player-name">{player.name}</span>
                       <span className="jam-room-latency">
                         {player.latency === null ? '…' : `${Math.round(player.latency * 1000)} ms`}
                       </span>
@@ -449,48 +483,39 @@ export function JamSettingsPanel({
                 )}
               </div>
             )}
-          </div>
+          </Section>
         )}
 
         {playing && (
         <>
-        <div className="setting-group">
-          <label className="setting-label">
-            <span className="setting-icon">&#127929;</span>
-            Keys
-          </label>
-          <div className="jam-keys-row">
-            <div className={`toolbar-midi ${midiActive ? 'active' : ''}`} title="MIDI Status">
-              <span className="midi-dot"></span>
+        <Section
+          title="Keys"
+          aside={
+            <span className={`jam-midi-status ${midiActive ? 'active' : ''}`} title="MIDI">
+              <i />
               {lastMidiNote !== null ? lastMidiNote : 'MIDI'}
-            </div>
-            <button className={`toolbar-btn ${showKeys ? 'active' : ''}`} onClick={onToggleKeys} title="Key Bindings">
-              Keys
+            </span>
+          }
+        >
+          <div className="jam-keys-row">
+            <button className={`jam-pill-btn ${showKeys ? 'active' : ''}`} onClick={onToggleKeys} title="Key bindings">
+              Show keys
             </button>
-            <div className="toolbar-label-tabs">
-              <button
-                className={`toolbar-label-tab ${labelMode === 'letters' ? 'active' : ''}`}
-                onClick={() => onLabelModeChange('letters')}
-              >
-                ABC
-              </button>
-              <button
-                className={`toolbar-label-tab ${labelMode === 'numbers' ? 'active' : ''}`}
-                onClick={() => onLabelModeChange('numbers')}
-              >
-                123
-              </button>
-            </div>
+            <Segmented
+              small
+              options={[
+                { value: 'letters' as const, label: 'ABC' },
+                { value: 'numbers' as const, label: '123' },
+              ]}
+              value={labelMode}
+              onChange={(mode) => mode && onLabelModeChange(mode)}
+            />
           </div>
-        </div>
+        </Section>
 
         {/* A lesson room's hits play its lesson track's own sound */}
         {!lesson && (
-        <div className="setting-group">
-          <label className="setting-label">
-            <span className="setting-icon">&#127927;</span>
-            Instrument
-          </label>
+        <Section title="Instrument">
           {instrument && (
             <button className="jam-instrument-current" onClick={onOpenInstruments}>
               <span className="instrument-detail-art">
@@ -506,7 +531,7 @@ export function JamSettingsPanel({
               </span>
             </button>
           )}
-        </div>
+        </Section>
         )}
         </>
         )}
