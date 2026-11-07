@@ -285,8 +285,8 @@ export const JAM_TRACKS: JamTrack[] = [
 // Daw songs started empty: a track with no parts of its own at the chosen
 // tempo, made only of the parts added in the grid. Each is made once, so a
 // file always names the same track.
-export const JAM_DAW_MIN_BPM = 60;
-export const JAM_DAW_MAX_BPM = 180;
+export const JAM_DAW_MIN_BPM = 1;
+export const JAM_DAW_MAX_BPM = 300;
 const EMPTY_TRACK_FILE = /^empty-(\d+)\.wav$/;
 const emptyTracks = new Map<string, JamTrack>();
 export const jamEmptyTrackFile = (bpm: number): string => `empty-${bpm}.wav`;

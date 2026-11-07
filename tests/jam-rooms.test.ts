@@ -243,11 +243,17 @@ describe('jam rooms', () => {
     const b = await player(url);
     b.send({ t: 'join', room: 'TEMPO', name: '', sound: null, need: 0 });
     await b.next('welcome');
-    // Out of range it is refused; in range both players get the song at that tempo
-    a.send({ t: 'tempo', bpm: 400 });
+    // Out of range (0, above 300) it is refused; in range both players get the song at that tempo
+    a.send({ t: 'tempo', bpm: 0 });
+    a.send({ t: 'tempo', bpm: 301 });
     a.send({ t: 'tempo', bpm: 96 });
     const { state } = await b.next('state');
     expect(state.song).toMatchObject({ id: CHIP.id, bpm: 96, file: `${CHIP.file}@96` });
+    // From 1 to 300
+    a.send({ t: 'tempo', bpm: 1 });
+    expect((await b.next('state')).state.song).toMatchObject({ bpm: 1, file: `${CHIP.file}@1` });
+    a.send({ t: 'tempo', bpm: 300 });
+    expect((await b.next('state')).state.song).toMatchObject({ bpm: 300, file: `${CHIP.file}@300` });
     expect(state.lesson).toEqual({ track: 'drums', name: 'Drums' });
 
     // A Jam room's song stays at the tempo it was opened at

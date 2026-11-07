@@ -4,7 +4,7 @@ import { jamLessonTiming } from '../apps/desktop/src/renderer/components/lesson-
 import { JamSettingsPanel } from '../apps/desktop/src/renderer/components/lesson-engine/JamSettingsPanel';
 import { JAM_BACKING_TOP_DB } from '../apps/desktop/src/renderer/components/lesson-engine/jamBackingMixer';
 import { JAM_LESSON_HIT_LIFT_DB, jamLessonHitsDb } from '../apps/desktop/src/renderer/components/lesson-engine/jamLessonVoices';
-import type { HighwayMode } from '../apps/desktop/src/renderer/components/lesson-engine/NoteHighway';
+import { NoteHighway, type HighwayMode } from '../apps/desktop/src/renderer/components/lesson-engine/NoteHighway';
 
 jest.mock('tone', () => ({}));
 
@@ -33,10 +33,84 @@ describe('lesson room hits', () => {
 
   it('show how they were played, as lesson mode\'s notes do', () => {
     expect(jamLessonTiming(undefined)).toBe('');
+    expect(jamLessonTiming({ accuracy: 'played', deltaMs: 0 })).toBe('played');
     expect(jamLessonTiming({ accuracy: 'miss', deltaMs: 0 })).toBe('missed');
     expect(jamLessonTiming({ accuracy: 'good', deltaMs: 30 })).toBe('on-time');
     expect(jamLessonTiming({ accuracy: 'early', deltaMs: -80 })).toBe('early');
     expect(jamLessonTiming({ accuracy: 'late', deltaMs: 90 })).toBe('late');
+  });
+});
+
+describe('a lesson room\'s highway in Wait mode', () => {
+  // jsdom lays nothing out: a highway 1000 px wide
+  beforeAll(() => {
+    jest.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(1000);
+    jest.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(500);
+  });
+  afterAll(() => jest.restoreAllMocks());
+
+  it('is the jam highway with the ship: the step waited for at the ship, the played ones filled in', () => {
+    const steps = [0, 480, 960, 1440].map((tick, i) => ({ tick, note: 36 + (i % 2), dur: 120, velocity: 100 }));
+    const { container } = render(
+      <NoteHighway
+        steps={steps}
+        currentTime={500}
+        bpm={60}
+        mode="jam"
+        jamLesson={{
+          loopMs: 4000,
+          hits: new Map([['0:0', { accuracy: 'played' as const, deltaMs: 0 }]]),
+          current: '0:1',
+          stepped: true,
+          clock: '1 / 4',
+        }}
+        highestOnTop
+      />
+    );
+    expect(container.querySelector('.note-highway.jam')).toBeTruthy();
+    expect(container.querySelector('.jam-lesson-note.played')).toBeTruthy();
+    expect(container.querySelector('.jam-lesson-note.current')).toBeTruthy();
+    // None of lesson mode's own tiles
+    expect(container.querySelector('.note.scrolling-note, .note-highway:not(.jam)')).toBeNull();
+    expect(screen.getByText('1 / 4')).toBeTruthy();
+  });
+});
+
+describe('a lesson room\'s judged steps', () => {
+  beforeAll(() => {
+    jest.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(1000);
+    jest.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(500);
+  });
+  afterAll(() => jest.restoreAllMocks());
+
+  it('draw early and late as lesson mode does: dimmed where due, a copy moved to where it was played', () => {
+    const steps = [0, 480, 960].map((tick) => ({ tick, note: 36, dur: 120, velocity: 100 }));
+    const { container } = render(
+      <NoteHighway
+        steps={steps}
+        currentTime={400}
+        bpm={120}
+        mode="jam"
+        jamLesson={{
+          loopMs: 1500,
+          hits: new Map([
+            ['0:0', { accuracy: 'perfect' as const, deltaMs: 10 }],
+            ['0:1', { accuracy: 'late' as const, deltaMs: 120 }],
+            ['0:2', { accuracy: 'miss' as const, deltaMs: 0 }],
+          ]),
+        }}
+        highestOnTop
+      />
+    );
+    const late = container.querySelector<HTMLElement>('.jam-lesson-note.late:not(.ghost-hit)')!;
+    const copy = container.querySelector<HTMLElement>('.jam-lesson-note.ghost-hit.late')!;
+    expect(late.style.opacity).toBe('0.35');
+    // 120 ms late, at 0.6 px a millisecond
+    expect(parseFloat(copy.style.left) - parseFloat(late.style.left)).toBeCloseTo(72);
+    // On time and missed have no copy
+    expect(container.querySelectorAll('.jam-lesson-note.ghost-hit')).toHaveLength(1);
+    expect(container.querySelector('.jam-lesson-note.on-time')).toBeTruthy();
+    expect(container.querySelector('.jam-lesson-note.missed')).toBeTruthy();
   });
 });
 
@@ -61,8 +135,6 @@ describe('a lesson room\'s sidebar', () => {
       onTogglePause: jest.fn(),
       onRestart: jest.fn(),
       onStartGame: jest.fn(),
-      collapsed: false,
-      onCollapsedChange: jest.fn(),
       ...overrides,
     };
     render(
@@ -129,11 +201,13 @@ describe('a lesson room\'s sidebar', () => {
     expect(screen.queryByRole('button', { name: '16' })).toBeNull();
   });
 
-  it('counts Wait mode\'s steps and offers no pause where nothing runs', () => {
-    panel('wait', { waitStep: { step: 3, total: 10 } });
-    expect(screen.getByText('3').parentElement?.textContent).toBe('3 / 10');
+  it('offers nothing in Wait mode that needs a clock', () => {
+    panel('wait');
     expect(screen.queryByRole('button', { name: /Pause/ })).toBeNull();
-    expect(screen.getByTitle('Collapse lanes')).toBeTruthy();
+    expect(screen.queryByText('Metronome')).toBeNull();
+    expect(screen.queryByText('Auto-play')).toBeNull();
+    // Lesson mode's lane collapse belongs to its own tiles, which a room never shows
+    expect(screen.queryByTitle('Collapse lanes')).toBeNull();
   });
 
   it('offers no tempo for a song that keeps its own', () => {

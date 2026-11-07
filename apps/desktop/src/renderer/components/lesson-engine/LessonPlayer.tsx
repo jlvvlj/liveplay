@@ -380,6 +380,7 @@ export function LessonPlayer({
   const jamLesson = jamAbletonRoomLesson ?? jamGridLesson;
   const jamLessonRef = useRef(jamLesson);
   jamLessonRef.current = jamLesson;
+  const isLessonRoom = !!jamLesson;
   const jamWaitingForRoom = !!jamRoomJoin && (!jamRoomState || (!!jamRoomAbleton && !jamAbletonRoomLesson));
   const lessonProp = jamLesson?.lesson ?? jamRoomLesson ?? jamSongs?.find((song) => song.id === jamSettings?.songId) ?? lessonArg;
   useEffect(() => {
@@ -465,6 +466,9 @@ export function LessonPlayer({
   );
 
   const engineRef = useRef<LessonEngine | null>(null);
+  // Loops the engine's own clock went round since it started (a lesson
+  // room's Play mode draws its loops one after another)
+  const engineLoopsRef = useRef(0);
   const [state, setState] = useState<LessonEngineState>('stopped');
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -1362,7 +1366,8 @@ export function LessonPlayer({
 
   // Start/stop metronome with game
   useEffect(() => {
-    if (isGameMode && state === 'playing') {
+    // A lesson room's Play mode keeps the beat too (its backing plays only in a game run)
+    if ((isGameMode || (isLessonRoom && currentMode === 'play')) && state === 'playing') {
       const speed = Math.max(practiceMode.speedMultiplier, MIN_EFFECTIVE_SPEED);
       const grid = lesson.beatGrid;
 
@@ -1399,7 +1404,7 @@ export function LessonPlayer({
       }
 
       // Start backing track if loaded
-      if (backingTrackRef.current && backingTrackLoaded && backingTrackVolume > 0) {
+      if (isGameMode && backingTrackRef.current && backingTrackLoaded && backingTrackVolume > 0) {
         backingTrackRef.current.playbackRate = Math.max(practiceMode.speedMultiplier, MIN_EFFECTIVE_SPEED);
         backingTrackRef.current.start();
       }
@@ -1425,7 +1430,7 @@ export function LessonPlayer({
         metronomeLoopRef.current = null;
       }
     };
-  }, [isGameMode, currentMode, state, lesson.bpm, lesson.beatGrid, lesson.timeSignature, practiceMode.speedMultiplier, playMetronomeTick, backingTrackLoaded, backingTrackVolume]);
+  }, [isGameMode, isLessonRoom, currentMode, state, lesson.bpm, lesson.beatGrid, lesson.timeSignature, practiceMode.speedMultiplier, playMetronomeTick, backingTrackLoaded, backingTrackVolume]);
 
   // Browsers only let audio start from a tap, click or key press; the jam opens
   // without one (e.g. the standalone jam app), so the first one anywhere starts it
@@ -1794,7 +1799,8 @@ export function LessonPlayer({
       else jamHeldRef.current.set(row, { note: played, at, slot });
     }
     room?.sendNote({ song: lesson.id, slot, note: row, velocity, ...(length !== undefined ? { length } : {}) });
-    addJamNote({ note: row, timeMs }, heard * 1000);
+    // A lesson room shows a press on the step it played (judged), with no dot of its own
+    if (!jamLessonRef.current) addJamNote({ note: row, timeMs }, heard * 1000);
     return slot;
   }, [jamRows, lesson.bpm, lesson.id, lesson.stemAudio, addJamNote, getPlayableStepForInput]);
 
@@ -2043,6 +2049,7 @@ export function LessonPlayer({
       return;
     }
 
+
     // Visual feedback
     setLastMidiNote(hardwareNote);
     setMidiActivity(true);
@@ -2232,6 +2239,7 @@ export function LessonPlayer({
       },
       onLoop: () => {
         console.log('[LessonPlayer] Loop restarted');
+        engineLoopsRef.current++;
       },
       onComplete: (finalScore) => {
         console.log('[LessonPlayer] onComplete received:', finalScore);
@@ -2300,10 +2308,15 @@ export function LessonPlayer({
   recordLessonHitRef.current = (feedback) => {
     const start = jamStartRef.current;
     const index = lesson.steps.indexOf(feedback.expectedStep);
-    if (!jamLesson || start === null || index < 0 || jamLessonLoopSeconds <= 0) return;
-    const heard = audioTimeAt(rawAudioContext()) - start;
-    const stepSeconds = (feedback.expectedStep.tick / 480) * (60 / lesson.bpm);
-    const loop = Math.round((heard - stepSeconds) / jamLessonLoopSeconds);
+    if (!jamLesson || index < 0 || jamLessonLoopSeconds <= 0) return;
+    // Play mode and a game run: on the engine's own clock
+    let loop = engineLoopsRef.current;
+    if (currentMode === 'jam') {
+      if (start === null) return;
+      const heard = audioTimeAt(rawAudioContext()) - start;
+      const stepSeconds = (feedback.expectedStep.tick / 480) * (60 / lesson.bpm);
+      loop = Math.round((heard - stepSeconds) / jamLessonLoopSeconds);
+    }
     setJamLessonHits((prev) => {
       const next = new Map([...prev].filter(([key]) => Number(key.split(':')[0]) >= loop - 1));
       next.set(`${loop}:${index}`, { accuracy: feedback.accuracy, deltaMs: feedback.timingDelta });
@@ -2359,6 +2372,80 @@ export function LessonPlayer({
     return () => clearInterval(timer);
     // `lesson`: its engine is made again for each one (a sound switched on or off, a new tempo)
   }, [jamLesson, lesson, currentMode, jamIsPaused, backingTrackLoaded, jamLessonLoopSeconds, jamLessonRun]);
+
+  // A lesson room's other modes are drawn on the jam highway with the ship,
+  // like its Jam tab. Wait and Free hold still at the step waited for, on
+  // their pass through the lesson (`lessonLap`), and the steps played fill
+  // in; Play and a game run scroll on the engine's own clock.
+  const lessonNextStep =
+    currentMode === 'wait'
+      ? waitModeStepIndex
+      : currentMode === 'free'
+        ? Math.max(0, lesson.steps.findIndex((_, index) => !playedNotes.has(index)))
+        : 0;
+  const [lessonLap, setLessonLap] = useState(0);
+  const lessonLapStepRef = useRef(0);
+  useEffect(() => {
+    // The lesson went round: the next pass
+    if (lessonNextStep < lessonLapStepRef.current) setLessonLap((lap) => lap + 1);
+    lessonLapStepRef.current = lessonNextStep;
+  }, [lessonNextStep]);
+  const resetLessonLap = () => {
+    lessonLapStepRef.current = 0;
+    setLessonLap(0);
+  };
+  const lessonStepMs = (index: number) => ((lesson.steps[index]?.tick ?? 0) / 480) * (60 / lesson.bpm) * 1000;
+  const lessonStepped = currentMode === 'wait' || currentMode === 'free';
+  const jamLessonView = !jamLesson
+    ? null
+    : lessonStepped
+      ? {
+          time: lessonLap * jamLessonLoopSeconds * 1000 + lessonStepMs(lessonNextStep),
+          hits: new Map<string, JamLessonHit>(
+            [...playedNotes].map((index) => [`${lessonLap}:${index}`, { accuracy: 'played', deltaMs: 0 }])
+          ),
+          current: currentMode === 'wait' ? `${lessonLap}:${lessonNextStep}` : undefined,
+          stepped: true,
+          clock: `${playedNotes.size} / ${lesson.steps.length}`,
+        }
+      : { time: currentTime, hits: jamLessonHits, lastLoop: isGameMode ? 0 : undefined };
+
+  // Pointer play on the highway off the room's clock: a pressed row is a key
+  // press, held until let go
+  const lessonPointerRef = useRef<number | null>(null);
+  const handleLessonPointer = (note: number | null) => {
+    const held = lessonPointerRef.current;
+    if (note === held) return;
+    if (held !== null) handleNoteReleaseRef.current(held);
+    lessonPointerRef.current = note;
+    if (note !== null) handleNoteInput(note, engineRef.current?.getCurrentTimeSeconds() ?? 0);
+  };
+
+  // Auto-play in Play and a game run: the steps play by themselves as they
+  // reach the ship, at the engine's speed
+  useEffect(() => {
+    if (!jamLesson || autoPlayVolume <= 0 || currentMode !== 'play' || state !== 'playing' || jamLessonLoopSeconds <= 0) return;
+    const times = lesson.steps.map((step) => (step.tick / 480) * (60 / lesson.bpm));
+    const scheduled = new Set<string>();
+    const timer = setInterval(() => {
+      const engine = engineRef.current;
+      const voices = jamLessonVoicesRef.current;
+      if (!engine || (!voices && !lesson.stemAudio)) return;
+      const speed = Math.max(practiceMode.speedMultiplier, MIN_EFFECTIVE_SPEED);
+      const now = engine.getCurrentTimeSeconds();
+      const ahead = now + JAM_HOLD_LOOKAHEAD_S * 2 * speed;
+      const loop = engineLoopsRef.current;
+      lesson.steps.forEach((step, index) => {
+        const key = `${loop}:${index}`;
+        if (times[index] < now || times[index] >= ahead || scheduled.has(key)) return;
+        scheduled.add(key);
+        const when = Tone.now() + (times[index] - now) / speed;
+        if (lesson.stemAudio) playSoundRef.current(step.note, step.note, autoPlayVolume, step.slice, when, step.semitones);
+        else voices?.play(step.note, when, step.velocity, autoPlayVolume);
+      });
+    }, 40);
+    return () => clearInterval(timer);
+  }, [jamLesson, autoPlayVolume, currentMode, state, jamLessonLoopSeconds, lesson, practiceMode.speedMultiplier]);
 
   useEffect(() => {
     if (engineRef.current) {
@@ -2439,15 +2526,17 @@ export function LessonPlayer({
   useEffect(() => {
     if (currentMode === 'jam') return;
     if (state === 'playing') {
+      // A lesson room draws the engine's loops one after another
+      const loopMs = jamLessonRef.current ? jamLessonLoopSeconds * 1000 : 0;
       const interval = setInterval(() => {
-        setCurrentTime((engineRef.current?.getCurrentTimeSeconds() ?? 0) * 1000);
+        setCurrentTime((engineRef.current?.getCurrentTimeSeconds() ?? 0) * 1000 + engineLoopsRef.current * loopMs);
       }, 16); // ~60fps
 
       return () => clearInterval(interval);
     } else if (state === 'stopped') {
       setCurrentTime(0);
     }
-  }, [state, practiceMode.speedMultiplier, currentMode]);
+  }, [state, practiceMode.speedMultiplier, currentMode, jamLessonLoopSeconds]);
 
   const [showSoundSettings, setShowSoundSettings] = useState<boolean>(false);
   const soundLabel = (note: number, index: number) => fullLesson.laneLabels?.[note] ?? `Sound ${index + 1}`;
@@ -2507,6 +2596,14 @@ export function LessonPlayer({
 
   const resetRunState = () => {
     releaseAllHolds();
+    engineLoopsRef.current = 0;
+    resetLessonLap();
+    // A lesson room's run starts with no judged steps and no dots left from before
+    setJamLessonHits(new Map());
+    if (jamLessonRef.current && currentMode !== 'jam') {
+      jamNotesRef.current = [];
+      setJamNotes([]);
+    }
     setPlayedNotes(new Set());
     setWaitModeStepIndex(0);
     setRecentFeedback([]);
@@ -2581,6 +2678,9 @@ export function LessonPlayer({
     // Reset state for the new mode
     setPlayedNotes(new Set());
     setWaitModeStepIndex(0);
+    engineLoopsRef.current = 0;
+    resetLessonLap();
+    setJamLessonHits(new Map());
     setRecentFeedback([]);
     setCurrentMode(mode);
 
@@ -2622,6 +2722,7 @@ export function LessonPlayer({
     if (currentMode === 'free' || currentMode === 'wait') {
       setPlayedNotes(new Set());
       setWaitModeStepIndex(0);
+      resetLessonLap();
       return;
     }
     if (isGameMode) {
@@ -3158,18 +3259,18 @@ export function LessonPlayer({
         ) : (
           <NoteHighway
             steps={lesson.steps}
-            currentTime={currentTime}
+            currentTime={jamLessonView ? jamLessonView.time : currentTime}
             bpm={lesson.bpm}
             activePads={activePads}
             hitFeedback={recentFeedback}
-            mode={currentMode}
+            mode={jamLessonView ? 'jam' : currentMode}
             currentStepIndex={waitModeStepIndex}
             playedSteps={playedNotes}
             isCollapsed={isCollapsed && !isGameMode && currentMode !== 'jam'}
             noteToKeyMap={noteToKeyMap}
             labelMode={labelMode}
             jamNotes={jamNotes}
-            onJamPointer={currentMode === 'jam' ? handleJamPointer : undefined}
+            onJamPointer={currentMode === 'jam' ? handleJamPointer : jamLessonView ? handleLessonPointer : undefined}
             onJamCursorNote={currentMode === 'jam' ? handleJamCursorNote : undefined}
             onJamCursorMove={jamRoom ? handleJamCursorMove : undefined}
             jamShips={jamShips}
@@ -3177,7 +3278,18 @@ export function LessonPlayer({
             holdingSteps={holdingSteps}
             onNoteReached={isGameMode ? handleNoteReached : undefined}
             jamToolbar={jamToolbar}
-            jamLesson={jamLesson && currentMode === 'jam' ? { loopMs: jamLessonLoopSeconds * 1000, hits: jamLessonHits } : undefined}
+            jamLesson={
+              jamLessonView
+                ? {
+                    loopMs: jamLessonLoopSeconds * 1000,
+                    hits: jamLessonView.hits,
+                    current: 'current' in jamLessonView ? jamLessonView.current : undefined,
+                    stepped: 'stepped' in jamLessonView,
+                    lastLoop: 'lastLoop' in jamLessonView ? jamLessonView.lastLoop : undefined,
+                    clock: 'clock' in jamLessonView ? jamLessonView.clock : undefined,
+                  }
+                : undefined
+            }
             highestOnTop={jamOnly}
           />
         )}
@@ -3202,7 +3314,6 @@ export function LessonPlayer({
                     mode: currentMode,
                     game: isGameMode,
                     onModeChange: handleModeChange,
-                    waitStep: currentMode === 'wait' ? { step: waitModeStepIndex + 1, total: lesson.steps.length } : undefined,
                     tempo: jamRoom && !jamRoomAbleton ? lesson.bpm : null,
                     onTempoChange: (bpm) => jamRoom?.setTempo(bpm),
                     speed: practiceMode.speedMultiplier,
@@ -3213,8 +3324,6 @@ export function LessonPlayer({
                     onTogglePause: currentMode === 'jam' ? toggleJamPause : handleGamePlayPause,
                     onRestart: handleLessonRoomRestart,
                     onStartGame: handleStart,
-                    collapsed: isCollapsed,
-                    onCollapsedChange: setIsCollapsed,
                   }
                 : undefined
             }
