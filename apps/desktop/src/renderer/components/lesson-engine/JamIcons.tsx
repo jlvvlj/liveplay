@@ -65,17 +65,21 @@ const large = (children: ReactNode) => (
   </svg>
 );
 
+// Each drawn around the middle of its box, so it sits centered on its card
 export const SYNTH_TAG_ICONS: Record<string, () => ReactNode> = {
-  // Arcs leaving a point: a lead cutting through
-  Lead: () =>
+  // A sawtooth wave: the bright, buzzing wave leads are made of
+  Lead: () => large(<path d="M3 16.5l6-9v9l6-9v9l6-9v9" />),
+  Pad: () => large(<path d="M7.5 18h9.5a4 4 0 0 0 .6-7.95 6 6 0 0 0-11.4-.75A4.4 4.4 0 0 0 7.5 18z" />),
+  // A bass clef
+  Bass: () =>
     large(
       <>
-        <circle cx="6" cy="18" r="1.2" fill="currentColor" />
-        <path d="M6 13a5 5 0 0 1 5 5M6 8a10 10 0 0 1 10 10M6 3a15 15 0 0 1 15 15" />
+        <circle cx="5.5" cy="9" r="1.6" fill="currentColor" stroke="none" />
+        <path d="M4.9 9C4.9 5.8 7.6 4 10.4 4c3.6 0 6 2.5 6 5.8 0 4.9-4.7 8.6-11.4 10.2" />
+        <circle cx="19.6" cy="7.6" r="1" fill="currentColor" stroke="none" />
+        <circle cx="19.6" cy="12.2" r="1" fill="currentColor" stroke="none" />
       </>
     ),
-  Pad: () => large(<path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.2 9.3 4.4 4.4 0 0 0 7 18z" />),
-  Bass: () => large(<path d="M2 12c2.5-6 5-6 7.5 0s5 6 7.5 0 3.5-4 5-3" />),
   'Mallets & Keys': () =>
     large(
       <>
@@ -84,17 +88,16 @@ export const SYNTH_TAG_ICONS: Record<string, () => ReactNode> = {
         <path d="M6 5v7h3V5M10.5 5v7h3V5M15 5v7h3V5" fill="currentColor" />
       </>
     ),
-  'Pluck & Stab': () =>
-    large(
-      <>
-        <path d="M3 12h4l2-7 3 14 2-7h7" />
-      </>
-    ),
+  // A guitar pick
+  'Pluck & Stab': () => large(<path d="M12 20.5C8.2 17.2 5 12.6 5 8.6 5 5.6 8 4 12 4s7 1.6 7 4.6c0 4-3.2 8.6-7 11.9z" />),
   Bell: () =>
     large(
       <>
-        <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />
-        <path d="M10 20a2 2 0 0 0 4 0" />
+        <path d="M6 14.5v-5a6 6 0 0 1 12 0v5l1.5 2h-15z" />
+        <path d="M10 18.5a2 2 0 0 0 4 0" />
       </>
     ),
 };
+
+// A waveform: a track's own recorded sound
+export const TrackSoundIcon = () => large(<path d="M4.5 10v4M7.5 7v10M10.5 4v16M13.5 8v8M16.5 5.5v13M19.5 9.5v5" />);

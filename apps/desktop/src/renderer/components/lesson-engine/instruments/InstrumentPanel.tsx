@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { BackIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, SYNTH_TAG_ICONS, SearchIcon } from '../JamIcons';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { BackIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, SYNTH_TAG_ICONS, SearchIcon, TrackSoundIcon } from '../JamIcons';
 import { JamDropdown } from '../JamDropdown';
 import { CategoryArt } from './CategoryArt';
 import { CATEGORY_ORDER, SYNTH_TAG_ORDER, choiceEdited, presetChoice } from './catalog';
@@ -122,22 +122,47 @@ function Params({ specs, values, onChange }: { specs: ParamSpec[]; values: Param
   );
 }
 
-// A row of cards that scrolls sideways, with arrows to page through it
+// A row of cards that scrolls sideways a page at a time, its arrows shown
+// only when it holds more than one page
 function CardRow({ title, children }: { title: string; children: ReactNode }) {
   const row = useRef<HTMLDivElement>(null);
-  const page = (direction: number) => row.current?.scrollBy({ left: direction * row.current.clientWidth * 0.8, behavior: 'smooth' });
+  const [edges, setEdges] = useState({ start: true, end: true });
+  useEffect(() => {
+    const el = row.current!;
+    const measure = () => setEdges({ start: el.scrollLeft <= 1, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 1 });
+    measure();
+    el.addEventListener('scroll', measure, { passive: true });
+    const resized = new ResizeObserver(measure);
+    resized.observe(el);
+    return () => {
+      el.removeEventListener('scroll', measure);
+      resized.disconnect();
+    };
+  }, []);
+  // To the card a page away, so a page always starts on a whole card
+  const page = (direction: number) => {
+    const el = row.current!;
+    const cards = el.children as HTMLCollectionOf<HTMLElement>;
+    if (cards.length < 2) return;
+    const step = cards[1].offsetLeft - cards[0].offsetLeft;
+    const perPage = Math.round((el.clientWidth + parseFloat(getComputedStyle(el).columnGap)) / step);
+    const card = Math.round(el.scrollLeft / step) + direction * perPage;
+    el.scrollTo({ left: Math.max(0, Math.min(card * step, el.scrollWidth - el.clientWidth)), behavior: 'smooth' });
+  };
   return (
     <section className="instrument-section">
       <div className="instrument-section-head">
         <h3>{title}</h3>
-        <div className="instrument-section-arrows">
-          <button className="instrument-icon-btn" onClick={() => page(-1)} title="Previous">
-            <ChevronLeftIcon />
-          </button>
-          <button className="instrument-icon-btn" onClick={() => page(1)} title="Next">
-            <ChevronRightIcon />
-          </button>
-        </div>
+        {!(edges.start && edges.end) && (
+          <div className="instrument-section-arrows">
+            <button className="instrument-icon-btn" onClick={() => page(-1)} disabled={edges.start} title="Previous">
+              <ChevronLeftIcon />
+            </button>
+            <button className="instrument-icon-btn" onClick={() => page(1)} disabled={edges.end} title="Next">
+              <ChevronRightIcon />
+            </button>
+          </div>
+        )}
       </div>
       <div className="instrument-row" ref={row}>
         {children}
@@ -327,7 +352,7 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
             {track?.original && (
               <CardRow title="This track">
                 <Card
-                  art={<span className="instrument-card-icon instrument-card-original">{track.name.slice(0, 1)}</span>}
+                  art={<span className="instrument-card-icon">{TrackSoundIcon()}</span>}
                   name="Original"
                   detail={track.name}
                   active={!choice}
