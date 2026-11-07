@@ -38,9 +38,9 @@ export interface JamRoomPlayer extends JamRoomPeer {
   latency: number | null;
 }
 
-// Why a room ended for this player: it was full, it no longer exists, or the
-// connection to it was lost
-export type JamRoomEnd = 'full' | 'missing' | 'lost';
+// Why a room ended for this player: it was full, it no longer exists, the
+// connection to it was lost, or its song's recordings could not be loaded
+export type JamRoomEnd = 'full' | 'missing' | 'lost' | 'song';
 
 export interface JamRoomEvents {
   onState: (state: JamRoomState) => void;

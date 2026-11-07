@@ -7,6 +7,8 @@ import {
   JAM_ROOM_MAX_PLAYERS,
   JAM_ROOM_PATH,
   JAM_SONG_TITLE_MAX,
+  JAM_ABLETON_FILE,
+  type JamAbletonSong,
   type JamClientMessage,
   type JamDawSong,
   type JamDawSongSummary,
@@ -81,7 +83,54 @@ const EMPTY_SONG_EDIT: JamTrackEdit = { parts: [], bars: JAM_SECTION_BARS };
 const dawRoomSong = ({ id, title, bpm, file, transpose }: JamDawSong): JamRoomSong => ({ id, title, bpm, file, transpose });
 const songTracks = (song: JamDawSong): Record<string, JamTrackEdit> => (song.edit ? { [song.file]: song.edit } : {});
 
-export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: JamSongStore; emptyRoomMs?: number }) {
+// An imported song as a client sends it: every track's audio received, and
+// its lesson's steps well formed
+const IMPORT_MAX_TRACKS = 64;
+const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value);
+function validAbletonSong(value: unknown, audioExists: (id: string) => boolean): value is JamAbletonSong {
+  if (!value || typeof value !== 'object') return false;
+  const { seconds, tracks } = value as Partial<JamAbletonSong>;
+  return (
+    finite(seconds) &&
+    seconds! > 0 &&
+    Array.isArray(tracks) &&
+    tracks.length > 0 &&
+    tracks.length <= IMPORT_MAX_TRACKS &&
+    tracks.every(
+      (track) =>
+        !!track &&
+        typeof track.name === 'string' &&
+        typeof track.audio === 'string' &&
+        audioExists(track.audio) &&
+        !!track.lesson &&
+        Array.isArray(track.lesson.steps) &&
+        track.lesson.steps.every(
+          (step) =>
+            !!step &&
+            [step.tick, step.note, step.dur, step.velocity].every(finite) &&
+            (step.slice === undefined || (finite(step.slice.offset) && finite(step.slice.duration)))
+        )
+    )
+  );
+}
+
+// A Daw song's tracks a lesson room can play, by id: an imported song's
+// tracks in their order, else its grid's
+const songTrackList = (song: Pick<JamDawSong, 'file' | 'edit' | 'ableton'>) =>
+  song.ableton
+    ? song.ableton.tracks.map((track, index) => ({ id: `ableton-${index}`, name: track.name }))
+    : jamSongTracks(song.file, song.edit).map(({ id, name }) => ({ id, name }));
+
+export function createJamRooms({
+  songs,
+  audioExists = () => false,
+  emptyRoomMs = EMPTY_ROOM_MS,
+}: {
+  songs: JamSongStore;
+  // Whether an imported track's audio was received (see jamHttp.ts)
+  audioExists?: (id: string) => boolean;
+  emptyRoomMs?: number;
+}) {
   // Jam rooms by key, Daw songs' rooms by song id
   const rooms = new Map<string, Room>();
   const dawRooms = new Map<string, Room>();
@@ -115,17 +164,18 @@ export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: 
         full: room.members.size >= JAM_ROOM_MAX_PLAYERS,
       }));
   const songSummaries = (): JamDawSongSummary[] =>
-    songs.list().map(({ edit, ...song }) => {
+    songs.list().map(({ edit, ableton, ...song }) => {
       const room = dawRooms.get(song.id);
-      const tracks = jamSongTracks(song.file, edit).map(({ id, name }) => ({ id, name }));
-      return { ...song, editors: room ? players(room) : [], tracks };
+      return { ...song, editors: room ? players(room) : [], tracks: songTrackList({ file: song.file, edit, ableton }) };
     });
   // The song a new Jam room plays: a built-in one, or a Daw song offered to rooms
-  const roomSong = (id: string): { song: JamRoomSong; tracks: Record<string, JamTrackEdit> } | null => {
+  const roomSong = (
+    id: string
+  ): { song: JamRoomSong; tracks: Record<string, JamTrackEdit>; lessons: { id: string; name: string }[] } | null => {
     const builtIn = JAM_SONGS.find((song) => song.id === id);
-    if (builtIn) return { song: jamRoomSongOf(builtIn), tracks: {} };
+    if (builtIn) return { song: jamRoomSongOf(builtIn), tracks: {}, lessons: jamSongTracks(jamRoomSongOf(builtIn).file, null) };
     const daw = songs.get(id);
-    return daw?.offered ? { song: dawRoomSong(daw), tracks: songTracks(daw) } : null;
+    return daw?.offered ? { song: dawRoomSong(daw), tracks: songTracks(daw), lessons: songTrackList(daw) } : null;
   };
   // The lobby hears of a change shortly after, once for a burst of changes
   const lobbyChanged = () => {
@@ -211,6 +261,19 @@ export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: 
         return;
       }
 
+      if (message.t === 'importSong') {
+        const title = String(message.title).trim().slice(0, JAM_SONG_TITLE_MAX);
+        const { bpm, ableton } = message;
+        if (!title || !finite(bpm) || bpm <= 0 || !validAbletonSong(ableton, audioExists)) {
+          send(socket, { t: 'songMade', c: message.c, id: null });
+          return;
+        }
+        const made = songs.add({ title, bpm, file: JAM_ABLETON_FILE, transpose: 0, edit: null, offered: false, ableton });
+        send(socket, { t: 'songMade', c: message.c, id: made.id });
+        lobbyChanged();
+        return;
+      }
+
       if (message.t === 'offer') {
         if (!songs.get(message.song)) return;
         songs.update(message.song, { offered: message.offered === true });
@@ -254,10 +317,7 @@ export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: 
           const opening = !joining && message.create ? roomSong(message.create.song) : null;
           // A lesson room's lesson is one of its song's tracks
           const lessonId = message.create?.lesson;
-          const lessonTrack =
-            opening && lessonId !== undefined
-              ? jamSongTracks(opening.song.file, opening.tracks[opening.song.file]).find((track) => track.id === lessonId)
-              : undefined;
+          const lessonTrack = opening && lessonId !== undefined ? opening.lessons.find((track) => track.id === lessonId) : undefined;
           if (!joining && (!opening || (lessonId !== undefined && !lessonTrack))) {
             send(socket, { t: 'missing' });
             socket.close(1000, 'No such room');
@@ -345,7 +405,8 @@ export function createJamRooms({ songs, emptyRoomMs = EMPTY_ROOM_MS }: { songs: 
         case 'tempo': {
           const { bpm } = message;
           const { song, tracks, startAt, position } = room.state;
-          if (room.kind !== 'daw' || !Number.isInteger(bpm) || bpm < JAM_DAW_MIN_BPM || bpm > JAM_DAW_MAX_BPM || bpm === song.bpm) break;
+          // An imported song plays its recordings at their own tempo
+          if (room.kind !== 'daw' || song.file === JAM_ABLETON_FILE || !Number.isInteger(bpm) || bpm < JAM_DAW_MIN_BPM || bpm > JAM_DAW_MAX_BPM || bpm === song.bpm) break;
           const file = jamTrackFileAtTempo(song.file, bpm);
           const edit = tracks[song.file];
           const scale = song.bpm / bpm;

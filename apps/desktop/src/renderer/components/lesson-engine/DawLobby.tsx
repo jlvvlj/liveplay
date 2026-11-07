@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Lesson } from '../../types/lesson';
 import type { JamRoomEnd } from './jamRoom';
 import { JAM_SONG_TITLE_MAX, type JamDawSongSummary } from './jamRoomProtocol';
 import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM } from './jamTracks';
 import { JamLobbyHeader, startJamAudio } from './JamLobby';
 import { JamDropdown } from './JamDropdown';
+import { canRememberFolders, readFolder } from '../../utils/abletonLibrary';
+import type { ProjectFile } from '../../utils/abletonImport';
+import type { JamImportStep } from './jamAbletonImport';
 import './JamLobby.css';
 
 // The jam app's Daw section: every Daw song as a card, opened with a click to
@@ -22,6 +25,8 @@ interface DawLobbyProps {
   // A new song: its id, or null when it could not be made
   onNew: (title: string, from: string | null, bpm: number) => Promise<string | null>;
   onOffer: (id: string, offered: boolean) => void;
+  // An Ableton project's folder made a Daw song: its id
+  onImport: (files: ProjectFile[], onStep: (step: JamImportStep) => void) => Promise<string>;
   onBack: () => void;
   // Why the player is back here, when the song's room ended by itself
   ended?: JamRoomEnd | null;
@@ -31,12 +36,13 @@ const ENDED: Record<JamRoomEnd, string> = {
   full: 'That song has too many players right now',
   missing: 'That song no longer exists',
   lost: 'The connection to the song was lost',
+  song: "That song's recordings could not be loaded",
 };
 
 const NEW_TITLE = 'Untitled';
 const NEW_BPM = 120;
 
-export function DawLobby({ songs, unreachable, builtIns, onOpen: openSong, onNew, onOffer, onBack, ended }: DawLobbyProps) {
+export function DawLobby({ songs, unreachable, builtIns, onOpen: openSong, onNew, onOffer, onImport, onBack, ended }: DawLobbyProps) {
   const onOpen = (id: string) => {
     startJamAudio();
     openSong(id);
@@ -52,6 +58,7 @@ export function DawLobby({ songs, unreachable, builtIns, onOpen: openSong, onNew
           {songs && (
             <div className="jam-lobby-grid">
               <NewSongCard builtIns={builtIns} onNew={onNew} onOpen={onOpen} />
+              <ImportCard onImport={onImport} onOpen={onOpen} />
               {songs.map((song) => (
                 <SongCard key={song.id} song={song} onOpen={() => onOpen(song.id)} onOffer={(offered) => onOffer(song.id, offered)} />
               ))}
@@ -60,6 +67,85 @@ export function DawLobby({ songs, unreachable, builtIns, onOpen: openSong, onNew
         </>
       )}
     </div>
+  );
+}
+
+const IMPORT_STAGES: Record<JamImportStep['stage'], string> = {
+  reading: 'Reading the project',
+  analyzing: 'Finding the hits in',
+  encoding: 'Sending',
+};
+
+// The card that imports an Ableton project: its folder is read as the Lessons
+// tab reads it, every exported track sent, and the new song opens
+function ImportCard({ onImport, onOpen }: { onImport: DawLobbyProps['onImport']; onOpen: (id: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [step, setStep] = useState<JamImportStep | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => input.current?.setAttribute('webkitdirectory', ''), []);
+
+  const run = async (files: ProjectFile[]) => {
+    setProblem(null);
+    try {
+      const id = await onImport(files, setStep);
+      setStep(null);
+      onOpen(id);
+    } catch (error) {
+      setStep(null);
+      setProblem(error instanceof Error ? error.message : String(error));
+    }
+  };
+  const pick = async () => {
+    if (step) return;
+    if (!canRememberFolders()) {
+      input.current?.click();
+      return;
+    }
+    try {
+      const handle = await window.showDirectoryPicker!({ id: 'ableton-project', mode: 'read' });
+      setStep({ stage: 'reading' });
+      run(await readFolder(handle));
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) setProblem(String(error));
+    }
+  };
+
+  const share = step && step.stage !== 'reading' ? step.done / step.total : 0;
+  return (
+    <button className={`jam-lobby-card jam-lobby-new jam-lobby-import ${step ? 'busy' : ''}`} onClick={pick} disabled={!!step}>
+      <input
+        ref={input}
+        type="file"
+        hidden
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? []).map((file) => ({ path: file.webkitRelativePath, file }));
+          event.target.value = '';
+          if (files.length) run(files);
+        }}
+      />
+      {step ? (
+        <>
+          <span className="jam-lobby-import-stage">
+            {IMPORT_STAGES[step.stage]}
+            {step.stage !== 'reading' && ` ${step.track}`}
+          </span>
+          {step.stage !== 'reading' && (
+            <span className="jam-lobby-import-count">
+              {step.done + 1} / {step.total}
+            </span>
+          )}
+          <span className="jam-lobby-import-bar">
+            <span style={{ width: `${Math.round(share * 100)}%` }} />
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="jam-lobby-plus">+</span>
+          Import Ableton project
+          {problem && <span className="jam-lobby-problem">{problem}</span>}
+        </>
+      )}
+    </button>
   );
 }
 

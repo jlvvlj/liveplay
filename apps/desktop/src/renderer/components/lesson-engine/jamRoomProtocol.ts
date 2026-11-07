@@ -1,5 +1,6 @@
 import type { InstrumentChoice } from './instruments/types';
 import type { JamTrackEdit } from './jamTrackEdits';
+import type { Lesson } from '../../types/lesson';
 
 // Messages between jam players and the room server (server/jamRooms.ts), as
 // JSON over a WebSocket, and between players over their direct connections.
@@ -29,11 +30,28 @@ export interface JamDawSong extends JamRoomSong {
   // Offered to new Jam rooms
   offered: boolean;
   created: number;
+  // An imported Ableton project's tracks (its `file` is then JAM_ABLETON_FILE)
+  ableton?: JamAbletonSong;
 }
+
+// A Daw song imported from an Ableton project, as the full app's Ableton
+// import reads it: each track's lesson (each step a slice of the track's
+// export), on the song's own time from its first beat, and the song's length
+export interface JamAbletonSong {
+  seconds: number;
+  tracks: JamAbletonTrack[];
+}
+export interface JamAbletonTrack {
+  name: string;
+  // The track's export, Opus in WebM (GET /jam-audio/<audio>)
+  audio: string;
+  lesson: Lesson;
+}
+export const JAM_ABLETON_FILE = 'ableton';
 
 // A Daw song as the lobbies list it, with the players editing it now and its
 // tracks (by the grid's ids), any of which a lesson room can play as its lesson
-export interface JamDawSongSummary extends Omit<JamDawSong, 'edit'> {
+export interface JamDawSongSummary extends Omit<JamDawSong, 'edit' | 'ableton'> {
   editors: { name: string; color: string }[];
   tracks: { id: string; name: string }[];
 }
@@ -124,6 +142,8 @@ export type JamClientMessage =
   | { t: 'lobby' }
   // A new Daw song: a copy of a built-in song (its id), or empty at `bpm`
   | { t: 'newSong'; c: number; title: string; from: string | null; bpm: number }
+  // A Daw song imported from an Ableton project, its audio already sent (POST /jam-audio)
+  | { t: 'importSong'; c: number; title: string; bpm: number; ableton: JamAbletonSong }
   // Whether a Daw song is offered to new Jam rooms
   | { t: 'offer'; song: string; offered: boolean }
   // Whether `code` opens the private room listed as `id`

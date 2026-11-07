@@ -10,8 +10,15 @@ COPY apps/desktop/src/renderer apps/desktop/src/renderer
 COPY instrument-lab/engine instrument-lab/engine
 # The tracks zoom the grid shares with the Instrument Lab
 COPY instrument-lab/client/TrackZoom.jsx instrument-lab/client/timeline.mjs instrument-lab/client/track-zoom.css instrument-lab/client/
-COPY server/jamRooms.ts server/jamSongStore.ts server/jam-rooms.ts server/
+COPY server/jamRooms.ts server/jamSongStore.ts server/jamHttp.ts server/analyze-audio.ts server/charting.ts server/jam-rooms.ts server/
 RUN npm run build:jam
+# Audio tracks of imported Ableton projects: their hits are found by the full
+# app's analysis script (librosa), run through uv; its Python and packages are
+# installed here, once, by asking the script for its usage
+COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
+ENV UV_CACHE_DIR=/opt/uv-cache UV_PYTHON_INSTALL_DIR=/opt/uv-python
+COPY scripts/analyze_stem_sounds.py scripts/
+RUN uv run --script scripts/analyze_stem_sounds.py --help > /dev/null
 ENV NODE_ENV=production JAM_STATIC_DIR=apps/jam/dist PORT=8080
 EXPOSE 8080
 CMD ["npx", "tsx", "server/jam-rooms.ts"]

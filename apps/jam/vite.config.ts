@@ -5,6 +5,7 @@ import fs from 'fs';
 import type { Server } from 'http';
 import { createJamRooms } from '../../server/jamRooms';
 import { createJamSongStore } from '../../server/jamSongStore';
+import { createJamHttp, jamAudioExists } from '../../server/jamHttp';
 
 // The jam app (npm run dev:jam / build:jam): the Jam tab as a standalone static
 // site. Its sounds and backing tracks are rendered in the browser; in
@@ -40,9 +41,15 @@ function serveAudioPlugin() {
 function jamRoomsPlugin() {
   return {
     name: 'jam-rooms',
-    configureServer(server: { httpServer: Server | null }) {
+    configureServer(server: {
+      httpServer: Server | null;
+      middlewares: { use: (handler: ReturnType<typeof createJamHttp>) => void };
+    }) {
+      const songsDir = path.join(projectRoot, '.jam-songs');
+      const songs = createJamSongStore(songsDir);
+      server.middlewares.use(createJamHttp({ songsDir, songs, repoRoot: projectRoot }));
       if (server.httpServer) {
-        createJamRooms({ songs: createJamSongStore(path.join(projectRoot, '.jam-songs')) }).attach(server.httpServer);
+        createJamRooms({ songs, audioExists: (id) => jamAudioExists(songsDir, id) }).attach(server.httpServer);
       }
     },
   };

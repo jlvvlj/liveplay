@@ -1,4 +1,4 @@
-import type { JamClientMessage, JamDawSongSummary, JamRoomSummary, JamServerMessage } from './jamRoomProtocol';
+import type { JamAbletonSong, JamClientMessage, JamDawSongSummary, JamRoomSummary, JamServerMessage } from './jamRoomProtocol';
 
 // The jam app's connection to the room server: the Jam rooms and the Daw
 // songs as they change, checks of private room codes, and new Daw songs. A
@@ -44,6 +44,16 @@ export class JamLobbyConnection {
     return new Promise((resolve) => {
       this.made.set(c, resolve);
       this.send({ t: 'newSong', c, title, from, bpm });
+    });
+  }
+
+  // A Daw song imported from an Ableton project, its audio already sent: its id; null when it could not be made
+  importSong(title: string, bpm: number, ableton: JamAbletonSong): Promise<string | null> {
+    if (this.socket?.readyState !== WebSocket.OPEN) return Promise.resolve(null);
+    const c = this.nextCheck++;
+    return new Promise((resolve) => {
+      this.made.set(c, resolve);
+      this.send({ t: 'importSong', c, title, bpm, ableton });
     });
   }
 
