@@ -752,9 +752,10 @@ export function NoteHighway({
   };
 
   const jamLanesRef = useRef<HTMLDivElement>(null);
-  // Jam cursor height (px from the highway top) and the row it is on; it only
-  // follows the mouse up and down, between the top and bottom row centers
-  const [jamCursorY, setJamCursorY] = useState<{ y: number; note: number | null } | null>(null);
+  // Jam cursor height (px from the highway top) and the row it is on; it
+  // follows the mouse up and down, between the top and bottom row centers,
+  // and glides (`glide`) to the row of a note played with a key or MIDI
+  const [jamCursorY, setJamCursorY] = useState<{ y: number; note: number | null; glide?: boolean } | null>(null);
 
   // The jam rows, top to bottom (the lanes also hold the lane controls' fold)
   const jamRowElements = (): HTMLElement[] =>
@@ -949,15 +950,43 @@ export function NoteHighway({
     return lane ? Number(lane.dataset.jamNote) : jamPointerNoteRef.current;
   };
 
-  const moveJamCursor = (clientY: number, note: number | null) => {
+  const moveJamCursor = (clientY: number, note: number | null, glide = false) => {
     const rows = jamRowElements();
     const container = containerRef.current;
     if (!rows.length || !container) return;
     const top = rows[0].getBoundingClientRect();
     const bottom = rows[rows.length - 1].getBoundingClientRect();
     const y = Math.min(bottom.top + bottom.height / 2, Math.max(top.top + top.height / 2, clientY));
-    setJamCursorY((prev) => ({ y: y - container.getBoundingClientRect().top, note: note ?? prev?.note ?? null }));
+    setJamCursorY((prev) => ({ y: y - container.getBoundingClientRect().top, note: note ?? prev?.note ?? null, glide }));
   };
+
+  // A note this player plays with a key or MIDI on another row than the
+  // ship's takes the ship there, so it leaves from the ship (a held pointer
+  // keeps the ship where it is)
+  const jamNotesSeenRef = useRef<Set<number> | null>(null);
+  useEffect(() => {
+    if (mode !== 'jam') return;
+    const first = jamNotesSeenRef.current === null;
+    const seen = (jamNotesSeenRef.current ??= new Set());
+    let played: number | null = null;
+    const ids = new Set<number>();
+    for (const jamNote of jamNotes) {
+      ids.add(jamNote.id);
+      if (seen.has(jamNote.id)) continue;
+      seen.add(jamNote.id);
+      if (jamNote.peer === undefined) played = jamNote.note;
+    }
+    for (const id of seen) if (!ids.has(id)) seen.delete(id);
+    // The notes already there when the highway appears move nothing
+    if (first || played === null || jamPointerHeldRef.current) return;
+    const shipNote = jamCursorY?.note ?? null;
+    if (shipNote !== null && noteToLane(shipNote) === noteToLane(played)) return;
+    const row = jamLanesRef.current?.querySelector<HTMLElement>(`[data-jam-note="${played}"]`);
+    if (!row) return;
+    const rect = row.getBoundingClientRect();
+    moveJamCursor(rect.top + rect.height / 2, played, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jamNotes, mode]);
 
   const jamCursorNote = jamCursorY?.note ?? null;
   useEffect(() => {
@@ -1027,7 +1056,7 @@ export function NoteHighway({
     return (
       <div
         key={ship}
-        className={name === undefined ? 'jam-cursor' : 'jam-cursor jam-cursor-other'}
+        className={name === undefined ? `jam-cursor ${jamCursorY?.glide ? 'gliding' : ''}` : 'jam-cursor jam-cursor-other'}
         style={{ transform: `translate(${hitZoneOffset + motion.x}px, ${y}px)`, color }}
       >
         <div
