@@ -3,6 +3,7 @@ import { jamSoundUrl } from '../jamSoundFiles';
 import { effectSlot } from './effects';
 import { MELODICS_SYNTH_PARAMS, MelodicsSynth, patchParams } from './engines/melodicsSynth';
 import { SAMPLER_NOTE_PARAMS, SAMPLER_PAD_PARAMS, Sampler, type SamplerSource } from './engines/sampler';
+import { PortInstrument, type PortEntry } from './engines/port';
 import type { EffectSlot, InstrumentChoice, InstrumentDef, LiveInstrument, ParamValues, Preset } from './types';
 import { PAD_BASE_NOTE } from './types';
 
@@ -180,11 +181,28 @@ export function jamRowNote(instrument: InstrumentDef, row: number, rows: number[
   return row + 12 * Math.round((instrument.center - (rows[0] + rows[rows.length - 1]) / 2) / 12);
 }
 
-export function createInstrument(instrument: InstrumentDef, params: ParamValues): LiveInstrument {
+// The instrument ports (synths compiled to WebAssembly), as instruments with
+// their own presets; an effect port (Clouds) is an effect instead
+export const portInstruments = (entries: PortEntry[]): InstrumentDef[] =>
+  entries
+    .filter((entry) => !entry.effect)
+    .map((entry) => ({
+      id: `port:${entry.name}`,
+      name: entry.label,
+      category: 'Synth engines',
+      engine: 'port',
+      params: entry.params,
+      presets: entry.presets.map((port) => ({ ...preset(port.id, port.name, port.params, [ECHO]), ...(port.tag ? { tag: port.tag } : {}) })),
+      source: entry,
+    }));
+
+export function createInstrument(instrument: InstrumentDef, params: ParamValues, preset: string): LiveInstrument {
   switch (instrument.engine) {
     case 'melodics-synth':
       return new MelodicsSynth(params);
     case 'sampler':
       return new Sampler(instrument.source as SamplerSource, params, instrument.id);
+    case 'port':
+      return new PortInstrument(instrument.source as PortEntry, params, preset);
   }
 }

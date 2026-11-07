@@ -1,6 +1,8 @@
 import * as Tone from 'tone';
 import { JamPingPong } from '../jamPingPong';
+import { PortEffect, type PortEntry } from './engines/port';
 import type { EffectKind, EffectSlot, ParamSpec, ParamValues } from './types';
+import { EFFECT_KINDS } from './types';
 import { paramValue } from './types';
 
 // The effects a track's chain can hold, with their parameters
@@ -54,7 +56,23 @@ export const EFFECTS: Record<EffectKind, { label: string; params: ParamSpec[] }>
     params: [p('time', 'Time', 0, ECHO_TIMES.length - 1, 1, 2, ECHO_TIMES), p('feedback', 'Feedback', 0, 0.9, 0.01, 0.5), { ...MIX, default: 0.25 }],
   },
   reverb: { label: 'Reverb', params: [p('size', 'Size', 0.3, 10, 0.1, 2.5), { ...MIX, default: 0.3 }] },
+  // Its parameters come with the instrument ports' catalog (registerPortEffects)
+  clouds: { label: 'Clouds', params: [] },
 };
+
+// The effect ports (Clouds), as effects, once the ports' catalog has loaded
+const portEffects = new Map<EffectKind, PortEntry>();
+export function registerPortEffects(entries: PortEntry[]) {
+  for (const entry of entries) {
+    if (!entry.effect || !(EFFECT_KINDS as readonly string[]).includes(entry.name)) continue;
+    const kind = entry.name as EffectKind;
+    portEffects.set(kind, entry);
+    EFFECTS[kind] = { label: entry.label, params: entry.params };
+  }
+}
+// The effects a chain can be given now
+export const availableEffects = (): EffectKind[] =>
+  EFFECT_KINDS.filter((kind) => kind !== 'clouds' || portEffects.has(kind));
 
 export const effectSlot = (kind: EffectKind, params: ParamValues = {}, on = true): EffectSlot => ({ kind, on, params });
 
@@ -86,6 +104,17 @@ function single<T extends Tone.ToneAudioNode & { wet?: Tone.Signal<'normalRange'
 
 function build(kind: EffectKind): BuiltEffect {
   switch (kind) {
+    case 'clouds': {
+      const entry = portEffects.get(kind);
+      if (!entry) throw new Error(`The ${kind} effect has not loaded`);
+      const effect = new PortEffect(entry);
+      return {
+        input: effect.input,
+        output: effect.output,
+        set: (params) => effect.set(params),
+        dispose: () => effect.dispose(),
+      };
+    }
     case 'eq':
       return single(new Tone.EQ3(), (node, v) => {
         node.low.value = v('low');
@@ -169,7 +198,8 @@ export class EffectsChain {
 
   set(slots: EffectSlot[], bpm = this.bpm) {
     this.bpm = bpm;
-    const active = slots.filter((slot) => slot.on);
+    // An effect port not loaded yet joins the chain once it has (the next set)
+    const active = slots.filter((slot) => slot.on && availableEffects().includes(slot.kind));
     const shape = active.map((slot) => slot.kind).join(',');
     if (shape !== this.shape) {
       this.input.disconnect();

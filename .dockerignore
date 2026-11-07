@@ -6,3 +6,8 @@ node_modules
 audio
 pieces
 content
+
+# The instrument ports are built in the image from their pinned sources
+apps/jam/public/instrument-ports
+instrument-ports/*/upstream
+instrument-ports/*/build

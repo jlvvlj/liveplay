@@ -1,3 +1,4 @@
+import fs from 'fs';
 import http from 'http';
 import path from 'path';
 import express from 'express';
@@ -15,7 +16,18 @@ if (!songsDir) throw new Error('Set JAM_SONGS_DIR to the folder that keeps the D
 const port = Number(process.env.PORT ?? 5191);
 const app = express();
 if (process.env.JAM_STATIC_DIR) {
-  app.use(express.static(path.resolve(process.env.JAM_STATIC_DIR)));
+  const staticDir = path.resolve(process.env.JAM_STATIC_DIR);
+  // Big files have a gzipped copy beside them (instrument-ports/catalog.mjs),
+  // sent to browsers that take it
+  app.use((req, res, next) => {
+    const file = path.join(staticDir, decodeURIComponent(req.path));
+    if (!file.startsWith(staticDir + path.sep) || !req.acceptsEncodings('gzip') || !fs.existsSync(`${file}.gz`)) return next();
+    res.setHeader('Content-Encoding', 'gzip');
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.type(path.extname(file));
+    res.sendFile(`${path.relative(staticDir, file)}.gz`, { root: staticDir });
+  });
+  app.use(express.static(staticDir));
 }
 const server = http.createServer(app);
 createJamRooms({ songs: createJamSongStore(path.resolve(songsDir)) }).attach(server);

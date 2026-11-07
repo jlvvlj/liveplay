@@ -31,6 +31,8 @@ export const EFFECT_KINDS = [
   'compressor',
   'delay',
   'reverb',
+  // Mutable Instruments' Clouds (an instrument port), once its catalog has loaded
+  'clouds',
 ] as const;
 export type EffectKind = (typeof EFFECT_KINDS)[number];
 
@@ -51,7 +53,7 @@ export interface Preset {
   effects: EffectSlot[];
 }
 
-export type EngineId = 'melodics-synth' | 'sampler';
+export type EngineId = 'melodics-synth' | 'sampler' | 'port';
 
 // A pad instrument plays one sound per pad: pad i on note PAD_BASE_NOTE + i
 export const PAD_BASE_NOTE = 36;
@@ -88,6 +90,8 @@ export interface LiveInstrument {
   noteOff(note: number, time: number): void;
   allOff(): void;
   setParams(params: ParamValues): void;
+  // An instrument whose presets are its own (a port) is told the preset chosen
+  setPreset?(preset: string): void;
   readonly output: Tone.ToneAudioNode;
   // Resolves once the instrument can sound (its samples loaded, its tables built)
   readonly ready: Promise<void>;
