@@ -400,13 +400,15 @@ export function createJamRooms({
           broadcast(room, { t: 'state', state: room.state });
           break;
         }
-        // A Daw song at another tempo: the same notes on its track at that
-        // tempo, carrying on from the same point of the song
+        // A Daw song, or a lesson room's song, at another tempo: the same
+        // notes on its track at that tempo, carrying on from the same point of
+        // the song. A lesson room's tempo is its own: the song it was opened
+        // on stays as it was.
         case 'tempo': {
           const { bpm } = message;
           const { song, tracks, startAt, position } = room.state;
           // An imported song plays its recordings at their own tempo
-          if (room.kind !== 'daw' || song.file === JAM_ABLETON_FILE || !Number.isInteger(bpm) || bpm < JAM_DAW_MIN_BPM || bpm > JAM_DAW_MAX_BPM || bpm === song.bpm) break;
+          if ((room.kind !== 'daw' && !room.state.lesson) || song.file === JAM_ABLETON_FILE || !Number.isInteger(bpm) || bpm < JAM_DAW_MIN_BPM || bpm > JAM_DAW_MAX_BPM || bpm === song.bpm) break;
           const file = jamTrackFileAtTempo(song.file, bpm);
           const edit = tracks[song.file];
           const scale = song.bpm / bpm;
@@ -419,7 +421,7 @@ export function createJamRooms({
             position: at,
             tracks: edit ? { [file]: edit } : {},
           };
-          songs.update(room.id, { bpm, file });
+          if (room.kind === 'daw') songs.update(room.id, { bpm, file });
           broadcast(room, { t: 'state', state: room.state });
           lobbyChanged();
           break;

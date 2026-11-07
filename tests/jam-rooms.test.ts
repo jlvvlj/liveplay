@@ -236,6 +236,33 @@ describe('jam rooms', () => {
     [a, lobby].forEach((p) => p.socket.close());
   });
 
+  it('changes a lesson room\'s tempo for everyone in it, never a Jam room\'s', async () => {
+    const a = await player(url);
+    a.send({ t: 'join', room: 'TEMPO', create: { visibility: 'open', song: 'chip-run-jam', lesson: 'drums' }, name: '', sound: null, need: 0 });
+    await a.next('welcome');
+    const b = await player(url);
+    b.send({ t: 'join', room: 'TEMPO', name: '', sound: null, need: 0 });
+    await b.next('welcome');
+    // Out of range it is refused; in range both players get the song at that tempo
+    a.send({ t: 'tempo', bpm: 400 });
+    a.send({ t: 'tempo', bpm: 96 });
+    const { state } = await b.next('state');
+    expect(state.song).toMatchObject({ id: CHIP.id, bpm: 96, file: `${CHIP.file}@96` });
+    expect(state.lesson).toEqual({ track: 'drums', name: 'Drums' });
+
+    // A Jam room's song stays at the tempo it was opened at
+    const jam = await player(url);
+    jam.send({ t: 'join', room: 'NOTEMPO', create: opening(), name: '', sound: null, need: 0 });
+    await jam.next('welcome');
+    jam.send({ t: 'tempo', bpm: 96 });
+    jam.send({ t: 'ping', c: 1 });
+    await jam.next('pong');
+    const later = await player(url);
+    later.send({ t: 'join', room: 'NOTEMPO', name: '', sound: null, need: 0 });
+    expect((await later.next('welcome')).state.song).toMatchObject({ bpm: CHIP.bpm, file: CHIP.file });
+    [a, b, jam, later].forEach((p) => p.socket.close());
+  });
+
   it('opens a room only on a song it can play', async () => {
     const a = await player(url);
     a.send({ t: 'join', room: 'NOPE', create: opening('no-such-song'), name: '', sound: null, need: 0 });

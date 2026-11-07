@@ -439,14 +439,18 @@
   z-index: 2;
 }
 
-/* Played: filled in, with a ring bursting out of it; on time in the lane's
-   color, early or late in theirs */
+/* Played: filled in, with a ring bursting out of it, in lesson mode's colors:
+   on time green; early blue, late orange */
 .jam-lesson-note.on-time,
 .jam-lesson-note.early,
 .jam-lesson-note.late {
   background: currentColor;
   box-shadow: 0 0 14px currentColor, 0 0 28px currentColor;
   animation: jamLessonFill 0.32s ease-out;
+}
+
+.jam-lesson-note.on-time {
+  color: var(--ds-success) !important;
 }
 
 .jam-lesson-note.early {
@@ -458,8 +462,7 @@
 }
 
 .jam-lesson-note.on-time::after,
-.jam-lesson-note.early::after,
-.jam-lesson-note.late::after {
+.jam-lesson-note.ghost-hit::after {
   content: '';
   position: absolute;
   inset: -3px;
@@ -468,8 +471,37 @@
   animation: jamLessonBurst 0.55s ease-out forwards;
 }
 
+/* Early or late: the step stays dimmed where it was due (opacity set inline),
+   and a solid copy sits where it was played, as lesson mode draws them */
+.jam-lesson-note.ghost-hit {
+  z-index: 3;
+}
+
+/* Missed: red, with a short shake */
 .jam-lesson-note.missed {
-  opacity: 0.3;
+  color: var(--ds-danger) !important;
+  background: currentColor;
+  opacity: 0.6;
+  animation: jamLessonShake 0.4s ease-in-out;
+}
+
+@keyframes jamLessonShake {
+  0%,
+  100% {
+    transform: translate(-50%, -50%);
+  }
+  20% {
+    transform: translate(calc(-50% - 4px), -50%);
+  }
+  40% {
+    transform: translate(calc(-50% + 4px), -50%);
+  }
+  60% {
+    transform: translate(calc(-50% - 3px), -50%);
+  }
+  80% {
+    transform: translate(calc(-50% + 2px), -50%);
+  }
 }
 
 @keyframes jamLessonFill {

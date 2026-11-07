@@ -109,7 +109,12 @@ export const jamRoomSongOf = (song: Lesson): JamRoomSong => ({
   transpose: song.steps[0].note - PENTATONIC_GROOVE_JAM.steps[0].note,
 });
 
-// A room's song to play: a built-in one as it is, a Daw song's rows over its backing track
-export const jamRoomSongLesson = (song: JamRoomSong): Lesson =>
-  JAM_SONGS.find((builtIn) => builtIn.id === song.id) ??
-  jamSong(song.id, song.title, song.bpm, song.file, '', song.transpose);
+// A room's song to play: a built-in one as it is (at another tempo, as a
+// lesson room can play it: over its track at that tempo), a Daw song's rows
+// over its backing track
+export const jamRoomSongLesson = (song: JamRoomSong): Lesson => {
+  const builtIn = JAM_SONGS.find((candidate) => candidate.id === song.id);
+  if (!builtIn) return jamSong(song.id, song.title, song.bpm, song.file, '', song.transpose);
+  if (builtIn.bpm === song.bpm) return builtIn;
+  return { ...builtIn, bpm: song.bpm, backingTrack: `samples/pentatonic_jam/${song.file}` };
+};

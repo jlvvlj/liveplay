@@ -58,12 +58,23 @@ interface NoteHighwayProps {
   // Lesson rooms: the steps come at the ship, which stays where it is, every
   // `loopMs` again; `hits` are how each was played, by `${loop}:${step}`
   jamLesson?: { loopMs: number; hits: Map<string, JamLessonHit> };
+  // Lanes drawn from the highest at the top in every mode, as the jam's rows
+  // are (a lesson room keeps its lanes where they are when its mode changes)
+  highestOnTop?: boolean;
 }
 
 // A lesson room's step as it was played: its judgment and how far off it was
 export interface JamLessonHit {
   accuracy: 'perfect' | 'good' | 'early' | 'late' | 'miss';
   deltaMs: number;
+}
+
+// How a lesson room's step was played, as its note shows it
+export function jamLessonTiming(hit: JamLessonHit | undefined): '' | 'missed' | 'on-time' | 'early' | 'late' {
+  if (!hit) return '';
+  if (hit.accuracy === 'miss') return 'missed';
+  if (Math.abs(hit.deltaMs) <= ON_TIME_MS) return 'on-time';
+  return hit.deltaMs < 0 ? 'early' : 'late';
 }
 
 interface NoteHitState {
@@ -99,6 +110,12 @@ const JAM_CURSOR_FULL_THRUST = 6; // Notes per second that show the full engine 
 const NO_JAM_SHIPS: JamShip[] = [];
 const JAM_CURSOR_TAIL_PX = 16; // From the cursor point back to just behind the ship's tail (see .jam-cursor-ship)
 const COLLAPSED_NOTE_SIZE = 100; // collapsed-lane notes keep the CSS default size
+// Timing feedback is driven by the actual offset (deltaMs), independent of the
+// engine's perfect/good/early/late buckets. Within ON_TIME_MS the hit is "on
+// time" (green); beyond it we show early (blue) or late (orange), dim the
+// expected note, and draw a solid ghost where the hit actually landed.
+const ON_TIME_MS = 50;
+const OFF_TIMING_NOTE_OPACITY = 0.35;
 
 export function NoteHighway({
   steps,
@@ -122,6 +139,7 @@ export function NoteHighway({
   holdingSteps,
   jamToolbar,
   jamLesson,
+  highestOnTop = false,
 }: NoteHighwayProps) {
   const [noteHitStates, setNoteHitStates] = useState<Map<number, NoteHitState>>(new Map());
   const [timingPopups, setTimingPopups] = useState<TimingPopup[]>([]);
@@ -163,6 +181,11 @@ export function NoteHighway({
 
   // Determine number of lanes based on unique notes in the lesson
   const laneCount = uniqueNotes.length;
+  // The lanes top to bottom, by lane index (lowest note first)
+  const laneRows = useMemo(() => {
+    const rows = Array.from({ length: laneCount }, (_, laneIndex) => laneIndex);
+    return highestOnTop ? rows.reverse() : rows;
+  }, [laneCount, highestOnTop]);
 
   // Calculate note size to be square based on lane height
   // Container height minus progress bar (50px) and padding (2rem = ~32px), divided by lane count
@@ -362,9 +385,11 @@ export function NoteHighway({
     setTimingPopups([]);
   }, [steps]);
 
+  // A lane's number: 1 for the top lane, then down
+  const laneNumber = (laneIndex: number): number => (highestOnTop ? laneCount - laneIndex : laneIndex + 1);
   const getLaneLabel = (laneIndex: number): string => {
     // Just show the note number (1, 2, 3, etc.)
-    return String(laneIndex + 1);
+    return String(laneNumber(laneIndex));
   };
 
   const getLaneColor = (laneIndex: number): string => {
@@ -401,7 +426,7 @@ export function NoteHighway({
   const renderTimingPopups = () => {
     if (mode !== 'play' && !jamLesson) return null;
     // The jam's rows run from the highest lane at the top
-    const row = (laneIndex: number) => (jamLesson ? laneCount - 1 - laneIndex : laneIndex);
+    const row = (laneIndex: number) => (jamLesson || highestOnTop ? laneCount - 1 - laneIndex : laneIndex);
     return (
       <div className="timing-popups">
         {timingPopups.map(popup => (
@@ -429,7 +454,7 @@ export function NoteHighway({
   const getNoteLabel = (note: number): string | null => {
     if (!noteToKeyMap) return null;
     if (labelMode === 'numbers') {
-      return String(noteToLane(note) + 1);
+      return String(laneNumber(noteToLane(note)));
     }
     return noteToKeyMap[note] || null;
   };
@@ -510,12 +535,6 @@ export function NoteHighway({
     return stepIndex <= targetStep + 30;
   };
 
-  // Timing feedback is driven by the actual offset (deltaMs), independent of the
-  // engine's perfect/good/early/late buckets. Within ON_TIME_MS the hit is "on
-  // time" (green); beyond it we show early (blue) or late (orange), dim the
-  // expected note, and draw a solid ghost where the hit actually landed.
-  const ON_TIME_MS = 50;
-  const OFF_TIMING_NOTE_OPACITY = 0.35;
 
   type TimingClass = 'on-time' | 'timing-early' | 'timing-late' | null;
 
@@ -856,8 +875,9 @@ export function NoteHighway({
 
   // Lesson rooms: the lane's steps coming at the ship, round and outlined in
   // the lane's color, from a little behind it to the far edge, loop after
-  // loop. One played on time fills in that color with a burst, early or late
-  // in early's or late's, a missed one fades.
+  // loop. They show how they were played as lesson mode's notes do: on time
+  // green; early (blue) or late (orange) dimmed where they were due, with a
+  // solid copy where they were played; missed red, with a shake.
   const LESSON_PAST_MS = 600;
   const renderJamLessonNotes = (laneIndex: number) => {
     if (!jamLesson || jamLesson.loopMs <= 0) return null;
@@ -874,22 +894,31 @@ export function NoteHighway({
         const at = loop * loopMs + stepTimes[index];
         if (at < currentTime - LESSON_PAST_MS || at > currentTime + aheadMs) return;
         const hit = hits.get(`${loop}:${index}`);
-        const timing = !hit
-          ? ''
-          : hit.accuracy === 'miss'
-            ? 'missed'
-            : Math.abs(hit.deltaMs) <= ON_TIME_MS
-              ? 'on-time'
-              : hit.deltaMs < 0
-                ? 'early'
-                : 'late';
+        const timing = jamLessonTiming(hit);
+        const offTiming = timing === 'early' || timing === 'late';
+        const key = `${loop}:${index}`;
         notes.push(
           <div
-            key={`${loop}:${index}`}
+            key={key}
             className={`jam-lesson-note ${timing}`}
-            style={{ left: `${at * JAM_PIXELS_PER_MS}px`, width: `${size}px`, height: `${size}px`, color }}
+            style={{
+              left: `${at * JAM_PIXELS_PER_MS}px`,
+              width: `${size}px`,
+              height: `${size}px`,
+              color,
+              ...(offTiming && { opacity: OFF_TIMING_NOTE_OPACITY }),
+            }}
           />
         );
+        if (offTiming) {
+          notes.push(
+            <div
+              key={`${key}:played`}
+              className={`jam-lesson-note ghost-hit ${timing}`}
+              style={{ left: `${(at + hit!.deltaMs) * JAM_PIXELS_PER_MS}px`, width: `${size}px`, height: `${size}px` }}
+            />
+          );
+        }
       });
     }
     return notes;
@@ -1128,7 +1157,7 @@ export function NoteHighway({
       ) : mode === 'play' ? (
         /* Play mode: time-based scrolling lanes */
         <div className="lanes">
-          {Array.from({ length: laneCount }).map((_, laneIndex) => (
+          {laneRows.map((laneIndex) => (
             <div
               key={laneIndex}
               className={`lane ${activePads && Array.from(activePads).some(note => noteToLane(note) === laneIndex) ? 'lane-active' : ''}`}
@@ -1153,7 +1182,7 @@ export function NoteHighway({
       ) : (
         /* Free/Wait modes: notes positioned left to right */
         <div className="lanes">
-          {Array.from({ length: laneCount }).map((_, laneIndex) => (
+          {laneRows.map((laneIndex) => (
             <div
               key={laneIndex}
               className={`lane ${activePads && Array.from(activePads).some(note => noteToLane(note) === laneIndex) ? 'lane-active' : ''}`}
@@ -1185,7 +1214,14 @@ export function NoteHighway({
           <span className="jam-toolbar-clock">{getProgressLabel()}</span>
         </div>
       ) : (
-        /* Progress bar */
+        <>
+        {/* A lesson room's other modes keep the toolbar's buttons */}
+        {jamToolbar && (
+          <div className="jam-toolbar" onPointerDown={(event) => event.stopPropagation()}>
+            {jamToolbar}
+          </div>
+        )}
+        {/* Progress bar */}
         <div className="highway-progress">
           <div className="progress-bar-container">
             <div
@@ -1197,6 +1233,7 @@ export function NoteHighway({
             {getProgressLabel()}
           </div>
         </div>
+        </>
       )}
     </div>
   );

@@ -2014,3 +2014,26 @@
   color: var(--ds-text);
   font-weight: 600;
 }
+
+/* A lesson room's modes and controls, lesson mode's in the jam sidebar */
+.jam-lesson-modes,
+.jam-lesson-controls {
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+}
+
+.jam-lesson-modes .jam-sound-option,
+.jam-lesson-controls .jam-sound-option {
+  padding: 0.45rem 0.25rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.jam-lesson-controls .jam-lesson-collapse {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.jam-lesson-step {
+  margin-top: 0.5rem;
+}
