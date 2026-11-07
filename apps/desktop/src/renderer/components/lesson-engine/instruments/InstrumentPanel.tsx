@@ -189,8 +189,8 @@ function PresetList({ presets, chosen, onPick }: { presets: Preset[]; chosen: st
 
 export function InstrumentPanel({ instruments: all, choice, track, loading, saved, onChange, onClose }: InstrumentPanelProps) {
   const instruments = track ? all.filter((instrument) => !!instrument.pads === (track.kind === 'drum')) : all;
-  // Opens on what plays now, its presets and settings at hand
-  const [view, setView] = useState<View>(() => (choice ? { at: 'instrument', id: choice.instrument } : { at: 'home' }));
+  // Opens on the first screen, every kind of instrument at hand
+  const [view, setView] = useState<View>({ at: 'home' });
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
 
