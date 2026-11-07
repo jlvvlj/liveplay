@@ -56,22 +56,35 @@ interface NoteHighwayProps {
   holdingSteps?: Set<number>; // hold notes whose key is down right now
   jamToolbar?: ReactNode; // Jam mode: buttons shown first in the toolbar at the top
   // Lesson rooms: the steps come at the ship, which stays where it is, every
-  // `loopMs` again; `hits` are how each was played, by `${loop}:${step}`
-  jamLesson?: { loopMs: number; hits: Map<string, JamLessonHit> };
+  // `loopMs` again; `hits` are how each was played, by `${loop}:${step}`.
+  // In every mode the room's lesson is drawn this way: Wait and Free hold
+  // still at the step waited for (`current`) and glide to the next one
+  // (`stepped`); a game run has one loop only (`lastLoop`); `clock` replaces
+  // the toolbar's time.
+  jamLesson?: {
+    loopMs: number;
+    hits: Map<string, JamLessonHit>;
+    current?: string;
+    stepped?: boolean;
+    lastLoop?: number;
+    clock?: string;
+  };
   // Lanes drawn from the highest at the top in every mode, as the jam's rows
   // are (a lesson room keeps its lanes where they are when its mode changes)
   highestOnTop?: boolean;
 }
 
-// A lesson room's step as it was played: its judgment and how far off it was
+// A lesson room's step as it was played: its judgment and how far off it
+// was; `played` in Wait and Free, which judge no timing
 export interface JamLessonHit {
-  accuracy: 'perfect' | 'good' | 'early' | 'late' | 'miss';
+  accuracy: 'perfect' | 'good' | 'early' | 'late' | 'miss' | 'played';
   deltaMs: number;
 }
 
 // How a lesson room's step was played, as its note shows it
-export function jamLessonTiming(hit: JamLessonHit | undefined): '' | 'missed' | 'on-time' | 'early' | 'late' {
+export function jamLessonTiming(hit: JamLessonHit | undefined): '' | 'played' | 'missed' | 'on-time' | 'early' | 'late' {
   if (!hit) return '';
+  if (hit.accuracy === 'played') return 'played';
   if (hit.accuracy === 'miss') return 'missed';
   if (Math.abs(hit.deltaMs) <= ON_TIME_MS) return 'on-time';
   return hit.deltaMs < 0 ? 'early' : 'late';
@@ -881,26 +894,28 @@ export function NoteHighway({
   const LESSON_PAST_MS = 600;
   const renderJamLessonNotes = (laneIndex: number) => {
     if (!jamLesson || jamLesson.loopMs <= 0) return null;
-    const { loopMs, hits } = jamLesson;
+    const { loopMs, hits, current } = jamLesson;
     const size = noteSize * 0.62;
     const aheadMs = (jamWidth - hitZoneOffset) / JAM_PIXELS_PER_MS;
-    const firstLoop = Math.floor((currentTime - LESSON_PAST_MS) / loopMs);
-    const lastLoop = Math.floor((currentTime + aheadMs) / loopMs);
+    // Wait and Free keep the steps they passed on screen, as far as it shows
+    const pastMs = jamLesson.stepped ? hitZoneOffset / JAM_PIXELS_PER_MS : LESSON_PAST_MS;
+    const firstLoop = Math.floor((currentTime - pastMs) / loopMs);
+    const lastLoop = Math.min(Math.floor((currentTime + aheadMs) / loopMs), jamLesson.lastLoop ?? Infinity);
     const color = getLaneColor(laneIndex);
     const notes: ReactNode[] = [];
     for (let loop = Math.max(0, firstLoop); loop <= lastLoop; loop++) {
       steps.forEach((step, index) => {
         if (noteToLane(step.note) !== laneIndex) return;
         const at = loop * loopMs + stepTimes[index];
-        if (at < currentTime - LESSON_PAST_MS || at > currentTime + aheadMs) return;
-        const hit = hits.get(`${loop}:${index}`);
+        if (at < currentTime - pastMs || at > currentTime + aheadMs) return;
+        const key = `${loop}:${index}`;
+        const hit = hits.get(key);
         const timing = jamLessonTiming(hit);
         const offTiming = timing === 'early' || timing === 'late';
-        const key = `${loop}:${index}`;
         notes.push(
           <div
             key={key}
-            className={`jam-lesson-note ${timing}`}
+            className={`jam-lesson-note ${timing}${key === current ? ' current' : ''}`}
             style={{
               left: `${at * JAM_PIXELS_PER_MS}px`,
               width: `${size}px`,
@@ -1067,7 +1082,7 @@ export function NoteHighway({
 
   const getProgressLabel = () => {
     if (mode === 'jam') {
-      return formatClock(currentTime);
+      return jamLesson?.clock ?? formatClock(currentTime);
     }
     if (mode === 'play') {
       return `${formatClock(currentTime)} / ${formatClock(totalDuration)}`;
@@ -1114,6 +1129,7 @@ export function NoteHighway({
                   className="notes-scroll-container"
                   style={{
                     transform: `translateX(${hitZoneOffset - currentTime * JAM_PIXELS_PER_MS}px)`,
+                    ...(jamLesson?.stepped && { transition: 'transform 0.3s ease-out' }),
                   }}
                 >
                   {renderJamLessonNotes(laneIndex)}

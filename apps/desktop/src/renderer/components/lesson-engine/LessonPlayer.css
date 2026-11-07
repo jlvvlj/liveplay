@@ -2029,11 +2029,32 @@
   white-space: nowrap;
 }
 
-.jam-lesson-controls .jam-lesson-collapse {
-  font-size: 1.15rem;
-  line-height: 1;
+
+/* A lesson room's game run: the countdown over the highway and the ship, and
+   the results with the jam sidebar's buttons */
+.lesson-player.jam-only .countdown-overlay {
+  background: rgba(0, 0, 0, 0.45);
 }
 
-.jam-lesson-step {
-  margin-top: 0.5rem;
+.lesson-player.jam-only .completion-actions button {
+  min-width: 150px;
+  padding: 0.7rem 1.4rem;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: 8px;
+  background: var(--ds-panel);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lesson-player.jam-only .completion-actions button:hover {
+  background: var(--ds-panel-2);
+}
+
+.lesson-player.jam-only .completion-actions button:last-child {
+  border-color: var(--ds-text);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
 }

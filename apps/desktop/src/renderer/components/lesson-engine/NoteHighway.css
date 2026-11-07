@@ -477,6 +477,29 @@
   z-index: 3;
 }
 
+/* Wait and Free: a played step fills in its lane's color (no timing to judge) */
+.jam-lesson-note.played {
+  background: currentColor;
+  animation: jamLessonFill 0.32s ease-out;
+}
+
+/* Wait and Free: the step waited for, at the ship, breathing */
+.jam-lesson-note.current {
+  z-index: 3;
+  box-shadow: 0 0 10px currentColor, 0 0 22px currentColor;
+  animation: jamLessonCurrent 1.1s ease-in-out infinite;
+}
+
+@keyframes jamLessonCurrent {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.12);
+  }
+}
+
 /* Missed: red, with a short shake */
 .jam-lesson-note.missed {
   color: var(--ds-danger) !important;
