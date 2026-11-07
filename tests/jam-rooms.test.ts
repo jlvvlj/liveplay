@@ -357,6 +357,62 @@ describe('jam rooms', () => {
     expect(kept.get(copy)).toMatchObject({ edit: null });
   });
 
+  it('shows a Daw song\'s editors where the others are, and whose each edit is', async () => {
+    const lobby = await player(url);
+    lobby.send({ t: 'newSong', c: 1, title: 'Together', from: null, bpm: 120 });
+    const id = (await lobby.next('songMade')).id!;
+
+    const a = await player(url);
+    a.send({ t: 'edit', song: id, name: 'Aiko', sound: null, need: 0 });
+    const welcomeA = await a.next('welcome');
+    a.send({ t: 'presence', presence: { track: 'drums', page: 1, pointer: { on: 'grid', step: 20.5, part: 0, pitch: 36 } } });
+
+    // A newcomer sees where the others are; then hears where they go
+    const b = await player(url);
+    b.send({ t: 'edit', song: id, name: 'Ren', sound: null, need: 0 });
+    const welcomeB = await b.next('welcome');
+    expect(welcomeB.peers.find((peer) => peer.id === welcomeA.id)?.presence).toEqual({
+      track: 'drums',
+      page: 1,
+      pointer: { on: 'grid', step: 20.5, part: 0, pitch: 36 },
+    });
+    a.send({ t: 'presence', presence: { track: null, page: 0, pointer: { on: 'lane', track: 'part-1', step: 3 } } });
+    expect(await b.next('presence')).toEqual({
+      t: 'presence',
+      from: welcomeA.id,
+      presence: { track: null, page: 0, pointer: { on: 'lane', track: 'part-1', step: 3 } },
+    });
+
+    // A malformed one goes nowhere
+    b.send({ t: 'presence', presence: { track: 'x'.repeat(200), page: 0, pointer: null } });
+    b.send({ t: 'presence', presence: { track: null, page: -1, pointer: null } });
+    b.send({ t: 'presence', presence: { track: null, page: 0, pointer: null } });
+    expect((await a.next('presence')).presence).toEqual({ track: null, page: 0, pointer: null });
+
+    // Every editor hears whose edit changed the song
+    a.send({
+      t: 'track',
+      file: 'empty-120.wav',
+      edit: { parts: [[{ pitch: 60, step: 0, length: 1, velocity: 127 }]], added: [{ track: 't1', sound: 'square-stab' }], bars: 4 },
+    });
+    expect((await b.next('state')).by).toBe(welcomeA.id);
+    expect((await a.next('state')).by).toBe(welcomeA.id);
+
+    // Presence is a Daw song's: a Jam room relays none
+    const jam = await player(url);
+    jam.send({ t: 'join', room: 'JAMX', create: opening(), name: '', sound: null, need: 0 });
+    await jam.next('welcome');
+    const other = await player(url);
+    other.send({ t: 'join', room: 'JAMX', name: '', sound: null, need: 0 });
+    await other.next('welcome');
+    other.send({ t: 'presence', presence: { track: null, page: 0, pointer: null } });
+    other.send({ t: 'cursor', seq: 1, row: 2 });
+    await jam.next('cursor');
+    expect(await Promise.race([jam.next('presence'), new Promise((resolve) => setTimeout(() => resolve('none'), 100))])).toBe('none');
+
+    [a, b, jam, other, lobby].forEach((p) => p.socket.close());
+  });
+
   it('lists songs made in the same instant newest first', () => {
     const store = createJamSongStore(fs.mkdtempSync(path.join(os.tmpdir(), 'jam-songs-')));
     const song = { title: '', bpm: 120, file: 'empty-120.wav', transpose: 0, edit: null, offered: false };

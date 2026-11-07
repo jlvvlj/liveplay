@@ -317,6 +317,9 @@ export function LessonPlayer({
   const [jamRoom, setJamRoom] = useState<JamRoom | null>(null);
   const [jamRoomState, setJamRoomState] = useState<JamRoomState | null>(null);
   const [jamRoomPlayers, setJamRoomPlayers] = useState<JamRoomPlayer[]>([]);
+  // The last edit of a Daw song's grid made by another player: who, and a
+  // count telling one edit from the next
+  const [jamRemoteEdit, setJamRemoteEdit] = useState<{ by: string; seq: number } | null>(null);
   const jamRoomRef = useRef<JamRoom | null>(null);
   jamRoomRef.current = jamRoom;
   const jamRoomStateRef = useRef<JamRoomState | null>(null);
@@ -1876,7 +1879,8 @@ export function LessonPlayer({
       jamRoomServer,
       { edit: jamRoomEdit, create: jamRoomCreate, name: jamName, sound: jamRoomSound, need: jamRoomNeed() },
       {
-        onState: (state) => {
+        onState: (state, by) => {
+          if (by) setJamRemoteEdit((prev) => (by === room.id ? null : { by, seq: (prev?.seq ?? 0) + 1 }));
           // A Jam room this player is alone in (just opened, or come back to
           // while it waited, paused) plays on from where it is
           if (first) {
@@ -1904,6 +1908,7 @@ export function LessonPlayer({
       setJamRoom(null);
       setJamRoomState(null);
       setJamRoomPlayers([]);
+      setJamRemoteEdit(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jamRoomServer, jamRoomKey, jamRoomEdit, jamRoomCreate]);
@@ -1927,6 +1932,22 @@ export function LessonPlayer({
     [jamRoomPlayers]
   );
   const handleJamCursorMove = useCallback((row: number) => jamRoomRef.current?.setCursor(row), []);
+
+  // The players editing a Daw song together, and the color of the last edit
+  // another of them made
+  const jamDawPlayers = useMemo(
+    () =>
+      jamSection === 'daw'
+        ? jamRoomPlayers.map(({ id, name, color, you, presence }) => ({ id, name, color, you, presence: presence ?? null }))
+        : [],
+    [jamSection, jamRoomPlayers]
+  );
+  const jamRemoteEditColor = useMemo(() => {
+    const editor = jamRemoteEdit && jamRoomPlayers.find((player) => player.id === jamRemoteEdit.by);
+    return editor ? { color: editor.color, seq: jamRemoteEdit!.seq } : null;
+    // The editor's color is looked up once per edit, so a change of players does not count as a new edit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jamRemoteEdit]);
 
   // The other players' instruments, played here
   useEffect(() => {
@@ -3154,6 +3175,9 @@ export function LessonPlayer({
               setJamSettings({ ...jamSettings, tracks, mixes });
             }}
             getStep={getJamStep}
+            players={jamDawPlayers}
+            onPresence={jamSection === 'daw' && jamRoom ? (presence) => jamRoom.setPresence(presence) : undefined}
+            remoteEdit={jamRemoteEditColor}
           />
         ) : (
           <NoteHighway

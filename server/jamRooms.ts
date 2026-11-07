@@ -10,6 +10,7 @@ import {
   JAM_ABLETON_FILE,
   type JamAbletonSong,
   type JamClientMessage,
+  type JamDawPresence,
   type JamDawSong,
   type JamDawSongSummary,
   type JamRoomPeer,
@@ -83,10 +84,23 @@ const EMPTY_SONG_EDIT: JamTrackEdit = { parts: [], bars: JAM_SECTION_BARS };
 const dawRoomSong = ({ id, title, bpm, file, transpose }: JamDawSong): JamRoomSong => ({ id, title, bpm, file, transpose });
 const songTracks = (song: JamDawSong): Record<string, JamTrackEdit> => (song.edit ? { [song.file]: song.edit } : {});
 
+const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value);
+
+// Where a player says they are in a Daw song, well formed
+const PRESENCE_ID_MAX = 64;
+const shortId = (value: unknown) => typeof value === 'string' && value.length <= PRESENCE_ID_MAX;
+function validPresence(value: unknown): value is JamDawPresence {
+  if (!value || typeof value !== 'object') return false;
+  const { track, page, pointer } = value as Partial<JamDawPresence>;
+  if ((track !== null && !shortId(track)) || !Number.isInteger(page) || page! < 0) return false;
+  if (pointer === null) return true;
+  if (!pointer || typeof pointer !== 'object' || !finite(pointer.step)) return false;
+  return pointer.on === 'lane' ? shortId(pointer.track) : pointer.on === 'grid' && Number.isInteger(pointer.part) && finite(pointer.pitch);
+}
+
 // An imported song as a client sends it: every track's audio received, and
 // its lesson's steps well formed
 const IMPORT_MAX_TRACKS = 64;
-const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value);
 function validAbletonSong(value: unknown, audioExists: (id: string) => boolean): value is JamAbletonSong {
   if (!value || typeof value !== 'object') return false;
   const { seconds, tracks } = value as Partial<JamAbletonSong>;
@@ -397,7 +411,7 @@ export function createJamRooms({
           const edit = message.edit ?? (jamTrackIsEmpty(jamTrackByFile(file)!) ? EMPTY_SONG_EDIT : null);
           room.state = { ...room.state, tracks: edit ? { [file]: edit } : {} };
           songs.update(room.id, { edit });
-          broadcast(room, { t: 'state', state: room.state });
+          broadcast(room, { t: 'state', state: room.state, by: id });
           break;
         }
         // A Daw song, or a lesson room's song, at another tempo: the same
@@ -448,6 +462,14 @@ export function createJamRooms({
           const member = room.members.get(id);
           if (member) member.peer = { ...member.peer, row: message.row };
           broadcast(room, { t: 'cursor', from: id, seq: message.seq, row: message.row }, id);
+          break;
+        }
+        case 'presence': {
+          const member = room.members.get(id);
+          if (!member || room.kind !== 'daw' || !validPresence(message.presence)) break;
+          const { track, page, pointer } = message.presence;
+          member.peer = { ...member.peer, presence: { track, page, pointer } };
+          broadcast(room, { t: 'presence', from: id, presence: member.peer.presence! }, id);
           break;
         }
         case 'probe': {

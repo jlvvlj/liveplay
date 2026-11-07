@@ -14,10 +14,13 @@
   font-family: var(--ds-font);
 }
 
+/* Its controls go on as many lines as they need (the players' avatars join them) */
 .jam-grid-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
+  row-gap: 0.5rem;
   flex: none;
 }
 
@@ -840,12 +843,6 @@
 }
 
 @media (max-width: 700px), (max-height: 500px) {
-  /* The header's controls go on as many lines as they need */
-  .jam-grid-head {
-    flex-wrap: wrap;
-    row-gap: 0.5rem;
-  }
-
   .jam-grid-tempo input {
     width: 80px;
   }
@@ -869,5 +866,218 @@
 @media (max-width: 480px) {
   .jam-grid {
     --jam-head: 5.5rem;
+  }
+}
+
+/* The players editing the song together: an avatar each in the header, in
+   their color with their initials, this player's last and ringed */
+.jam-presence-avatars {
+  display: flex;
+  flex: none;
+  padding-left: 6px;
+}
+
+.jam-presence-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: -6px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--ds-bg);
+  background: var(--peer-color);
+  color: var(--ds-on-light);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  user-select: none;
+}
+
+.jam-presence-avatar.you {
+  box-shadow: 0 0 0 2px var(--peer-color);
+}
+
+.jam-presence-avatar.small {
+  width: 20px;
+  height: 20px;
+  margin-left: -4px;
+  border-width: 1.5px;
+  border-color: var(--ds-panel);
+  font-size: 9px;
+}
+
+.jam-editor-peers {
+  display: flex;
+  flex: none;
+  padding-left: 4px;
+  margin-right: auto;
+}
+
+.jam-editor-name:has(+ .jam-editor-peers) {
+  margin-right: 0;
+}
+
+/* A track another player has open: its lane ringed in their color, over its clips, their name on it */
+.jam-timeline-lane.watched::before {
+  content: '';
+  position: absolute;
+  inset: 1px 0;
+  z-index: 2;
+  border: 2px solid var(--watch-color);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+/* The header keeps the zoom's Fit button on one line beside the avatars */
+.jam-grid-head .mix-zoom button {
+  white-space: nowrap;
+}
+
+.jam-lane-tags {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.jam-lane-tag {
+  padding: 1px 7px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--peer-color);
+  color: var(--ds-on-light);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* Another player's pointer: an arrow in their color, their name beside it,
+   gliding between the positions it is sent */
+.jam-remote-cursor {
+  position: absolute;
+  z-index: 4;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transition:
+    left 90ms linear,
+    top 90ms linear;
+}
+
+.jam-remote-cursor svg {
+  position: absolute;
+  left: -2px;
+  top: -1.5px;
+  fill: var(--peer-color);
+  stroke: var(--ds-bg);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+.jam-remote-cursor-name {
+  position: absolute;
+  left: 12px;
+  top: 11px;
+  padding: 1px 7px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--peer-color);
+  color: var(--ds-on-light);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.jam-timeline-lane .jam-remote-cursor {
+  margin-top: -14px;
+}
+
+/* The grid cell under another player's pointer */
+.jam-remote-cell {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  border: 2px solid var(--peer-color);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--peer-color) 18%, transparent);
+  pointer-events: none;
+  transition:
+    left 90ms linear,
+    top 90ms linear;
+}
+
+/* A note another player just put down: a ring in their color that fades */
+.jam-editor-note.flash {
+  animation: jam-remote-flash 1.4s ease-out;
+}
+
+@keyframes jam-remote-flash {
+  0% {
+    box-shadow: 0 0 0 2px var(--peer-color), 0 0 12px 2px var(--peer-color);
+  }
+  60% {
+    box-shadow: 0 0 0 2px var(--peer-color), 0 0 0 0 transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* The lane of a track another player just edited glows in their color */
+.jam-timeline-lane.flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 6px;
+  pointer-events: none;
+  animation: jam-lane-flash 1.4s ease-out forwards;
+}
+
+@keyframes jam-lane-flash {
+  0% {
+    box-shadow: inset 0 0 0 2px var(--peer-color), inset 0 0 18px var(--peer-color);
+  }
+  100% {
+    box-shadow: inset 0 0 0 2px transparent, inset 0 0 18px transparent;
+  }
+}
+
+/* The other players looking at a section of the open track: a dot each on its button */
+.jam-section-peers {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  display: flex;
+  gap: 2px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.jam-section-peers i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--ds-panel-2);
+}
+
+/* Upright phones: the editor's header keeps its room for the track's name (the
+   lane's tag and the section's dot still show who is there) */
+@media (max-width: 480px) {
+  .jam-editor-peers {
+    display: none;
+  }
+
+  .jam-editor-name:has(+ .jam-editor-peers) {
+    margin-right: auto;
   }
 }
