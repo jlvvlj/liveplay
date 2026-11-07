@@ -10,6 +10,7 @@ import {
 import { LessonStep, HitFeedback } from '../../types/lesson';
 import { HOLD_MIN_MS, stepDurationMs } from './holdNotes';
 import { SOUND_COLORS } from '../../styles/palette';
+import { JamSpace } from './JamSpace';
 import './NoteHighway.css';
 
 export type HighwayMode = 'free' | 'wait' | 'play' | 'jam';
@@ -1009,14 +1010,10 @@ export function NoteHighway({
     onJamPointer?.(null);
   };
 
-  // Jam mode backdrop that never stops moving: two layers of specks drifting
-  // at different speeds
+  // Jam mode backdrop: deep space, travelled through with the highway
   const renderJamMotion = () => (
     <div className="jam-motion">
-      <div
-        className="jam-motion-specks"
-        style={{ backgroundPositionX: `${-currentTime * JAM_PIXELS_PER_MS * 0.2}px, ${-currentTime * JAM_PIXELS_PER_MS * 0.4}px` }}
-      />
+      <JamSpace travel={currentTime * JAM_PIXELS_PER_MS} time={currentTime} beatMs={60000 / bpm} />
     </div>
   );
 
