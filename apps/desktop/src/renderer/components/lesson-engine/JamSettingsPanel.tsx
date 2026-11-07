@@ -68,8 +68,9 @@ interface JamSettingsPanelProps {
   instrument: { name: string; category: string; preset: string; tag?: string; art: number } | null;
   onOpenInstruments: () => void;
   holdDivisions: number[];
-  holdDivision: number;
-  onHoldDivisionChange: (division: number) => void;
+  // None: no repeat
+  holdDivision: number | null;
+  onHoldDivisionChange: (division: number | null) => void;
   holdTriplet: boolean;
   onHoldTripletChange: (triplet: boolean) => void;
   // Played notes' swing: the share of each beat its first 8th takes
@@ -395,7 +396,7 @@ export function JamSettingsPanel({
               <button
                 key={division}
                 className={`jam-sound-option ${division === holdDivision ? 'active' : ''}`}
-                onClick={() => onHoldDivisionChange(division)}
+                onClick={() => onHoldDivisionChange(division === holdDivision ? null : division)}
               >
                 {division}
                 {holdTriplet ? 'T' : ''}
