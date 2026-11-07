@@ -28,6 +28,8 @@ export interface JamLobbyTrack {
   bpm: number;
   daw: boolean;
   tracks: { id: string; name: string }[];
+  // Imported from an Ableton project: its tracks are recordings, played in lesson rooms
+  imported?: boolean;
 }
 
 interface JamLobbyProps {
@@ -49,6 +51,7 @@ const ENDED: Record<JamRoomEnd, string> = {
   full: 'That room is full',
   missing: 'That room has ended',
   lost: 'The connection to the room was lost',
+  song: "That room's song could not be loaded",
 };
 
 // Browsers (Safari above all) only start audio within a tap or click, and the
@@ -83,7 +86,7 @@ export function JamLobby({ rooms, unreachable, check, tracks, onEnter: enterRoom
           {ended && <div className="jam-lobby-note">{ENDED[ended]}</div>}
           {rooms && (
             <div className="jam-lobby-grid">
-              <NewRoomCard tracks={tracks} lessons={lessons} onCreate={(create) => onEnter({ key: newJamRoomCode(), create })} />
+              <NewRoomCard tracks={lessons ? tracks : tracks.filter((track) => !track.imported)} lessons={lessons} onCreate={(create) => onEnter({ key: newJamRoomCode(), create })} />
               {rooms
                 .filter((room) => (room.lesson !== null) === lessons)
                 .map((room) => (

@@ -509,3 +509,50 @@ button.jam-lobby-card:hover:not(:disabled) {
     grid-template-columns: 1fr;
   }
 }
+
+/* Importing an Ableton project: what it is doing, and how far it got */
+.jam-lobby-import.busy,
+.jam-lobby-import.busy:disabled {
+  gap: 0.6rem;
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--ds-border-strong);
+  background: var(--ds-panel);
+  cursor: default;
+}
+
+.jam-lobby-import-stage {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ds-text);
+  font-size: 0.9rem;
+}
+
+.jam-lobby-import-count {
+  color: var(--ds-text-dim);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-lobby-import-bar {
+  width: 70%;
+  height: 4px;
+  border-radius: var(--ds-radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.jam-lobby-import-bar span {
+  display: block;
+  height: 100%;
+  background: var(--ds-accent);
+  transition: width 0.3s ease;
+}
+
+.jam-lobby-import .jam-lobby-problem {
+  max-width: 90%;
+  font-weight: 400;
+  text-align: center;
+}

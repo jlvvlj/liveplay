@@ -14,6 +14,7 @@ import type {
   JamRoomState,
   JamServerMessage,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamRoomProtocol';
+import type { Lesson } from '../apps/desktop/src/renderer/types/lesson';
 import { JAM_SONGS, jamRoomSongOf } from '../apps/desktop/src/renderer/components/lesson-engine/jamSongs';
 
 const CHIP = jamRoomSongOf(JAM_SONGS.find((song) => song.id === 'chip-run-jam')!);
@@ -350,5 +351,95 @@ describe('jam rooms', () => {
     a.send({ t: 'tempo', bpm: CHIP.bpm });
     expect((await a.next('state')).state.song).toMatchObject({ bpm: CHIP.bpm, file: CHIP.file });
     [a, lobby].forEach((p) => p.socket.close());
+  });
+});
+
+describe('songs imported from Ableton projects', () => {
+  const AUDIO = 'a'.repeat(64);
+  const lesson = (note: number): Lesson => ({
+    id: 'x',
+    title: 'x',
+    instrument: 'drums',
+    bpm: 122,
+    steps: [{ tick: 0, note, dur: 240, velocity: 100, slice: { offset: 0, duration: 0.2 } }],
+  });
+  const ableton = {
+    seconds: 8,
+    tracks: [
+      { name: 'Kick', audio: AUDIO, lesson: lesson(36) },
+      { name: 'Chords', audio: AUDIO, lesson: lesson(60) },
+    ],
+  };
+  let server: http.Server;
+  let rooms: ReturnType<typeof createJamRooms>;
+  let url: string;
+  let songsDir: string;
+
+  beforeEach(async () => {
+    songsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jam-songs-'));
+    server = http.createServer();
+    rooms = createJamRooms({ songs: createJamSongStore(songsDir), audioExists: (id) => id === AUDIO, emptyRoomMs: 300 });
+    rooms.attach(server);
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/jam-room`;
+  });
+
+  afterEach(async () => {
+    rooms.close();
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(songsDir, { recursive: true, force: true });
+  });
+
+  it('keeps an imported song whose audio it has, and lists its tracks', async () => {
+    const lobby = await player(url);
+    lobby.send({ t: 'lobby' });
+    await lobby.next('songs');
+    // Audio it never received, or a malformed step, makes nothing
+    const unsent = { ...ableton, tracks: [{ ...ableton.tracks[0], audio: 'b'.repeat(64) }] };
+    lobby.send({ t: 'importSong', c: 1, title: 'Softer', bpm: 122, ableton: unsent });
+    expect((await lobby.next('songMade')).id).toBeNull();
+    const broken = { ...ableton, tracks: [{ ...ableton.tracks[0], lesson: { ...lesson(36), steps: [{ tick: 'x' }] } }] };
+    lobby.send({ t: 'importSong', c: 2, title: 'Softer', bpm: 122, ableton: broken as never });
+    expect((await lobby.next('songMade')).id).toBeNull();
+
+    lobby.send({ t: 'importSong', c: 3, title: ' Softer ', bpm: 122, ableton });
+    const id = (await lobby.next('songMade')).id!;
+    let songs = (await lobby.next('songs')).songs;
+    while (!songs.length) songs = (await lobby.next('songs')).songs;
+    expect(songs[0]).toMatchObject({ id, title: 'Softer', bpm: 122, file: 'ableton', offered: false });
+    expect(songs[0].tracks).toEqual([
+      { id: 'ableton-0', name: 'Kick' },
+      { id: 'ableton-1', name: 'Chords' },
+    ]);
+    // The list stays light: the tracks' lessons are fetched with the song
+    expect(songs[0]).not.toHaveProperty('ableton');
+    expect(createJamSongStore(songsDir).get(id)).toMatchObject({ ableton });
+    lobby.socket.close();
+  });
+
+  it('opens a lesson room on one of an imported song\'s tracks, at the song\'s own tempo', async () => {
+    const lobby = await player(url);
+    lobby.send({ t: 'importSong', c: 1, title: 'Softer', bpm: 122, ableton });
+    const id = (await lobby.next('songMade')).id!;
+    lobby.send({ t: 'offer', song: id, offered: true });
+
+    const a = await player(url);
+    a.send({ t: 'join', room: 'SOFTER', create: { visibility: 'open', song: id, lesson: 'ableton-1' }, name: 'Aiko', sound: null, need: 0 });
+    const { state } = await a.next('welcome');
+    expect(state.song).toMatchObject({ id, file: 'ableton', bpm: 122 });
+    expect(state.lesson).toEqual({ track: 'ableton-1', name: 'Chords' });
+    const b = await player(url);
+    b.send({ t: 'join', room: 'NOTRACK', create: { visibility: 'open', song: id, lesson: 'ableton-2' }, name: '', sound: null, need: 0 });
+    await b.next('missing');
+
+    // Its recordings play at their own tempo: the Daw does not change it
+    const editor = await player(url);
+    editor.send({ t: 'edit', song: id, name: '', sound: null, need: 0 });
+    await editor.next('welcome');
+    editor.send({ t: 'tempo', bpm: 130 });
+    editor.send({ t: 'ping', c: 1 });
+    await editor.next('pong');
+    expect(createJamSongStore(songsDir).get(id)).toMatchObject({ bpm: 122 });
+    [a, editor, lobby].forEach((p) => p.socket.close());
   });
 });

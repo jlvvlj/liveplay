@@ -28,6 +28,8 @@ primary_region = 'nrt'
     soft_limit = 400
     hard_limit = 500
 
+# Finding the hits in an imported Ableton audio track (librosa) peaks at
+# about 1.2 GB
 [[vm]]
   size = 'shared-cpu-1x'
-  memory = '256mb'
+  memory = '2gb'

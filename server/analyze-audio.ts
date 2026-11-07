@@ -6,7 +6,8 @@ import { promisify } from 'util';
 import { chartAnalysis } from './charting';
 
 const execFileAsync = promisify(execFile);
-const UV_BIN = '/opt/homebrew/bin/uv';
+// uv on the PATH (Homebrew's on a Mac, added below; the hosted jam's image has its own)
+const UV_BIN = 'uv';
 
 export interface AudioAnalysis {
   duration: number;
