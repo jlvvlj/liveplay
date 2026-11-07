@@ -58,6 +58,12 @@ export type EngineId = 'melodics-synth' | 'sampler' | 'port';
 // A pad instrument plays one sound per pad: pad i on note PAD_BASE_NOTE + i
 export const PAD_BASE_NOTE = 36;
 
+// A preset previewed in the instruments panel plays one low note (C3, never a
+// piercing high one), or a kit its first pad, this loud and this long (s)
+export const PRESET_PREVIEW_NOTE = 48;
+export const PRESET_PREVIEW_VELOCITY = 100;
+export const PRESET_PREVIEW_S = 0.6;
+
 export interface InstrumentDef {
   id: string;
   name: string;

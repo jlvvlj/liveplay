@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BackIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, SYNTH_TAG_ICONS, SearchIcon, TrackSoundIcon } from '../JamIcons';
+import {
+  BackIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  FilterIcon,
+  SYNTH_TAG_ICONS,
+  SearchIcon,
+  StarIcon,
+  TrackSoundIcon,
+} from '../JamIcons';
 import { JamDropdown } from '../JamDropdown';
 import { CategoryArt } from './CategoryArt';
 import { CATEGORY_ORDER, SYNTH_TAG_ORDER, choiceEdited, presetChoice } from './catalog';
@@ -25,7 +35,17 @@ interface InstrumentPanelProps {
   // How each instrument was last left, to go back to it
   saved: Record<string, InstrumentChoice>;
   onChange: (choice: InstrumentChoice) => void;
+  // A preset stepped to with the arrow keys: one low note of it, once it has loaded
+  onPreview?: () => void;
+  // The presets marked as favourites, by instrument
+  favorites: JamFavorite[];
+  onFavoritesChange: (favorites: JamFavorite[]) => void;
   onClose: () => void;
+}
+
+export interface JamFavorite {
+  instrument: string;
+  preset: string;
 }
 
 type View =
@@ -186,25 +206,114 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 // More presets than fit as buttons: a list to search, by kind of sound
 const MAX_PRESET_BUTTONS = 12;
 
-function PresetList({ presets, chosen, onPick }: { presets: Preset[]; chosen: string; onPick: (preset: Preset) => void }) {
-  const [filter, setFilter] = useState('');
+// The presets a list shows: those of the kind chosen (all when none) whose
+// name matches the search, grouped by kind in their order
+function shownPresets(presets: Preset[], filter: string, kind: string | null): Preset[] {
   const words = filter.trim().toLowerCase();
-  const shown = words ? presets.filter((preset) => `${preset.name} ${preset.tag ?? ''}`.toLowerCase().includes(words)) : presets;
-  const tags = [...new Set(shown.map((preset) => preset.tag ?? ''))];
+  const shown = presets.filter(
+    (preset) => (kind === null || (preset.tag ?? '') === kind) && (!words || `${preset.name} ${preset.tag ?? ''}`.toLowerCase().includes(words))
+  );
+  const kinds = [...new Set(shown.map((preset) => preset.tag ?? ''))];
+  return kinds.flatMap((tag) => shown.filter((preset) => (preset.tag ?? '') === tag));
+}
+
+function PresetList({
+  presets,
+  chosen,
+  filter,
+  onFilterChange,
+  kind,
+  onKindChange,
+  isFavorite,
+  onToggleFavorite,
+  onPick,
+}: {
+  presets: Preset[];
+  chosen: string;
+  filter: string;
+  onFilterChange: (filter: string) => void;
+  kind: string | null;
+  onKindChange: (kind: string | null) => void;
+  isFavorite: (preset: Preset) => boolean;
+  onToggleFavorite: (preset: Preset) => void;
+  onPick: (preset: Preset) => void;
+}) {
+  const [kindsOpen, setKindsOpen] = useState(false);
+  const shown = shownPresets(presets, filter, kind);
+  const kinds = [...new Set(presets.map((preset) => preset.tag ?? ''))].filter(Boolean);
+  const rowsRef = useRef<HTMLDivElement>(null);
+  // The chosen preset stays in sight as the arrow keys step through the list
+  useEffect(() => {
+    rowsRef.current?.querySelector<HTMLElement>('.instrument-preset-row.active')?.scrollIntoView({ block: 'nearest' });
+  }, [chosen, kind, filter]);
   return (
     <div className="instrument-preset-list">
-      <input className="instrument-search instrument-preset-search" value={filter} placeholder={`Search ${presets.length} presets`} onChange={(e) => setFilter(e.target.value)} />
-      <div className="instrument-preset-rows">
-        {tags.map((tag) => (
-          <div key={tag}>
-            {tag && <div className="instrument-preset-tag">{tag}</div>}
-            {shown
-              .filter((preset) => (preset.tag ?? '') === tag)
-              .map((preset) => (
-                <button key={preset.id} className={`instrument-preset-row ${preset.id === chosen ? 'active' : ''}`} onClick={() => onPick(preset)}>
-                  {preset.name}
-                </button>
-              ))}
+      <div className="instrument-preset-tools">
+        <input
+          className="instrument-search instrument-preset-search"
+          value={filter}
+          placeholder={`Search ${kind === null ? presets.length : presets.filter((preset) => preset.tag === kind).length} presets`}
+          onChange={(e) => onFilterChange(e.target.value)}
+        />
+        {kinds.length > 1 && (
+          <button
+            className={`instrument-icon-btn instrument-preset-filter ${kind !== null ? 'on' : ''} ${kindsOpen ? 'open' : ''}`}
+            onClick={() => setKindsOpen(!kindsOpen)}
+            title="Kind of sound"
+            aria-expanded={kindsOpen}
+          >
+            <FilterIcon />
+          </button>
+        )}
+        {kindsOpen && (
+          <div className="instrument-preset-kinds" role="menu">
+            {[null, ...kinds].map((option) => (
+              <button
+                key={option ?? ''}
+                role="menuitemradio"
+                aria-checked={option === kind}
+                className={option === kind ? 'active' : ''}
+                onClick={() => {
+                  onKindChange(option);
+                  setKindsOpen(false);
+                }}
+              >
+                <span>{option ?? 'All kinds'}</span>
+                <span className="instrument-preset-kind-count">
+                  {option === null ? presets.length : presets.filter((preset) => preset.tag === option).length}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {kind !== null && (
+        <div className="instrument-preset-kind-chip">
+          {kind}
+          <button onClick={() => onKindChange(null)} aria-label={`Show every kind, not only ${kind}`}>
+            <CloseIcon />
+          </button>
+        </div>
+      )}
+      <div className="instrument-preset-rows" ref={rowsRef}>
+        {shown.map((preset, index) => (
+          <div key={preset.id}>
+            {(preset.tag ?? '') !== (shown[index - 1]?.tag ?? null) && preset.tag && kind === null && (
+              <div className="instrument-preset-tag">{preset.tag}</div>
+            )}
+            <div className="instrument-preset-item">
+              <button className={`instrument-preset-row ${preset.id === chosen ? 'active' : ''}`} onClick={() => onPick(preset)}>
+                {preset.name}
+              </button>
+              <button
+                className={`instrument-preset-star ${isFavorite(preset) ? 'on' : ''}`}
+                onClick={() => onToggleFavorite(preset)}
+                aria-label={isFavorite(preset) ? `Remove ${preset.name} from favourites` : `Add ${preset.name} to favourites`}
+                title={isFavorite(preset) ? 'Remove from favourites' : 'Add to favourites'}
+              >
+                <StarIcon filled={isFavorite(preset)} />
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -212,12 +321,26 @@ function PresetList({ presets, chosen, onPick }: { presets: Preset[]; chosen: st
   );
 }
 
-export function InstrumentPanel({ instruments: all, choice, track, loading, saved, onChange, onClose }: InstrumentPanelProps) {
+export function InstrumentPanel({
+  instruments: all,
+  choice,
+  track,
+  loading,
+  saved,
+  onChange,
+  onPreview,
+  favorites,
+  onFavoritesChange,
+  onClose,
+}: InstrumentPanelProps) {
   const instruments = track ? all.filter((instrument) => !!instrument.pads === (track.kind === 'drum')) : all;
   // Opens on the first screen, every kind of instrument at hand
   const [view, setView] = useState<View>({ at: 'home' });
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
+  // The open instrument's preset list: its search and the kind of sound it shows
+  const [presetFilter, setPresetFilter] = useState('');
+  const [presetKind, setPresetKind] = useState<string | null>(null);
 
   const synths = instruments.filter((instrument) => instrument.engine === 'melodics-synth');
   const engines = instruments.filter((instrument) => instrument.engine === 'port');
@@ -278,6 +401,20 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
       onClick={() => pick(instrument)}
     />
   );
+  // A favourite: its preset, with the synth or instrument it comes from
+  const favoriteCard = (instrument: InstrumentDef, preset: Preset) => {
+    const Icon = instrument.engine === 'melodics-synth' ? SYNTH_TAG_ICONS[preset.tag ?? 'Lead'] : null;
+    return (
+      <Card
+        key={`${instrument.id}:${preset.id}`}
+        art={Icon ? <span className="instrument-card-icon">{<Icon />}</span> : <CategoryArt seed={artSeed(instrument)} />}
+        name={preset.name}
+        detail={instrument.name}
+        active={choice?.instrument === instrument.id && choice?.preset === preset.id}
+        onClick={() => pick(instrument, preset)}
+      />
+    );
+  };
   const sampledCard = (instrument: InstrumentDef) => (
     <Card
       key={instrument.id}
@@ -304,6 +441,58 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
         };
 
   const setEffects = (effects: EffectSlot[]) => choice && onChange({ ...choice, effects });
+
+  // Favourites: a preset of an instrument, marked with a star
+  const isFavorite = (instrument: InstrumentDef, preset: Preset) =>
+    favorites.some((favorite) => favorite.instrument === instrument.id && favorite.preset === preset.id);
+  const toggleFavorite = (instrument: InstrumentDef, preset: Preset) =>
+    onFavoritesChange(
+      isFavorite(instrument, preset)
+        ? favorites.filter((favorite) => !(favorite.instrument === instrument.id && favorite.preset === preset.id))
+        : [...favorites, { instrument: instrument.id, preset: preset.id }]
+    );
+  // The favourites that fit here (a drum track takes kits only), newest first
+  const favoriteCards = favorites
+    .flatMap((favorite) => {
+      const instrument = instruments.find((candidate) => candidate.id === favorite.instrument);
+      const preset = instrument?.presets.find((candidate) => candidate.id === favorite.preset);
+      return instrument && preset ? [{ instrument, preset }] : [];
+    })
+    .reverse();
+
+  // Another instrument opened: its list starts whole
+  const openId = view.at === 'instrument' ? view.id : null;
+  useEffect(() => {
+    setPresetFilter('');
+    setPresetKind(null);
+  }, [openId]);
+
+  // The presets the open instrument's arrows step through, as its list shows them
+  const steppable = current ? (current.presets.length > MAX_PRESET_BUTTONS ? shownPresets(current.presets, presetFilter, presetKind) : current.presets) : [];
+  const stepRef = useRef<(direction: number) => void>(() => undefined);
+  stepRef.current = (direction: number) => {
+    if (!current || !choice || choice.instrument !== current.id || !steppable.length) return;
+    const at = steppable.findIndex((preset) => preset.id === choice.preset);
+    const next = steppable[at < 0 ? 0 : Math.min(steppable.length - 1, Math.max(0, at + direction))];
+    if (next.id === choice.preset) return;
+    onChange(presetChoice(current, next.id));
+    onPreview?.();
+  };
+  // Up and down step through the presets, but never out of a field that takes
+  // them (a slider, a list of options); the preset search lets them through
+  useEffect(() => {
+    if (!openId) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      const target = event.target instanceof Element ? event.target : null;
+      const typing = target?.closest('input, textarea, select, [contenteditable="true"], [role="listbox"]');
+      if (typing && !target!.classList.contains('instrument-preset-search')) return;
+      event.preventDefault();
+      stepRef.current(event.key === 'ArrowDown' ? 1 : -1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openId]);
 
   return (
     <aside className="instrument-panel">
@@ -360,6 +549,9 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
                 />
               </CardRow>
             )}
+            {favoriteCards.length > 0 && (
+              <CardRow title="Favourites">{favoriteCards.map(({ instrument, preset }) => favoriteCard(instrument, preset))}</CardRow>
+            )}
             {tags.length > 0 && <CardRow title="Synths">
               {tags.map((tag) => {
                 const Icon = SYNTH_TAG_ICONS[tag];
@@ -408,8 +600,25 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
               </span>
               <span className="instrument-detail-title">
                 <span className="instrument-card-name">{current.name}</span>
-                <span className="instrument-card-detail">{loading ? 'Loading…' : current.category}</span>
+                <span className="instrument-card-detail">
+                  {loading ? 'Loading…' : (current.presets.find((preset) => preset.id === choice.preset)?.name ?? current.category)}
+                </span>
               </span>
+              {(() => {
+                const preset = current.presets.find((candidate) => candidate.id === choice.preset);
+                if (!preset) return null;
+                const on = isFavorite(current, preset);
+                return (
+                  <button
+                    className={`instrument-icon-btn instrument-favorite ${on ? 'on' : ''}`}
+                    onClick={() => toggleFavorite(current, preset)}
+                    aria-label={on ? `Remove ${preset.name} from favourites` : `Add ${preset.name} to favourites`}
+                    title={on ? 'Remove from favourites' : 'Add to favourites'}
+                  >
+                    <StarIcon filled={on} />
+                  </button>
+                );
+              })()}
               {choiceEdited(current, choice) && (
                 <button className="jam-reset" onClick={() => onChange(presetChoice(current, choice.preset))}>
                   Reset
@@ -419,7 +628,17 @@ export function InstrumentPanel({ instruments: all, choice, track, loading, save
 
             <div className="jam-subhead">Presets</div>
             {current.presets.length > MAX_PRESET_BUTTONS ? (
-              <PresetList presets={current.presets} chosen={choice.preset} onPick={(preset) => onChange(presetChoice(current, preset.id))} />
+              <PresetList
+                presets={current.presets}
+                chosen={choice.preset}
+                filter={presetFilter}
+                onFilterChange={setPresetFilter}
+                kind={presetKind}
+                onKindChange={setPresetKind}
+                isFavorite={(preset) => isFavorite(current, preset)}
+                onToggleFavorite={(preset) => toggleFavorite(current, preset)}
+                onPick={(preset) => onChange(presetChoice(current, preset.id))}
+              />
             ) : (
               <div className="instrument-options">
                 {current.presets.map((preset) => (

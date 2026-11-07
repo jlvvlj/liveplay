@@ -73,6 +73,19 @@ export const LinkIcon = () =>
     </>
   );
 export const CheckIcon = () => small(<path d="M5 12.5l4.5 4.5L19 7.5" />);
+
+// A star, filled for a favourite
+export const StarIcon = ({ filled = false }: { filled?: boolean }) =>
+  small(
+    <path
+      d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z"
+      fill={filled ? 'currentColor' : 'none'}
+      strokeWidth="1.8"
+    />
+  );
+
+// A funnel: narrows a list to one kind
+export const FilterIcon = () => small(<path d="M4 5h16l-6.2 7.4V18l-3.6 1.8v-7.4z" strokeWidth="1.8" />);
 export const ChevronLeftIcon = () => icon(<path d="M15 6l-6 6 6 6" />);
 export const ChevronRightIcon = () => icon(<path d="M9 6l6 6-6 6" />);
 

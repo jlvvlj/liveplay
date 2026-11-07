@@ -2,7 +2,7 @@ import * as Tone from 'tone';
 import type { JamTrackNote } from '../jamTracks';
 import { InstrumentChannel } from './channel';
 import type { InstrumentChoice, InstrumentDef } from './types';
-import { PAD_BASE_NOTE } from './types';
+import { PAD_BASE_NOTE, PRESET_PREVIEW_NOTE, PRESET_PREVIEW_S, PRESET_PREVIEW_VELOCITY } from './types';
 
 // The backing track's tracks that play live instruments (every track added in
 // the grid, and the track's own ones given an instrument): each through its
@@ -81,6 +81,8 @@ export class JamLiveTracks {
   private tracks: LiveTrack[] = [];
   private channels = new Map<string, InstrumentChannel>();
   private loadedChannels = new Set<string>();
+  // Tracks whose next instrument or preset plays one note once it can sound
+  private previews = new Set<string>();
   private until = 0;
   private lastStart: number | null = null;
   private readonly timer: ReturnType<typeof setInterval>;
@@ -107,7 +109,14 @@ export class JamLiveTracks {
       }
       const ready = channel.set(track.instrument, track.choice, bpm);
       ready.then(
-        () => this.loadedChannels.add(track.key),
+        () => {
+          this.loadedChannels.add(track.key);
+          if (!this.previews.delete(track.key)) return;
+          const note = track.instrument.pads ? PAD_BASE_NOTE : PRESET_PREVIEW_NOTE;
+          const now = Tone.getContext().currentTime + 0.01;
+          channel.noteOn(note, PRESET_PREVIEW_VELOCITY, now);
+          channel.noteOff(note, now + PRESET_PREVIEW_S);
+        },
         (err) => console.error(`[JamLiveTracks] Could not load ${track.instrument.name}:`, err)
       );
     }
@@ -117,6 +126,11 @@ export class JamLiveTracks {
   route(destination: Tone.InputNode) {
     this.destination = destination;
     for (const channel of this.channels.values()) channel.route(destination);
+  }
+
+  // The track's next choice (a preset stepped to) plays one low note once it has loaded
+  preview(key: string) {
+    this.previews.add(key);
   }
 
   // One note of a track at once, as the grid's piano keys and drum names play it

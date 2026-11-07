@@ -7,7 +7,7 @@ import { NoteHighway, HighwayMode, JamNote, JamShip } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
 import { BackIcon, InstrumentsIcon, SidebarIcon } from './JamIcons';
-import { InstrumentPanel } from './instruments/InstrumentPanel';
+import { InstrumentPanel, type JamFavorite } from './instruments/InstrumentPanel';
 import { JAM_TRACK_BARS, jamTrackBaseFile, jamTrackByFile, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
 import { validJamTrackEdit, type JamTrackEdit } from './jamTrackEdits';
 import { renderJamBackingPart } from './jamRenderer';
@@ -32,7 +32,7 @@ import { INSTRUMENTS, choiceForSound, findInstrument, jamRowNote, portInstrument
 import { loadPortCatalog, type PortEntry } from './instruments/engines/port';
 import { registerPortEffects } from './instruments/effects';
 import { paramsPatch, patchParams } from './instruments/engines/melodicsSynth';
-import { PAD_BASE_NOTE, type InstrumentChoice } from './instruments/types';
+import { PAD_BASE_NOTE, PRESET_PREVIEW_NOTE, PRESET_PREVIEW_S, PRESET_PREVIEW_VELOCITY, type InstrumentChoice } from './instruments/types';
 import { audioTimeAt, hitSlot, remoteNoteSlot, swungPosition } from './jamClock';
 import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
 import { jamRoomSongLesson } from './jamSongs';
@@ -126,6 +126,8 @@ interface JamSettings {
   lanesOpen: boolean;
   // How swung the played notes are, by song (0.5 straight); unset follows the backing track
   swings: Record<string, number>;
+  // Presets marked as favourites in the instruments panel, oldest first
+  favorites: JamFavorite[];
 }
 
 export type { JamTrackEdit } from './jamTrackEdits';
@@ -221,6 +223,7 @@ function loadJamSettings(songIds: string[]): JamSettings {
     mixes: {},
     lanesOpen: true,
     swings: {},
+    favorites: [],
   };
   try {
     const saved = JSON.parse(localStorage.getItem(JAM_SETTINGS_KEY) ?? 'null') as
@@ -243,6 +246,12 @@ function loadJamSettings(songIds: string[]): JamSettings {
         saved.swings && typeof saved.swings === 'object'
           ? Object.fromEntries(Object.entries(saved.swings).filter(([, swing]) => typeof swing === 'number'))
           : {},
+      favorites: Array.isArray(saved.favorites)
+        ? saved.favorites.filter(
+            (favorite): favorite is JamFavorite =>
+              !!favorite && typeof favorite.instrument === 'string' && typeof favorite.preset === 'string'
+          )
+        : [],
     };
   } catch {
     return defaults; // storage unavailable: start from the presets
@@ -796,13 +805,23 @@ export function LessonPlayer({
   // The chosen instrument, as its parameters and effects are set; the id of
   // the one that is loaded and can sound
   const [jamReadyInstrument, setJamReadyInstrument] = useState('');
+  // A preset stepped to in the instruments panel plays one low note once it can sound
+  const jamPreviewRef = useRef(false);
   useEffect(() => {
     const channel = jamChannelRef.current;
     if (!channel || !jamInstrument || !jamChoice) return;
     let current = true;
     channel.set(jamInstrument, jamChoice, lessonProp.bpm).then(
       () => {
-        if (current) setJamReadyInstrument(jamInstrument.id);
+        if (!current) return;
+        setJamReadyInstrument(jamInstrument.id);
+        if (jamPreviewRef.current) {
+          jamPreviewRef.current = false;
+          const now = Tone.getContext().currentTime + 0.01;
+          const note = jamInstrument.pads ? PAD_BASE_NOTE : PRESET_PREVIEW_NOTE;
+          channel.noteOn(note, PRESET_PREVIEW_VELOCITY, now);
+          channel.noteOff(note, now + PRESET_PREVIEW_S);
+        }
       },
       (err) => console.error(`[LessonPlayer] Could not load the instrument ${jamInstrument.name}:`, err)
     );
@@ -3410,6 +3429,11 @@ export function LessonPlayer({
             loading={jamReadyInstrument !== jamChoice.instrument}
             saved={jamSettings.instruments}
             onChange={setJamChoice}
+            onPreview={() => {
+              jamPreviewRef.current = true;
+            }}
+            favorites={jamSettings.favorites}
+            onFavoritesChange={(favorites) => setJamSettings((settings) => (settings ? { ...settings, favorites } : settings))}
             onClose={() => setInstrumentsFor(null)}
           />
         )}
@@ -3422,6 +3446,9 @@ export function LessonPlayer({
             loading={false}
             saved={jamSettings.instruments}
             onChange={(choice) => setJamTrackInstrument(instrumentsFor, choice)}
+            onPreview={() => liveTracksRef.current?.preview(instrumentsFor)}
+            favorites={jamSettings.favorites}
+            onFavoritesChange={(favorites) => setJamSettings((settings) => (settings ? { ...settings, favorites } : settings))}
             onClose={() => setInstrumentsFor(null)}
           />
         )}
