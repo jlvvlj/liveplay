@@ -1797,7 +1797,8 @@ export function LessonPlayer({
       else jamHeldRef.current.set(row, { note: played, at, slot });
     }
     room?.sendNote({ song: lesson.id, slot, note: row, velocity, ...(length !== undefined ? { length } : {}) });
-    addJamNote({ note: row, timeMs }, heard * 1000);
+    // A lesson room shows a press on the step it played (judged), with no dot of its own
+    if (!jamLessonRef.current) addJamNote({ note: row, timeMs }, heard * 1000);
     return slot;
   }, [jamRows, lesson.bpm, lesson.id, lesson.stemAudio, addJamNote, getPlayableStepForInput]);
 
@@ -2040,12 +2041,6 @@ export function LessonPlayer({
       return;
     }
 
-    // A lesson room's Play mode (and game run): the press leaves the ship as
-    // a dot, as on the Jam tab (in Wait and Free the played step fills in)
-    if (jamLessonRef.current && currentMode === 'play') {
-      const at = jamLessonViewTimeRef.current;
-      addJamNote({ note: translatedNote, timeMs: at }, at);
-    }
 
     // Visual feedback
     setLastMidiNote(hardwareNote);
@@ -2406,8 +2401,6 @@ export function LessonPlayer({
           clock: `${playedNotes.size} / ${lesson.steps.length}`,
         }
       : { time: currentTime, hits: jamLessonHits, lastLoop: isGameMode ? 0 : undefined };
-  const jamLessonViewTimeRef = useRef(0);
-  jamLessonViewTimeRef.current = jamLessonView?.time ?? 0;
 
   // Pointer play on the highway off the room's clock: a pressed row is a key
   // press, held until let go

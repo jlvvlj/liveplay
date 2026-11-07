@@ -76,6 +76,44 @@ describe('a lesson room\'s highway in Wait mode', () => {
   });
 });
 
+describe('a lesson room\'s judged steps', () => {
+  beforeAll(() => {
+    jest.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(1000);
+    jest.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(500);
+  });
+  afterAll(() => jest.restoreAllMocks());
+
+  it('draw early and late as lesson mode does: dimmed where due, a copy moved to where it was played', () => {
+    const steps = [0, 480, 960].map((tick) => ({ tick, note: 36, dur: 120, velocity: 100 }));
+    const { container } = render(
+      <NoteHighway
+        steps={steps}
+        currentTime={400}
+        bpm={120}
+        mode="jam"
+        jamLesson={{
+          loopMs: 1500,
+          hits: new Map([
+            ['0:0', { accuracy: 'perfect' as const, deltaMs: 10 }],
+            ['0:1', { accuracy: 'late' as const, deltaMs: 120 }],
+            ['0:2', { accuracy: 'miss' as const, deltaMs: 0 }],
+          ]),
+        }}
+        highestOnTop
+      />
+    );
+    const late = container.querySelector<HTMLElement>('.jam-lesson-note.late:not(.ghost-hit)')!;
+    const copy = container.querySelector<HTMLElement>('.jam-lesson-note.ghost-hit.late')!;
+    expect(late.style.opacity).toBe('0.35');
+    // 120 ms late, at 0.6 px a millisecond
+    expect(parseFloat(copy.style.left) - parseFloat(late.style.left)).toBeCloseTo(72);
+    // On time and missed have no copy
+    expect(container.querySelectorAll('.jam-lesson-note.ghost-hit')).toHaveLength(1);
+    expect(container.querySelector('.jam-lesson-note.on-time')).toBeTruthy();
+    expect(container.querySelector('.jam-lesson-note.missed')).toBeTruthy();
+  });
+});
+
 describe('a lesson room\'s sidebar', () => {
   const score = { totalSteps: 10, hits: 2, misses: 1, perfectHits: 1, goodHits: 1, accuracy: 20, totalPoints: 200, maxPoints: 1000 };
   const panel = (mode: HighwayMode, overrides: Record<string, unknown> = {}) => {
