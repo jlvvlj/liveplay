@@ -5,7 +5,7 @@ jest.mock('tone', () => ({}));
 
 import { portInstruments, presetChoice } from '../apps/desktop/src/renderer/components/lesson-engine/instruments/catalog';
 import { EFFECTS, availableEffects, registerPortEffects } from '../apps/desktop/src/renderer/components/lesson-engine/instruments/effects';
-import { PortControl, portGain, type PortEntry } from '../apps/desktop/src/renderer/components/lesson-engine/instruments/engines/port';
+import { PortControl, PortSender, portGain, type PortEntry } from '../apps/desktop/src/renderer/components/lesson-engine/instruments/engines/port';
 import { JAM_SOUND_LOUDNESS } from '../apps/desktop/src/renderer/components/lesson-engine/jamLoudness';
 
 const param = (key: string, value: number) => ({ key, label: key, min: 0, max: 10, step: 1, default: value });
@@ -70,6 +70,48 @@ describe('instrument ports', () => {
     // a new preset's own values are not sent again
     control.set('1', { cutoff: 5, drive: 3 });
     expect(sent).toEqual([{ type: 'preset', id: 1 }]);
+  });
+
+  it('sends a fetched preset with its file, holding back what follows it, and drops one replaced while fetching', async () => {
+    const vital: PortEntry = {
+      ...synth,
+      name: 'vital',
+      files: { worklet: 'vital.worklet.js', wasm: 'vital.wasm', presets: 'presets/{id}.vital', loader: 'vital.loader.js' },
+    };
+    const posted: { type: string; id?: unknown; key?: string; data?: ArrayBuffer }[] = [];
+    const node = { port: { postMessage: (message: (typeof posted)[number]) => posted.push(message) } };
+    const fetched: Record<string, () => void> = {};
+    const fetchPreset = (_: PortEntry, raw: string | number) =>
+      new Promise<ArrayBuffer>((resolve) => {
+        fetched[String(raw)] = () => resolve(new Uint8Array([10 + Number(raw)]).buffer);
+      });
+    const sender = new PortSender(vital, () => node as unknown as AudioWorkletNode, fetchPreset);
+
+    sender.send({ type: 'preset', id: 0 });
+    sender.send({ type: 'param', key: 'drive', value: 2 } as { type: string });
+    sender.send({ type: 'preset', id: 1 });
+    sender.send({ type: 'param', key: 'cutoff', value: 3 } as { type: string });
+    await Promise.resolve();
+    expect(posted).toEqual([]);
+
+    fetched['1']();
+    fetched['0']();
+    await sender.settled();
+    expect(posted.map(({ type, id, key }) => [type, id ?? key])).toEqual([
+      ['param', 'drive'],
+      ['preset', 1],
+      ['param', 'cutoff'],
+    ]);
+    // the pack of preset 1
+    expect([...new Uint8Array(posted[1].data!)]).toEqual([11]);
+  });
+
+  it('sends the presets of a port that has them inside it straight away', async () => {
+    const posted: object[] = [];
+    const sender = new PortSender(synth, () => ({ port: { postMessage: (message: object) => posted.push(message) } }) as unknown as AudioWorkletNode);
+    sender.send({ type: 'preset', id: 0 });
+    await sender.settled();
+    expect(posted).toEqual([{ type: 'preset', id: 0 }]);
   });
 
   it('offers Clouds as an effect once the catalog has it', () => {

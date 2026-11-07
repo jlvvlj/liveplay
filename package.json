@@ -13,7 +13,7 @@
     "build:renderer": "cd apps/desktop && vite build",
     "dev:jam": "cd apps/jam && vite",
     "build:jam": "cd apps/jam && vite build",
-    "build:ports": "for port in mutable obxf dexed helm surge-xt; do instrument-ports/$port/build.sh || exit 1; done",
+    "build:ports": "for port in mutable obxf dexed helm surge-xt vital; do instrument-ports/$port/build.sh || exit 1; done",
     "ports:catalog": "node instrument-ports/catalog.mjs apps/jam/public/instrument-ports",
     "start:jam-rooms": "tsx server/jam-rooms.ts",
     "build:electron": "tsc -p apps/desktop/tsconfig.main.json",

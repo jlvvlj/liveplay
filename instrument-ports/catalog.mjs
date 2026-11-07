@@ -7,7 +7,8 @@
 //
 //   node instrument-ports/catalog.mjs <out dir>
 //
-// Copies each built port's files into <out dir>/<name>/ and writes
+// Copies each built port's files (and preset files, for a port whose presets
+// are fetched) into <out dir>/<name>/ and writes
 // <out dir>/catalog.json, each big file also gzipped beside it (.gz) for
 // browsers that take it. Ports not built (no dist/) are left out.
 
@@ -34,6 +35,9 @@ const PORTS = [
   { name: 'rings', dist: 'mutable/dist', label: 'Rings' },
   { name: 'elements', dist: 'mutable/dist', label: 'Elements' },
   { name: 'clouds', dist: 'mutable/dist', label: 'Clouds', effect: true },
+  // Its presets are files the app fetches when one is played, read by its
+  // loader (a Worker) and sent with the preset message
+  { name: 'vital', dist: 'vital/dist', label: 'Vital', presets: 'presets/{id}.vital', loader: 'vital.loader.js' },
 ];
 
 const SAMPLE_RATE = 48000;
@@ -132,7 +136,12 @@ const entries = [];
 fs.mkdirSync(out, { recursive: true });
 for (const port of PORTS) {
   const dist = path.join(here, port.dist);
-  const files = [`${port.name}.worklet.js`, `${port.name}.wasm`, ...(port.data ? [port.data] : [])];
+  const files = [
+    `${port.name}.worklet.js`,
+    `${port.name}.wasm`,
+    ...(port.data ? [port.data] : []),
+    ...(port.loader ? [port.loader] : []),
+  ];
   if (!files.every((file) => fs.existsSync(path.join(dist, file)))) {
     console.log(`${port.label}: not built, left out`);
     continue;
@@ -146,8 +155,14 @@ for (const port of PORTS) {
   const defaults = Object.fromEntries(ready.params.map((param) => [param.key, param.default]));
   const loudness = port.effect ? null : noteLoudness(processor);
   const presets = [];
+  const presetFile = (id) => path.join(dist, port.presets.replace('{id}', id));
   for (const preset of ready.presets) {
-    processor.port.send({ type: 'preset', id: preset.id });
+    if (port.presets) {
+      const data = bytes(presetFile(preset.id));
+      processor.port.send({ type: 'preset', id: preset.id, data });
+    } else {
+      processor.port.send({ type: 'preset', id: preset.id });
+    }
     let values = preset.params;
     if (!values) {
       // The values a preset sets, as the port reports them once it has loaded it
@@ -165,7 +180,9 @@ for (const port of PORTS) {
     });
   }
   fs.mkdirSync(path.join(out, port.name), { recursive: true });
-  for (const file of files) {
+  const copied = [...files, ...(port.presets ? ready.presets.map((preset) => port.presets.replace('{id}', preset.id)) : [])];
+  for (const file of copied) {
+    fs.mkdirSync(path.dirname(path.join(out, port.name, file)), { recursive: true });
     fs.copyFileSync(path.join(dist, file), path.join(out, port.name, file));
     gzipBeside(path.join(out, port.name, file));
   }
@@ -173,7 +190,12 @@ for (const port of PORTS) {
     name: port.name,
     label: port.label,
     effect: !!port.effect,
-    files: { worklet: files[0], wasm: files[1], ...(port.data ? { data: port.data } : {}) },
+    files: {
+      worklet: files[0],
+      wasm: files[1],
+      ...(port.data ? { data: port.data } : {}),
+      ...(port.presets ? { presets: port.presets, loader: port.loader } : {}),
+    },
     params: ready.params,
     presets,
     ...(loudness !== null ? { loudness: Math.round(loudness * 10) / 10 } : {}),

@@ -8,6 +8,8 @@ Synths with no web build, compiled from their own C++ to WebAssembly and run as 
 | `obxf/` | OB-Xf | `melodics-obxf` | GPL-3.0 |
 | `dexed/` | Dexed (MSFA engine, Dexed's filter and tuning, its bundled cartridges) | `melodics-dexed` | GPL-3.0, MSFA Apache-2.0 |
 | `helm/` | Helm (`mopo` engine, factory patches) | `melodics-helm` | GPL-3.0, patches CC BY 4.0 |
+| `surge-xt/` | Surge XT (`surge-common`, factory patches and wavetables) | `melodics-surge-xt` | GPL-3.0 |
+| `vital/` | Vital (its `SoundEngine`; 528 presets from free banks, fetched when played) | `melodics-vital` | GPL-3.0; banks GPL-3.0, CC0, Unlicense, one unstated |
 
 Each folder has:
 
@@ -22,6 +24,8 @@ instrument-ports/mutable/build.sh && instrument-ports/mutable/check.sh
 instrument-ports/obxf/build.sh && instrument-ports/obxf/check.sh
 instrument-ports/dexed/build.sh && instrument-ports/dexed/check.sh
 instrument-ports/helm/build.sh && instrument-ports/helm/check.sh
+instrument-ports/surge-xt/build.sh && node instrument-ports/surge-xt/check.mjs
+instrument-ports/vital/build.sh && node instrument-ports/vital/check.mjs
 ```
 
 ## Using a worklet
@@ -46,13 +50,13 @@ Messages in:
 - `{type:'noteOff', note, time}`
 - `{type:'allOff'}`: releases every voice and drops notes not yet played
 - `{type:'param', key, value}`: a value between the parameter's `min` and `max` (a choice's option index)
-- `{type:'preset', id}`
+- `{type:'preset', id, data?}`: `data` is the preset's file, for a port whose presets are files (Vital: see `vital/README.md`)
 
 Messages out:
 
 - `{type:'ready', params:[{key,label,min,max,step,default}], presets:[{id,name}]}` once the module has started. Parameters may also carry `group` (a heading) and `options` (a choice's names), presets a `tag` (Lead, Pad, Bass...), as the app's `ParamSpec` and `Preset` do.
 - `{type:'presetLoaded', id, values:{key: value}}` after each `preset`, with every parameter's new value, so sliders can follow
-- `{type:'error', message}` when the module cannot start
+- `{type:'error', message}` when the module cannot start, or a preset cannot be loaded
 
 Nothing is allocated in `process()`: notes wait in fixed typed arrays, and the C++ side allocates only while starting (and, for Helm, while loading a preset). Every C++ allocation is counted (`mp_allocations`), and the checks fail if one happens while playing.
 
