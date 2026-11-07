@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 
-// The jam highway's backdrop: flying right through deep space. Far nebulae
-// and a passing planet barely move, three layers of stars stream left the
-// nearer the faster (the nearest drawn out into streaks with speed), and
-// thin speed lines rush past. It travels with the highway (`travel`, in its
+// The jam highway's backdrop: flying right through deep space, in black and
+// greys only. A passing planet barely moves, three layers of faint stars
+// stream left the nearer the faster (the nearest drawn out into streaks with
+// speed), and thin speed lines rush past. It travels with the highway (`travel`, in its
 // pixels), so space moves exactly as fast as the notes, and drifts on
 // slowly while the song is paused. The nearest stars and the speed lines
 // brighten on each beat.
@@ -30,12 +30,12 @@ interface Star {
 
 // Each layer moves `depth` times as fast as the highway
 const STAR_LAYERS = [
-  { depth: 0.035, perPx: 0.00024, radius: [0.35, 0.8], alpha: [0.2, 0.55], twinkle: 0.5 },
-  { depth: 0.11, perPx: 0.0001, radius: [0.55, 1.15], alpha: [0.35, 0.8], twinkle: 0.3 },
-  { depth: 0.3, perPx: 0.000026, radius: [0.8, 1.6], alpha: [0.5, 1], twinkle: 0 },
+  { depth: 0.035, perPx: 0.00016, radius: [0.3, 0.65], alpha: [0.1, 0.3], twinkle: 0.5 },
+  { depth: 0.11, perPx: 0.00007, radius: [0.45, 0.9], alpha: [0.18, 0.42], twinkle: 0.3 },
+  { depth: 0.3, perPx: 0.00002, radius: [0.6, 1.2], alpha: [0.28, 0.55], twinkle: 0 },
 ];
-const STAR_TINTS = ['#ffffff', '#d4e6ff', '#cfe0ff', '#fff1d9', '#e2dcff'];
-const NEBULA_DEPTH = 0.012;
+// Whites and greys, never a color
+const STAR_TINTS = ['#ffffff', '#e5e5e5', '#d4d4d4'];
 const PLANET_DEPTH = 0.022;
 const LINE_DEPTH = 1.5;
 const LINES_PER_PX = 0.0000075;
@@ -43,7 +43,6 @@ const LINES_PER_PX = 0.0000075;
 const IDLE_DRIFT = 22;
 // The highway's fastest speed (px/s): streaks and speed lines are full length there
 const FULL_SPEED = 600;
-const NEBULA_COLORS = ['#6d28d9', '#2563eb', '#db2777', '#0d9488', '#7c3aed'];
 
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 const wrap = (value: number, size: number) => ((value % size) + size) % size;
@@ -61,68 +60,7 @@ function makeStars(width: number, height: number, layer: (typeof STAR_LAYERS)[nu
   }));
 }
 
-// Clouds of soft light in two or three colors, seamless across the tile's
-// ends, with a faint galaxy among them; sized by the view's shorter side
-// (`unit`), so a tall phone's sky is not one cloud
-function makeNebula(width: number, height: number, unit: number, scale: number): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.ceil(width * scale);
-  canvas.height = Math.ceil(height * scale);
-  const ctx = canvas.getContext('2d')!;
-  ctx.scale(scale, scale);
-  ctx.globalCompositeOperation = 'lighter';
-  const blob = (x: number, y: number, r: number, color: string, alpha: number) => {
-    for (const dx of [-width, 0, width]) {
-      const gradient = ctx.createRadialGradient(x + dx, y, 0, x + dx, y, r);
-      gradient.addColorStop(0, color);
-      gradient.addColorStop(1, 'transparent');
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = gradient;
-      ctx.fillRect(x + dx - r, y - r, r * 2, r * 2);
-    }
-  };
-  const clouds = 3;
-  for (let c = 0; c < clouds; c++) {
-    const cx = ((c + rand(0.15, 0.85)) / clouds) * width;
-    const cy = rand(0.2, 0.8) * height;
-    const colors = [NEBULA_COLORS[(c * 2) % NEBULA_COLORS.length], NEBULA_COLORS[(c * 2 + 1) % NEBULA_COLORS.length]];
-    for (let i = 0; i < 26; i++) {
-      const spread = unit * 0.55;
-      blob(
-        cx + rand(-1, 1) * spread * 1.4,
-        cy + rand(-1, 1) * spread * 0.5,
-        rand(0.12, 0.42) * unit,
-        colors[i % 2],
-        rand(0.035, 0.09)
-      );
-    }
-    // A brighter, denser heart
-    blob(cx, cy, unit * 0.18, colors[0], 0.11);
-  }
-  // A galaxy far away: a tilted, glowing ellipse
-  const gx = rand(0.1, 0.9) * width;
-  const gy = rand(0.15, 0.4) * height;
-  ctx.save();
-  ctx.translate(gx, gy);
-  ctx.rotate(-0.35);
-  ctx.scale(1, 0.32);
-  for (const [r, alpha] of [
-    [unit * 0.09, 0.08],
-    [unit * 0.035, 0.22],
-    [unit * 0.012, 0.5],
-  ] as const) {
-    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-    gradient.addColorStop(0, '#f5f0ff');
-    gradient.addColorStop(1, 'transparent');
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = gradient;
-    ctx.fillRect(-r, -r, r * 2, r * 2);
-  }
-  ctx.restore();
-  return canvas;
-}
-
-// A small planet lit from the right (where the ship is heading), with a thin ring
+// A small dark planet lit from the right (where the ship is heading), in greys, with a thin ring
 function makePlanet(radius: number, scale: number): HTMLCanvasElement {
   const size = radius * 3.2;
   const canvas = document.createElement('canvas');
@@ -132,15 +70,15 @@ function makePlanet(radius: number, scale: number): HTMLCanvasElement {
   const c = size / 2;
   // Its glow
   const halo = ctx.createRadialGradient(c, c, radius * 0.9, c, c, radius * 1.5);
-  halo.addColorStop(0, 'rgba(120, 160, 255, 0.18)');
+  halo.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
   halo.addColorStop(1, 'transparent');
   ctx.fillStyle = halo;
   ctx.fillRect(0, 0, size, size);
   // Its body, light on the right fading to night on the left
   const body = ctx.createRadialGradient(c + radius * 0.45, c - radius * 0.25, radius * 0.1, c, c, radius);
-  body.addColorStop(0, '#7a8fc7');
-  body.addColorStop(0.55, '#3b3f7a');
-  body.addColorStop(1, '#0d0f24');
+  body.addColorStop(0, '#3a3a3a');
+  body.addColorStop(0.55, '#1a1a1a');
+  body.addColorStop(1, '#050505');
   ctx.beginPath();
   ctx.arc(c, c, radius, 0, Math.PI * 2);
   ctx.fillStyle = body;
@@ -148,9 +86,9 @@ function makePlanet(radius: number, scale: number): HTMLCanvasElement {
   // Bands across it
   ctx.save();
   ctx.clip();
-  ctx.globalAlpha = 0.12;
+  ctx.globalAlpha = 0.1;
   for (let i = -3; i <= 3; i++) {
-    ctx.fillStyle = i % 2 ? '#a5b4fc' : '#1e1b4b';
+    ctx.fillStyle = i % 2 ? '#8a8a8a' : '#000000';
     ctx.fillRect(c - radius, c + i * radius * 0.22 - radius * 0.06, radius * 2, radius * 0.1);
   }
   ctx.restore();
@@ -161,7 +99,7 @@ function makePlanet(radius: number, scale: number): HTMLCanvasElement {
   ctx.scale(1, 0.24);
   ctx.beginPath();
   ctx.arc(0, 0, radius * 1.45, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(190, 200, 255, 0.22)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
   ctx.lineWidth = radius * 0.16;
   ctx.stroke();
   ctx.restore();
@@ -183,7 +121,6 @@ export function JamSpace({ travel, time, beatMs }: JamSpaceProps) {
     let scale = 1;
     let stars: Star[][] = [];
     let lines: { x: number; y: number; length: number; alpha: number }[] = [];
-    let nebula: HTMLCanvasElement | null = null;
     let planet: HTMLCanvasElement | null = null;
     let planetSize = 0;
     let planetY = 0;
@@ -203,11 +140,9 @@ export function JamSpace({ travel, time, beatMs }: JamSpaceProps) {
         x: Math.random() * tile,
         y: Math.random() * height,
         length: rand(0.5, 1),
-        alpha: rand(0.05, 0.13),
+        alpha: rand(0.03, 0.07),
       }));
-      const unit = Math.min(width, height);
-      nebula = makeNebula(width * 2.5, height, unit, scale);
-      const radius = Math.max(14, unit * 0.05);
+      const radius = Math.max(14, Math.min(width, height) * 0.05);
       planet = makePlanet(radius, scale);
       planetSize = radius * 3.2;
       planetY = height * rand(0.22, 0.4);
@@ -241,26 +176,19 @@ export function JamSpace({ travel, time, beatMs }: JamSpaceProps) {
       const pulse = fast * Math.exp(-beatPhase * 5);
 
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      // Deep space: blue-black, a little lighter ahead (right)
+      // Deep space: black, a shade lighter ahead (right)
       const deep = ctx.createLinearGradient(0, 0, width, 0);
-      deep.addColorStop(0, '#04050a');
-      deep.addColorStop(1, '#070a17');
+      deep.addColorStop(0, '#000000');
+      deep.addColorStop(1, '#0b0b0b');
       ctx.fillStyle = deep;
       ctx.fillRect(0, 0, width, height);
-
-      if (nebula) {
-        const span = nebula.width / scale;
-        const x = -wrap(camera * NEBULA_DEPTH, span);
-        ctx.drawImage(nebula, x, 0, span, height);
-        ctx.drawImage(nebula, x + span, 0, span, height);
-      }
 
       // The planet passes now and then: once every four widths of travel
       if (planet) {
         const period = width * 4;
         const x = width - wrap(camera * PLANET_DEPTH + width * 0.6, period) + planetSize;
         if (x > -planetSize && x < width + planetSize) {
-          ctx.globalAlpha = 0.8;
+          ctx.globalAlpha = 0.7;
           ctx.drawImage(planet, x - planetSize / 2, planetY - planetSize / 2, planetSize, planetSize);
           ctx.globalAlpha = 1;
         }
@@ -269,12 +197,12 @@ export function JamSpace({ travel, time, beatMs }: JamSpaceProps) {
       // Stars, far to near
       const seconds = now / 1000;
       STAR_LAYERS.forEach((layer, index) => {
-        const streak = index === STAR_LAYERS.length - 1 ? fast * 16 : index === 1 ? fast * 4 : 0;
+        const streak = index === STAR_LAYERS.length - 1 ? fast * 12 : index === 1 ? fast * 3 : 0;
         for (const star of stars[index]) {
           const x = wrap(star.x - camera * layer.depth * star.speed, tile) - 80;
           if (x < -40 || x > width + 40) continue;
           const twinkle = star.twinkle ? 1 - star.twinkle * (0.5 + 0.5 * Math.sin(seconds * 1.7 + star.phase)) : 1;
-          const alpha = Math.min(1, star.alpha * twinkle * (index === 2 ? 1 + pulse * 0.6 : 1));
+          const alpha = Math.min(1, star.alpha * twinkle * (index === 2 ? 1 + pulse * 0.4 : 1));
           ctx.globalAlpha = alpha;
           ctx.fillStyle = star.tint;
           if (streak > 1) {
@@ -291,7 +219,7 @@ export function JamSpace({ travel, time, beatMs }: JamSpaceProps) {
           ctx.fill();
           // The nearest stars glow
           if (index === 2) {
-            ctx.globalAlpha = alpha * 0.22;
+            ctx.globalAlpha = alpha * 0.12;
             ctx.beginPath();
             ctx.arc(x, star.y, star.r * 3, 0, Math.PI * 2);
             ctx.fill();
@@ -307,7 +235,7 @@ export function JamSpace({ travel, time, beatMs }: JamSpaceProps) {
           const x = wrap(line.x - offset, tile) - 80;
           if (x + length < 0 || x > width) continue;
           const gradient = ctx.createLinearGradient(x, 0, x + length, 0);
-          gradient.addColorStop(0, '#dbeafe');
+          gradient.addColorStop(0, '#ffffff');
           gradient.addColorStop(1, 'transparent');
           ctx.globalAlpha = line.alpha * fast * (1 + pulse);
           ctx.fillStyle = gradient;
