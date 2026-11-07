@@ -6,6 +6,7 @@
 // nothing are refused too.
 //
 //   node tools/list-presets.mjs <banks dir> <presets.inc> <dist>
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -50,11 +51,17 @@ const ids = new Set();
 fs.rmSync(path.join(dist, 'presets'), { recursive: true, force: true });
 fs.mkdirSync(path.join(dist, 'presets'), { recursive: true });
 for (const bank of BANKS) {
-  const folder = path.join(banksDir, bank.dir, bank.presets);
-  const files = fs
-    .readdirSync(folder)
+  // Read from the bank's git checkout, not its folder: one bank has files
+  // whose names differ only in case, which a case-insensitive file system
+  // (macOS) keeps only one of
+  const repository = path.join(banksDir, bank.dir);
+  const git = (...args) => execFileSync('git', ['-C', repository, ...args], { maxBuffer: 1 << 28 });
+  const prefix = bank.presets === '.' ? '' : `${bank.presets}/`;
+  const files = git('ls-tree', '--name-only', '-z', `HEAD:${bank.presets === '.' ? '' : bank.presets}`)
+    .toString('utf8')
+    .split('\0')
     .filter((file) => file.endsWith('.vital'))
-    .sort((a, b) => a.localeCompare(b));
+    .sort((a, b) => a.localeCompare(b, 'en') || (a < b ? -1 : 1));
   for (const file of files) {
     if (SILENT.has(`${bank.dir}/${bank.presets}/${file}`)) {
       refused.push(`${bank.prefix}: ${file} (plays nothing)`);
@@ -62,7 +69,7 @@ for (const bank of BANKS) {
     }
     let data;
     try {
-      data = JSON.parse(fs.readFileSync(path.join(folder, file), 'utf8'));
+      data = JSON.parse(git('show', `HEAD:${prefix}${file}`).toString('utf8'));
     } catch {
       refused.push(`${bank.prefix}: ${file} (not a readable preset file)`);
       continue;

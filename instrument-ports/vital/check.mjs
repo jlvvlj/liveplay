@@ -5,7 +5,7 @@
 // playing allocates, or the pack does not sound like the file. Prints how
 // long loading and rendering take.
 //
-//   node check.mjs [--all] [--preset <id>] [--wav out.wav]
+//   node check.mjs [--all] [--preset <id>] [--files <dir>] [--wav out.wav]
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -174,7 +174,15 @@ for (const instance of [loader, player]) {
 if (quiet > init.db - 40) failures.push(`osc_1_level at 0 left the init sound at ${quiet.toFixed(1)} dB`);
 else console.log(`osc_1_level at 0: ${quiet.toFixed(1)} dB`);
 
-const presets = option('--preset')
+// --files <dir>: every .vital file in a folder, each sent as the first
+// preset (the module loads whatever file it is sent)
+const fileOf = (preset) => preset.file || path.join(dist, 'presets', `${preset.id}.vital`);
+const presets = option('--files')
+  ? fs
+      .readdirSync(option('--files'))
+      .filter((file) => file.endsWith('.vital'))
+      .map((file) => ({ id: ready.presets[0].id, label: file, file: path.join(option('--files'), file) }))
+  : option('--preset')
   ? ready.presets.filter((preset) => preset.id === option('--preset'))
   : args.includes('--all')
     ? ready.presets
@@ -196,23 +204,24 @@ let slowestPack = 0;
 let slowestRender = 0;
 let largestPack = 0;
 for (const preset of presets) {
-  const file = fs.readFileSync(path.join(dist, 'presets', `${preset.id}.vital`));
+  const file = fs.readFileSync(fileOf(preset));
+  const label = preset.label || preset.id;
   const read = load(loader, preset.id, file);
   const wasm = loader.processor.wasm;
   const packed = Buffer.from(new Uint8Array(wasm.memory.buffer, wasm.mp_pack_preset(), wasm.mp_pack_preset_size()));
-  if (packed.length === 0) failures.push(`${preset.id}: not packed`);
-  const fromFile = play(loader, `${preset.id} (file)`);
+  if (packed.length === 0) failures.push(`${label}: not packed`);
+  const fromFile = play(loader, `${label} (file)`);
   const unpack = load(player, preset.id, packed);
-  const fromPack = play(player, `${preset.id} (pack)`);
+  const fromPack = play(player, `${label} (pack)`);
   const diff = difference(fromFile.samples, fromPack.samples);
-  if (diff > -40) failures.push(`${preset.id}: the pack sounds different (${diff.toFixed(1)} dB)`);
+  if (diff > -40) failures.push(`${label}: the pack sounds different (${diff.toFixed(1)} dB)`);
   if (option('--wav')) writeWav(option('--wav'), fromPack.samples);
   slowestRead = Math.max(slowestRead, read);
   slowestPack = Math.max(slowestPack, unpack);
   slowestRender = Math.max(slowestRender, fromPack.realtime);
   largestPack = Math.max(largestPack, packed.length);
   console.log(
-    `${preset.id.padEnd(36)} ${fromPack.db.toFixed(1).padStart(6)} dB  read ${read.toFixed(0).padStart(4)} ms  ` +
+    `${label.padEnd(36)} ${fromPack.db.toFixed(1).padStart(6)} dB  read ${read.toFixed(0).padStart(4)} ms  ` +
       `pack ${(packed.length / 1e6).toFixed(1).padStart(5)} MB, loaded in ${unpack.toFixed(1).padStart(5)} ms  ` +
       `render ${(fromPack.realtime * 100).toFixed(1).padStart(4)}%  pack vs file ${diff.toFixed(0)} dB`
   );
