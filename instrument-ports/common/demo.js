@@ -2,9 +2,11 @@
 // computer keyboard or the on-screen keys, its parameters as sliders and its
 // presets as a menu.
 //
-// demo({ title, instruments: [{ name, label, effect?, source? }] })
+// demo({ title, instruments: [{ name, label, effect?, source?, presets?, loader? }] })
 //   name: the dist/<name>.wasm and dist/<name>.worklet.js to load
 //   effect: true for an audio effect; it is played through by `source`
+//   presets, loader: for a port whose presets are files (Vital), where each is
+//     in dist/ ({id} for its id) and the Worker that reads one for the worklet
 
 const KEYS = ['a', 'w', 's', 'e', 'd', 'f', 't', 'g', 'y', 'h', 'u', 'j', 'k', 'o', 'l', 'p', ';', "'"];
 const BLACK = new Set([1, 3, 6, 8, 10]);
@@ -19,6 +21,40 @@ const el = (tag, className, parent) => {
 };
 
 const wasmCache = new Map();
+const wasmBytes = new Map();
+
+// A preset message, with the preset's file read by the port's loader when its
+// presets are files
+const loaders = new Map();
+let requests = 0;
+async function presetMessage(context, def, id) {
+  if (!def.presets) return { message: { type: 'preset', id } };
+  if (!loaders.has(def.name)) {
+    const worker = new Worker(`dist/${def.loader}`);
+    worker.postMessage({ type: 'start', wasm: await WebAssembly.compile(wasmBytes.get(def.name)), sampleRate: context.sampleRate });
+    loaders.set(def.name, worker);
+  }
+  const worker = loaders.get(def.name);
+  const response = await fetch(`dist/${def.presets.replace('{id}', id)}`);
+  if (!response.ok) throw new Error(`${def.presets.replace('{id}', id)}: ${response.status}`);
+  const bytes = await response.arrayBuffer();
+  const request = ++requests;
+  const answer = await new Promise((resolve) => {
+    const listen = ({ data }) => {
+      if (data.id !== request) return;
+      worker.removeEventListener('message', listen);
+      resolve(data);
+    };
+    worker.addEventListener('message', listen);
+    worker.postMessage({ type: 'pack', id: request, data: bytes }, [bytes]);
+  });
+  if (answer.type !== 'packed') throw new Error(answer.message);
+  return { message: { type: 'preset', id, data: answer.data }, transfer: [answer.data] };
+}
+async function sendPreset(context, instrument, id) {
+  const { message, transfer } = await presetMessage(context, instrument, id);
+  instrument.node.port.postMessage(message, transfer || []);
+}
 async function loadNode(context, name, effect) {
   if (!wasmCache.has(name)) {
     wasmCache.set(
@@ -33,6 +69,7 @@ async function loadNode(context, name, effect) {
     );
   }
   const bytes = await wasmCache.get(name);
+  wasmBytes.set(name, bytes);
   const node = new AudioWorkletNode(context, `melodics-${name}`, {
     numberOfInputs: effect ? 1 : 0,
     numberOfOutputs: 1,
@@ -352,7 +389,9 @@ export function demo({ title, instruments }) {
     i = (i + presets.length) % presets.length;
     active.preset = i;
     presetMenu.set(i);
-    active.node.port.postMessage({ type: 'preset', id: presets[i].id });
+    sendPreset(context, active, presets[i].id).catch((error) => {
+      status.textContent = String(error.message || error);
+    });
   };
   prev.onclick = () => choosePreset((active?.preset ?? 0) - 1);
   next.onclick = () => choosePreset((active?.preset ?? 0) + 1);
@@ -372,7 +411,7 @@ export function demo({ title, instruments }) {
       loaded.set(def.name, instrument);
       if (ready.presets.length) {
         instrument.preset = 0;
-        node.port.postMessage({ type: 'preset', id: ready.presets[0].id });
+        await sendPreset(context, instrument, ready.presets[0].id);
       }
     }
     const instrument = loaded.get(def.name);

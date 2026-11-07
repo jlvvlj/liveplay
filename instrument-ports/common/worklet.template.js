@@ -11,11 +11,13 @@
 //   {type:'noteOff', note, time}
 //   {type:'allOff'}                          stops every voice, drops pending notes
 //   {type:'param', key, value}
-//   {type:'preset', id}
+//   {type:'preset', id, data?}               data: the preset's file, for a port
+//                                            whose presets are fetched (Vital)
 // Messages out:
 //   {type:'ready', params:[{key,label,min,max,step,default}], presets:[{id,name}]}
 //   {type:'presetLoaded', id, values:{key: value}}   after a preset message
-//   {type:'error', message}                          the module failed to start
+//   {type:'error', message}                          the module failed to start,
+//                                                    or a preset could not load
 //
 // Notes are applied at their own sample inside the block. Nothing is
 // allocated in process().
@@ -171,7 +173,16 @@ class MelodicsPort extends AudioWorkletProcessor {
       case 'preset': {
         const index = this.presetIndex.get(String(message.id));
         if (!this.wasm || index === undefined) break;
+        if (message.data && this.wasm.mp_preset_buffer) {
+          const bytes = new Uint8Array(message.data);
+          const at = this.wasm.mp_preset_buffer(bytes.length);
+          new Uint8Array(this.memory.buffer, at, bytes.length).set(bytes);
+        }
         this.wasm.mp_load_preset(index);
+        if (this.wasm.mp_preset_error && this.wasm.mp_preset_error()) {
+          this.port.postMessage({ type: 'error', message: `preset ${message.id} could not be loaded` });
+          break;
+        }
         const values = {};
         this.params.forEach((param, i) => {
           values[param.key] = this.wasm.mp_get_param(i);

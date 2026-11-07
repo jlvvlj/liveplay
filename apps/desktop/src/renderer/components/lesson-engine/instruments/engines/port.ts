@@ -3,8 +3,8 @@ import { JAM_SOUND_LOUDNESS } from '../../jamLoudness';
 import type { LiveInstrument, ParamSpec, ParamValues } from '../types';
 
 // Synths compiled from their own C++ to WebAssembly (instrument-ports/):
-// Surge XT, OB-Xf, Dexed, Helm and Mutable Instruments' modules, each an
-// AudioWorklet that takes notes, parameters and presets as messages. Their
+// Surge XT, OB-Xf, Dexed, Helm, Vital and Mutable Instruments' modules, each
+// an AudioWorklet that takes notes, parameters and presets as messages. Their
 // files and catalog (instrument-ports/catalog.mjs) are served under
 // /instrument-ports/.
 
@@ -15,7 +15,10 @@ export interface PortEntry {
   name: string;
   label: string;
   effect: boolean;
-  files: { worklet: string; wasm: string; data?: string };
+  // `presets`: where each preset's file is (its id in place of {id}), for a
+  // port whose presets are fetched when played; `loader`: the Worker that
+  // reads such a file for the worklet
+  files: { worklet: string; wasm: string; data?: string; presets?: string; loader?: string };
   params: ParamSpec[];
   // `raw`: the id the port knows the preset by; `loudness`: dB RMS of a note
   // of the preset (instruments only)
@@ -70,12 +73,90 @@ async function portNode(entry: PortEntry, inputs: number): Promise<AudioWorkletN
     processorOptions: { wasm, ...(data ? { data } : {}) },
   }) as unknown as AudioWorkletNode;
   await new Promise<void>((resolve, reject) => {
+    let started = false;
     node.port.onmessage = ({ data: message }) => {
-      if (message.type === 'ready') resolve();
-      else if (message.type === 'error') reject(new Error(`${entry.label}: ${message.message}`));
+      if (message.type === 'ready') {
+        started = true;
+        resolve();
+      } else if (message.type === 'error') {
+        // After it has started, a preset that could not be loaded
+        if (started) console.error(`[PortInstrument] ${entry.label}: ${message.message}`);
+        else reject(new Error(`${entry.label}: ${message.message}`));
+      }
     };
   });
   return node;
+}
+
+// For a port whose presets are files (Vital): its loader Worker, one per port,
+// with its own instance of the port's module. It reads a preset's file and
+// packs it, so the worklet only copies the result in: reading takes up to
+// half a second, which the audio thread every instrument shares cannot spare.
+const loaders = new Map<string, { worker: Worker; waiting: Map<number, (answer: { type: string; data?: ArrayBuffer; message?: string }) => void> }>();
+let loaderRequests = 0;
+async function presetLoader(entry: PortEntry) {
+  const existing = loaders.get(entry.name);
+  if (existing) return existing;
+  const { wasm } = await loadPort(entry);
+  if (loaders.has(entry.name)) return loaders.get(entry.name)!;
+  const worker = new Worker(`${PORTS_URL}${entry.name}/${entry.files.loader}`);
+  const loader = { worker, waiting: new Map() };
+  worker.onmessage = ({ data: answer }) => {
+    loader.waiting.get(answer.id)?.(answer);
+    loader.waiting.delete(answer.id);
+  };
+  worker.postMessage({ type: 'start', wasm, sampleRate: Tone.getContext().sampleRate });
+  loaders.set(entry.name, loader);
+  return loader;
+}
+
+// A preset's file, fetched and packed by the port's loader
+async function presetData(entry: PortEntry, raw: string | number): Promise<ArrayBuffer> {
+  const file = entry.files.presets!.replace('{id}', String(raw));
+  const [response, loader] = await Promise.all([fetch(`${PORTS_URL}${entry.name}/${file}`), presetLoader(entry)]);
+  if (!response.ok) throw new Error(`${entry.label}: ${file} answered HTTP ${response.status}`);
+  const bytes = await response.arrayBuffer();
+  const id = ++loaderRequests;
+  const answer = await new Promise<{ type: string; data?: ArrayBuffer; message?: string }>((resolve) => {
+    loader.waiting.set(id, resolve);
+    loader.worker.postMessage({ type: 'pack', id, data: bytes }, [bytes]);
+  });
+  if (answer.type !== 'packed' || !answer.data) throw new Error(`${entry.label}: ${file}: ${answer.message}`);
+  return answer.data;
+}
+
+// What a port's node is sent, in order: a preset whose file is fetched first
+// holds back the messages after it. A preset chosen while an earlier one is
+// still being fetched replaces it.
+export class PortSender {
+  private queue = Promise.resolve();
+  private presets = 0;
+
+  constructor(
+    private readonly entry: PortEntry,
+    private readonly node: () => Pick<AudioWorkletNode, 'port'> | null,
+    private readonly fetchPreset: (entry: PortEntry, raw: string | number) => Promise<ArrayBuffer> = presetData
+  ) {}
+
+  // Resolves once every message sent so far has been delivered or dropped
+  settled() {
+    return this.queue;
+  }
+
+  send(message: { type: string; id?: string | number }) {
+    if (message.type !== 'preset' || !this.entry.files.presets) {
+      this.queue = this.queue.then(() => this.node()?.port.postMessage(message));
+      return;
+    }
+    const number = ++this.presets;
+    const data = this.fetchPreset(this.entry, message.id!);
+    this.queue = this.queue
+      .then(() => data)
+      .then((packed) => {
+        if (number === this.presets) this.node()?.port.postMessage({ ...message, data: packed }, [packed]);
+      })
+      .catch((err) => console.error(`[PortInstrument] ${this.entry.label} preset ${message.id}:`, err));
+  }
 }
 
 // What a port's node is sent: a preset, then each parameter that differs from
@@ -132,7 +213,8 @@ export class PortInstrument implements LiveInstrument {
     this.preset = preset;
     this.params = params;
     this.output.gain.value = portGain(entry, preset);
-    this.control = new PortControl(entry, (message) => this.node?.port.postMessage(message));
+    const sender = new PortSender(entry, () => this.node);
+    this.control = new PortControl(entry, (message) => sender.send(message as { type: string }));
     this.ready = this.start();
   }
 
