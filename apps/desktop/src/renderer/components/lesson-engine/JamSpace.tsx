@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 
-// The jam highway's backdrop: flying right through deep space, in black and
-// greys only. A passing planet barely moves, three layers of faint stars
-// stream left the nearer the faster (the nearest drawn out into streaks with
-// speed), and thin speed lines rush past. It travels with the highway (`travel`, in its
-// pixels), so space moves exactly as fast as the notes, and drifts on
+// The jam highway's backdrop: flying right through deep space, in dark greys
+// only. Three layers of faint stars stream left the nearer the faster (the
+// nearest drawn out into streaks with speed), and thin speed lines rush past.
+// It travels with the highway (`travel`, in its pixels), so space moves
+// exactly as fast as the notes, and drifts on
 // slowly while the song is paused. The nearest stars and the speed lines
 // brighten on each beat.
 
@@ -36,7 +36,6 @@ const STAR_LAYERS = [
 ];
 // Whites and greys, never a color
 const STAR_TINTS = ['#ffffff', '#e5e5e5', '#d4d4d4'];
-const PLANET_DEPTH = 0.022;
 const LINE_DEPTH = 1.5;
 const LINES_PER_PX = 0.0000075;
 // Space drifts this fast (highway px/s) while the song is paused
@@ -60,52 +59,6 @@ function makeStars(width: number, height: number, layer: (typeof STAR_LAYERS)[nu
   }));
 }
 
-// A small dark planet lit from the right (where the ship is heading), in greys, with a thin ring
-function makePlanet(radius: number, scale: number): HTMLCanvasElement {
-  const size = radius * 3.2;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = Math.ceil(size * scale);
-  const ctx = canvas.getContext('2d')!;
-  ctx.scale(scale, scale);
-  const c = size / 2;
-  // Its glow
-  const halo = ctx.createRadialGradient(c, c, radius * 0.9, c, c, radius * 1.5);
-  halo.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
-  halo.addColorStop(1, 'transparent');
-  ctx.fillStyle = halo;
-  ctx.fillRect(0, 0, size, size);
-  // Its body, light on the right fading to night on the left
-  const body = ctx.createRadialGradient(c + radius * 0.45, c - radius * 0.25, radius * 0.1, c, c, radius);
-  body.addColorStop(0, '#3a3a3a');
-  body.addColorStop(0.55, '#1a1a1a');
-  body.addColorStop(1, '#050505');
-  ctx.beginPath();
-  ctx.arc(c, c, radius, 0, Math.PI * 2);
-  ctx.fillStyle = body;
-  ctx.fill();
-  // Bands across it
-  ctx.save();
-  ctx.clip();
-  ctx.globalAlpha = 0.1;
-  for (let i = -3; i <= 3; i++) {
-    ctx.fillStyle = i % 2 ? '#8a8a8a' : '#000000';
-    ctx.fillRect(c - radius, c + i * radius * 0.22 - radius * 0.06, radius * 2, radius * 0.1);
-  }
-  ctx.restore();
-  // Its ring, tilted
-  ctx.save();
-  ctx.translate(c, c);
-  ctx.rotate(-0.28);
-  ctx.scale(1, 0.24);
-  ctx.beginPath();
-  ctx.arc(0, 0, radius * 1.45, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-  ctx.lineWidth = radius * 0.16;
-  ctx.stroke();
-  ctx.restore();
-  return canvas;
-}
-
 export function JamSpace({ travel, time, beatMs }: JamSpaceProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // The highway's latest position and clock, read by the drawing loop
@@ -121,9 +74,6 @@ export function JamSpace({ travel, time, beatMs }: JamSpaceProps) {
     let scale = 1;
     let stars: Star[][] = [];
     let lines: { x: number; y: number; length: number; alpha: number }[] = [];
-    let planet: HTMLCanvasElement | null = null;
-    let planetSize = 0;
-    let planetY = 0;
     // Stars' tiles are a little wider than the view, so the same star never shows twice
     let tile = 0;
 
@@ -142,10 +92,6 @@ export function JamSpace({ travel, time, beatMs }: JamSpaceProps) {
         length: rand(0.5, 1),
         alpha: rand(0.03, 0.07),
       }));
-      const radius = Math.max(14, Math.min(width, height) * 0.05);
-      planet = makePlanet(radius, scale);
-      planetSize = radius * 3.2;
-      planetY = height * rand(0.22, 0.4);
     };
     build();
     const resized = new ResizeObserver(build);
@@ -176,23 +122,12 @@ export function JamSpace({ travel, time, beatMs }: JamSpaceProps) {
       const pulse = fast * Math.exp(-beatPhase * 5);
 
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      // Deep space: black, a shade lighter ahead (right)
+      // Deep space: a dark grey, a shade lighter ahead (right)
       const deep = ctx.createLinearGradient(0, 0, width, 0);
-      deep.addColorStop(0, '#000000');
-      deep.addColorStop(1, '#0b0b0b');
+      deep.addColorStop(0, '#0c0c0e');
+      deep.addColorStop(1, '#161618');
       ctx.fillStyle = deep;
       ctx.fillRect(0, 0, width, height);
-
-      // The planet passes now and then: once every four widths of travel
-      if (planet) {
-        const period = width * 4;
-        const x = width - wrap(camera * PLANET_DEPTH + width * 0.6, period) + planetSize;
-        if (x > -planetSize && x < width + planetSize) {
-          ctx.globalAlpha = 0.7;
-          ctx.drawImage(planet, x - planetSize / 2, planetY - planetSize / 2, planetSize, planetSize);
-          ctx.globalAlpha = 1;
-        }
-      }
 
       // Stars, far to near
       const seconds = now / 1000;
