@@ -2058,3 +2058,331 @@
   background: var(--ds-text);
   color: var(--ds-on-light);
 }
+
+/* The jam sidebar, styled as the instruments panel: plain section titles,
+   choices as pills in a track (white when chosen), pill buttons with line
+   icons */
+.jam-sidebar .game-settings-content {
+  padding: 0.25rem 1.25rem 1.5rem;
+}
+
+.jam-sidebar .jam-side-section {
+  margin: 0;
+  padding: 1.1rem 0;
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.jam-sidebar .jam-side-section:last-child {
+  border-bottom: none;
+}
+
+.jam-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 28px;
+  margin-bottom: 0.7rem;
+}
+
+.jam-side-head h3 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ds-text);
+}
+
+.jam-side-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text);
+}
+
+/* One choice of a few: pills in a track */
+.jam-segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-panel-2);
+}
+
+.jam-segmented button {
+  flex: 1;
+  min-width: 0;
+  padding: 0.42rem 0.5rem;
+  border: none;
+  border-radius: var(--ds-radius-pill);
+  background: transparent;
+  color: var(--ds-text-dim);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.jam-segmented button:hover {
+  color: var(--ds-text);
+}
+
+.jam-segmented button.active {
+  background: var(--ds-text);
+  color: var(--ds-on-light);
+}
+
+.jam-segmented.small {
+  flex: none;
+  padding: 2px;
+}
+
+.jam-segmented.small button {
+  flex: none;
+  padding: 0.22rem 0.6rem;
+  font-size: 0.74rem;
+}
+
+/* Pill buttons, with an icon before their label */
+.jam-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-pill);
+  background: transparent;
+  color: var(--ds-text);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.jam-pill-btn:hover {
+  background: var(--ds-raised);
+}
+
+.jam-pill-btn.active,
+.jam-pill-btn.primary {
+  border-color: var(--ds-text);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
+}
+
+.jam-pill-btn.primary:hover {
+  filter: brightness(0.92);
+}
+
+.jam-pill-btn.small {
+  padding: 0.25rem 0.65rem;
+  font-size: 0.74rem;
+}
+
+.jam-side-buttons {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.jam-side-buttons .jam-pill-btn {
+  flex: 1;
+}
+
+.jam-sidebar .jam-lesson-score {
+  margin: -0.2rem 0 0.7rem;
+}
+
+.jam-sidebar .jam-slider {
+  margin-top: 0.85rem;
+}
+
+.jam-sidebar .jam-slider:first-of-type {
+  margin-top: 0;
+}
+
+.jam-sidebar .jam-slider-head {
+  font-size: 0.8rem;
+  color: var(--ds-text-dim);
+}
+
+.jam-sidebar .jam-slider-value {
+  color: var(--ds-text);
+}
+
+.jam-sidebar .jam-subhead {
+  margin: 1rem 0 0.5rem;
+}
+
+/* Songs to choose from */
+.jam-sidebar .jam-sound-grid .jam-sound-option {
+  border-color: transparent;
+  border-radius: 10px;
+  background: var(--ds-panel-2);
+}
+
+.jam-sidebar .jam-sound-grid .jam-sound-option.active {
+  background: var(--ds-text);
+}
+
+/* Playing together: the room, and each player with their avatar */
+.jam-sidebar .jam-room-code {
+  margin-bottom: 0.6rem;
+}
+
+.jam-sidebar .jam-room-code > .jam-room-open {
+  flex: none;
+  font-family: inherit;
+  font-size: 0.84rem;
+  letter-spacing: 0;
+  color: var(--ds-text-dim);
+}
+
+.jam-sidebar .jam-room-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.25rem;
+  letter-spacing: 0.18em;
+  color: var(--ds-text);
+}
+
+.jam-sidebar .jam-room-players {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  margin-top: 0;
+}
+
+.jam-sidebar .jam-room-player {
+  gap: 0.55rem;
+  padding: 0.3rem 0.75rem 0.3rem 0.3rem;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-panel-2);
+  font-size: 0.84rem;
+}
+
+.jam-sidebar .jam-room-player-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jam-room-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  color: var(--ds-on-light);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.jam-sidebar .jam-room-name {
+  border-bottom: 1px solid transparent;
+}
+
+.jam-sidebar .jam-room-name:hover {
+  border-bottom-color: var(--ds-border-strong);
+}
+
+.jam-sidebar .jam-room-name:focus {
+  border-bottom-color: var(--ds-text-dim);
+}
+
+/* Keys: what the keys show, and the MIDI input's state */
+.jam-sidebar .jam-keys-row {
+  gap: 0.5rem;
+}
+
+.jam-midi-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text-dim);
+}
+
+.jam-midi-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ds-border-strong);
+}
+
+.jam-midi-status.active {
+  color: var(--ds-text);
+}
+
+.jam-midi-status.active i {
+  background: var(--ds-success);
+  box-shadow: 0 0 6px var(--ds-success);
+}
+
+.jam-sidebar .jam-instrument-current {
+  margin-top: 0;
+  border-color: transparent;
+  background: var(--ds-panel-2);
+}
+
+.jam-sidebar .jam-instrument-current:hover {
+  background: var(--ds-raised);
+}
+
+/* A lesson's sounds, as the sidebar's other rows: filled pills, their state in white */
+.jam-sidebar .sound-toggle {
+  padding: 0.4rem 0.75rem 0.4rem 0.4rem;
+  border-color: transparent;
+  font-size: 0.84rem;
+}
+
+.jam-sidebar .sound-toggle:hover:not(:disabled) {
+  background: var(--ds-raised);
+}
+
+.jam-sidebar .sound-toggle.off {
+  border-color: var(--ds-border);
+  background: transparent;
+}
+
+.jam-sidebar .sound-toggle kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--ds-raised);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.jam-sidebar .sound-toggle-state {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ds-text);
+}
+
+.jam-sidebar .sound-toggle.off .sound-toggle-state {
+  color: var(--ds-text-dim);
+}
+
+/* The sidebar's own scrollbar, thin and dark */
+.jam-sidebar .game-settings-content,
+.jam-sidebar .sound-toggle-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-border-strong) transparent;
+}
