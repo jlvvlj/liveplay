@@ -1,6 +1,6 @@
 import * as Tone from 'tone';
 import { renderJamPartSound } from './jamAudition';
-import { JAM_BACKING_TOP_DB } from './jamBackingMixer';
+import { JAM_BACKING_TOP_DB, jamLimiter } from './jamBackingMixer';
 import { jamAddedInstrument, type JamAddedPart } from './jamAddedParts';
 import type { JamLessonLane } from './jamLessonRooms';
 import { InstrumentChannel } from './instruments/channel';
@@ -34,7 +34,7 @@ export interface JamLessonLive {
 export class JamLessonVoices {
   // Silent until the track's loudness is known (setScale)
   private readonly output = new Tone.Volume(-Infinity);
-  private readonly limiter = new Tone.Limiter(-1).toDestination();
+  private readonly limiter = jamLimiter();
   private buffers = new Map<number, Tone.ToneAudioBuffer>();
   private channel: InstrumentChannel | null = null;
   private loaded = false;
@@ -47,7 +47,8 @@ export class JamLessonVoices {
     ownParts: number,
     private readonly live: JamLessonLive | null
   ) {
-    this.output.connect(this.limiter);
+    this.limiter.output.toDestination();
+    this.output.connect(this.limiter.input);
     if (live) {
       const channel = new InstrumentChannel(this.output);
       this.channel = channel;

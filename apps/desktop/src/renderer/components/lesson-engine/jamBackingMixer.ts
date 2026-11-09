@@ -21,6 +21,29 @@ export interface BackingPlayer {
 // audible under the played notes
 export const JAM_BACKING_TOP_DB = 4 + 20 * Math.log10(1.3);
 
+const LIMITER_THRESHOLD_DB = -1;
+const LIMITER_RATIO = 20;
+// What a compressor adds to everything it passes (Web Audio's makeup gain, 0.6
+// of what it takes off at full scale), taken back so anything under the limit
+// keeps its level
+const LIMITER_MAKEUP_DB = 0.6 * -LIMITER_THRESHOLD_DB * (1 - 1 / LIMITER_RATIO);
+
+// Holds peaks under 0 dBFS. Tone.Limiter does not: its compressor keeps the
+// default 30 dB knee, so peaks several dB over pass almost untouched.
+export function jamLimiter() {
+  const input = new Tone.Compressor({ threshold: LIMITER_THRESHOLD_DB, ratio: LIMITER_RATIO, knee: 0, attack: 0.001, release: 0.1 });
+  const output = new Tone.Volume(-LIMITER_MAKEUP_DB);
+  input.connect(output);
+  return {
+    input,
+    output,
+    dispose() {
+      input.dispose();
+      output.dispose();
+    },
+  };
+}
+
 // A level of 0 is silent
 const toDb = (level: number) => (level > 0 ? 20 * Math.log10(level) : -Infinity);
 
@@ -30,8 +53,8 @@ const toDb = (level: number) => (level > 0 ? 20 * Math.log10(level) : -Infinity)
 // keep playing.
 export class JamBackingMixer implements BackingPlayer {
   // Raised well above the tracks' loudness, so their peaks are held under 0 dBFS
-  private readonly limiter = new Tone.Limiter(-1).toDestination();
-  private readonly master = new Tone.Volume().connect(this.limiter);
+  private readonly limiter = jamLimiter();
+  private readonly master = new Tone.Volume().connect(this.limiter.input);
   private readonly trim: Tone.Gain;
   private readonly lanes: { level: Tone.Volume; player: Tone.Player }[];
   // Audio time of the loop's start while playing
@@ -45,6 +68,7 @@ export class JamBackingMixer implements BackingPlayer {
   // `scale`: the track's loudness, the gain that brings it to every original
   // track's loudness
   constructor(parts: JamPartAudio[], readonly scale: number, readonly loopSeconds: number) {
+    this.limiter.output.toDestination();
     this.trim = new Tone.Gain(scale).connect(this.master);
     this.lanes = parts.map((audio) => {
       const level = new Tone.Volume().connect(this.trim);
