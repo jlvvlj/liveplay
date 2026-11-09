@@ -39,7 +39,7 @@ import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
 import { jamRoomSongLesson } from './jamSongs';
 import { jamLessonFromSong, type JamLesson } from './jamLessonRooms';
 import { defaultLessonKeys } from './lessonKeys';
-import { jamAbletonAudioUrl, jamAbletonLesson, jamAbletonLessonAtTempo, jamRecordedTrackOf, mixJamAbletonAudio } from './jamAbletonImport';
+import { JAM_RECORDED_TOP_DB, jamAbletonAudioUrl, jamAbletonLesson, jamAbletonLessonAtTempo, jamRecordedNotesDb, jamRecordedTrackOf, mixJamAbletonAudio } from './jamAbletonImport';
 import { JAM_ABLETON_FILE, type JamDawSong } from './jamRoomProtocol';
 import { JamLessonVoices } from './jamLessonVoices';
 import type { JamLessonHit } from './NoteHighway';
@@ -807,6 +807,7 @@ export function LessonPlayer({
   };
   const nextStemPlayerRef = useRef<number>(0);
   const stemPlayerLoadedRef = useRef<boolean>(false);
+  const stemPeakRef = useRef<number>(1);
 
   useEffect(() => {
     stemPlayerLoadedRef.current = false;
@@ -821,9 +822,16 @@ export function LessonPlayer({
         audioUrl(lesson.stemAudio),
         (loaded) => {
           if (disposed) return;
+          let peak = 0;
+          for (let channel = 0; channel < loaded.numberOfChannels; channel++) {
+            for (const sample of loaded.getChannelData(channel)) peak = Math.max(peak, Math.abs(sample));
+          }
+          stemPeakRef.current = peak;
           stemPlayersRef.current = Array.from({ length: 8 }, () => {
             const player = new Tone.Player(loaded).toDestination();
             player.fadeOut = 0.03; // avoid clicks at slice boundaries
+            // Set ahead of the first note, which may start sooner than a change takes effect
+            if (jamLessonRef.current) player.volume.value = jamRecordedNotesDb(jamNotesVolumeRef.current, DEFAULT_JAM_NOTES_VOLUME, peak);
             return player;
           });
           stemPlayerLoadedRef.current = true;
@@ -1459,10 +1467,10 @@ export function LessonPlayer({
   // Update backing track volume when slider changes, and once the track has loaded
   useEffect(() => {
     if (backingTrackRef.current) {
-      const topDb = jamOnly ? JAM_BACKING_TOP_DB : -6;
+      const topDb = jamLessonRef.current && lesson.stemAudio ? JAM_RECORDED_TOP_DB : jamOnly ? JAM_BACKING_TOP_DB : -6;
       backingTrackRef.current.volume.value = backingTrackVolume === 0 ? -Infinity : topDb + (backingTrackVolume - 1) * 20;
     }
-  }, [backingTrackVolume, backingTrackLoaded, jamOnly]);
+  }, [backingTrackVolume, backingTrackLoaded, jamOnly, lesson.stemAudio]);
 
   useEffect(() => {
     if (backingTrackRef.current) {
@@ -1764,8 +1772,10 @@ export function LessonPlayer({
       if (!idlePlayer && player.state === 'started') {
         player.stop();
       }
-      player.volume.value =
-        volumeOverride !== undefined
+      // A lesson room: at the Notes volume in every mode, over the others' recordings
+      player.volume.value = jamLessonRef.current
+        ? jamRecordedNotesDb(volumeOverride ?? jamNotesVolumeRef.current, DEFAULT_JAM_NOTES_VOLUME, stemPeakRef.current)
+        : volumeOverride !== undefined
           ? volumeOverride === 0
             ? -Infinity
             : -6 + (volumeOverride - 1) * 20

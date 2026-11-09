@@ -111,6 +111,16 @@ export const jamAbletonLessonAtTempo = (lesson: Lesson, bpm: number, backingTrac
   };
 };
 
+// A lesson on an imported song: the others' recordings, already at full level,
+// peak at half of full scale at most; so does the player's track at its usual
+// volume, however quiet its recording, to hear it as clearly over them
+export const JAM_RECORDED_TOP_DB = -6;
+const QUIETEST_RECORDING_PEAK = 0.01;
+export const jamRecordedNotesDb = (volume: number, usualVolume: number, recordingPeak: number): number =>
+  volume === 0
+    ? -Infinity
+    : JAM_RECORDED_TOP_DB - 20 * Math.log10(Math.max(recordingPeak, QUIETEST_RECORDING_PEAK)) + (volume - usualVolume) * 20;
+
 const MIX_SAMPLE_RATE = 44100;
 
 // Tracks' audio mixed into one loop of `seconds` (a WAV's blob URL), decoded one
