@@ -10,13 +10,10 @@ import type { JamRoomEnd } from '../desktop/src/renderer/components/lesson-engin
 import { JAM_SONGS, jamRoomSongOf } from '../desktop/src/renderer/components/lesson-engine/jamSongs';
 import { jamSongTracks } from '../desktop/src/renderer/components/lesson-engine/jamLessonRooms';
 import { importAbletonProject } from '../desktop/src/renderer/components/lesson-engine/jamAbletonImport';
-import { AbletonSongView } from '../desktop/src/renderer/components/lesson-engine/AbletonSongView';
 import { JAM_SOUND_PRESETS } from '../desktop/src/renderer/components/lesson-engine/jamSynth';
 import {
   JAM_ROOM_CODE,
   JAM_ROOM_PATH,
-  JAM_ABLETON_FILE,
-  type JamDawSong,
   type JamDawSongSummary,
   type JamRoomSummary,
 } from '../desktop/src/renderer/components/lesson-engine/jamRoomProtocol';
@@ -28,28 +25,6 @@ const jamRoomServer =
   import.meta.env.VITE_JAM_ROOM_URL ?? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${JAM_ROOM_PATH}`;
 // The same server over HTTP: imported songs' audio and their tracks
 const jamHttpServer = new URL(jamRoomServer.replace(/^ws/, 'http')).origin;
-
-// A Daw song's page: an imported song's tracks and recordings, else its grid
-// in the song's room (`grid`)
-function SongPage({ id, grid, onBack }: { id: string; grid: () => React.ReactNode; onBack: () => void }) {
-  const [song, setSong] = useState<JamDawSong | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${jamHttpServer}/jam-songs/${id}`)
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(`That song could not be loaded (${response.status})`))))
-      .then(
-        (found: JamDawSong) => !cancelled && setSong(found),
-        (error) => !cancelled && setProblem(error instanceof Error ? error.message : String(error))
-      );
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-  if (problem) return <div className="jam-lobby"><div className="jam-lobby-note">{problem}</div></div>;
-  if (!song) return null;
-  return song.file === JAM_ABLETON_FILE ? <AbletonSongView song={song} server={jamHttpServer} onBack={onBack} /> : <>{grid()}</>;
-}
 
 // Where the address leads: home, a section's lobby (?daw, ?jam, ?lessons), a
 // Daw song being edited (?song=ID) or a room (?room=KEY), Jam or lesson room
@@ -153,7 +128,6 @@ function JamApp() {
           bpm: song.bpm,
           daw: true,
           tracks: song.tracks,
-          imported: song.file === JAM_ABLETON_FILE,
         })),
     ],
     [songs]
@@ -219,14 +193,7 @@ function JamApp() {
             ended={ended}
           />
         )}
-        {place.at === 'song' && (
-          <SongPage
-            key={place.id}
-            id={place.id}
-            grid={() => player(`song-${place.id}`, { key: place.id, edit: true }, 'daw')}
-            onBack={() => backTo('daw')}
-          />
-        )}
+        {place.at === 'song' && player(`song-${place.id}`, { key: place.id, edit: true }, 'daw')}
         {place.at === 'room' && player(`room-${place.entry.key}`, place.entry, place.from)}
       </main>
     </div>

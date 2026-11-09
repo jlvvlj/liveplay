@@ -2,6 +2,7 @@ import type { SynthPatch } from '../../../../../../instrument-lab/engine/synth.m
 import type { DrumPatchData } from '../../../../../../instrument-lab/engine/drums.mjs';
 import { SOFTER_TRACK } from './jamSofter';
 import { SOFTER_JAM_TRACK } from './jamSofterJam';
+import { JAM_ABLETON_FILE } from './jamRoomProtocol';
 
 // The Jam tab's backing tracks as data, 8 bars each, rendered live by
 // jamTrackRender.ts (as edited in the Jam tab's step grid). The synthesized ones
@@ -69,6 +70,13 @@ export interface JamSampledPart {
   notes: JamTrackNote[];
 }
 
+// A track of a song imported from an Ableton project: its export, played as
+// it is, from the song's first beat
+export interface JamRecordedPart {
+  name: string;
+  url: string;
+}
+
 export interface JamTrack {
   file: string;
   bpm: number;
@@ -76,6 +84,9 @@ export interface JamTrack {
   layers: JamTrackLayer[];
   drums: JamTrackDrum[];
   sampled?: JamSampledPart[];
+  // An imported song's recordings, and the bars they last (its least length)
+  recorded?: JamRecordedPart[];
+  bars?: number;
   // A ping-pong echo on every part (Plink's): echoes every `beats`, the first
   // on the left, then alternating, each `feedback` quieter, added at `wet`
   echo?: { beats: number; feedback: number; wet: number };
@@ -296,9 +307,23 @@ export const jamTrackIsEmpty = (track: JamTrack): boolean => EMPTY_TRACK_FILE.te
 const TEMPO_FILE = /^(.+)@(\d+)$/;
 const tempoTracks = new Map<string, JamTrack>();
 
-// The track a file names: one of JAM_TRACKS, an empty one, or one of
-// JAM_TRACKS at another tempo
+// Every imported song has the same file, so the page holds the one it has open
+let openRecordedTrack: JamTrack | undefined;
+export const setJamRecordedTrack = (track: JamTrack | undefined) => {
+  openRecordedTrack = track;
+};
+
+// A tempo as it is shown: an imported song's can be as exact as 102.998306
+export const jamBpmLabel = (bpm: number): string => `${Math.round(bpm * 10) / 10} BPM`;
+
+// The bars an imported song's recordings last, in whole sections
+export const jamRecordedBars = (seconds: number, bpm: number): number =>
+  Math.max(1, Math.ceil((seconds * bpm) / 240 / JAM_SECTION_BARS - 1e-6)) * JAM_SECTION_BARS;
+
+// The track a file names: one of JAM_TRACKS, an empty one, one of JAM_TRACKS at
+// another tempo, or the imported song this page has open
 export function jamTrackByFile(file: string): JamTrack | undefined {
+  if (file === JAM_ABLETON_FILE) return openRecordedTrack;
   const builtIn = JAM_TRACKS.find((track) => track.file === file);
   if (builtIn) return builtIn;
   const tempo = TEMPO_FILE.exec(file);
@@ -335,6 +360,8 @@ export interface JamTrackPart {
   name: string;
   kind: 'drum' | 'notes';
   notes: JamTrackNote[];
+  // Plays a recording, so it has no notes to edit
+  recorded?: boolean;
 }
 
 // Drums first, then the layers, then the recorded parts, as they are drawn
@@ -354,5 +381,6 @@ export function jamTrackParts(track: JamTrack): JamTrackPart[] {
       ),
     })),
     ...(track.sampled ?? []).map((part): JamTrackPart => ({ name: part.name, kind: part.kind, notes: part.notes })),
+    ...(track.recorded ?? []).map((part): JamTrackPart => ({ name: part.name, kind: 'notes', notes: [], recorded: true })),
   ];
 }

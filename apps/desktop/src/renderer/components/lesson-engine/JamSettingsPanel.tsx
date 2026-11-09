@@ -4,7 +4,7 @@ import { BackIcon, CheckIcon, LinkIcon, PauseIcon, PlayIcon, RestartIcon, SYNTH_
 import { CategoryArt } from './instruments/CategoryArt';
 import type { JamRoomPlayer } from './jamRoom';
 import { JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
-import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM } from './jamTracks';
+import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM, jamBpmLabel } from './jamTracks';
 import type { HighwayMode } from './NoteHighway';
 
 const LESSON_MODES: { mode: HighwayMode; label: string }[] = [
@@ -257,7 +257,7 @@ export function JamSettingsPanel({
         )}
         <div className="jam-song">
           <span className="jam-song-title">{title}</span>
-          <span className="toolbar-badge">{bpm} BPM</span>
+          <span className="toolbar-badge">{jamBpmLabel(bpm)}</span>
         </div>
         <button className="jam-corner-btn on" onClick={onClose} title="Hide sidebar">
           <SidebarIcon />

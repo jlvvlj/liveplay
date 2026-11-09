@@ -19,21 +19,34 @@ const validNote = (note: unknown): boolean => {
   return [pitch, step, length, velocity].every((value) => typeof value === 'number' && Number.isFinite(value));
 };
 
-// A saved or shared edit that still matches its track's parts
-export function validJamTrackEdit(file: string, edit: unknown): edit is JamTrackEdit {
-  const track = jamTrackByFile(file);
-  if (!track || !edit || typeof edit !== 'object') return false;
-  const { parts, added = [], bars = JAM_TRACK_BARS, instruments = {} } = edit as Partial<JamTrackEdit>;
+function validEdit(edit: unknown, ownParts: number, ownBars: number, leastBars: number, mostBars: number): edit is JamTrackEdit {
+  if (!edit || typeof edit !== 'object') return false;
+  const { parts, added = [], bars = ownBars, instruments = {} } = edit as Partial<JamTrackEdit>;
   return (
     validJamTrackInstruments(instruments) &&
     typeof bars === 'number' &&
     Number.isInteger(bars / JAM_SECTION_BARS) &&
-    bars >= JAM_SECTION_BARS &&
-    bars <= JAM_MAX_BARS &&
+    bars >= leastBars &&
+    bars <= mostBars &&
     Array.isArray(added) &&
     added.every(validJamAddedPart) &&
     Array.isArray(parts) &&
-    parts.length === jamTrackParts(track).length + added.length &&
+    parts.length === ownParts + added.length &&
     parts.every((part) => Array.isArray(part) && part.every(validNote))
+  );
+}
+
+// A saved or shared edit that still matches its track's parts
+export function validJamTrackEdit(file: string, edit: unknown): edit is JamTrackEdit {
+  const track = jamTrackByFile(file);
+  return !!track && validEdit(edit, jamTrackParts(track).length, JAM_TRACK_BARS, JAM_SECTION_BARS, JAM_MAX_BARS);
+}
+
+// The edit of an imported song: its recordings have no notes, and it lasts at
+// least as long as they do
+export function validJamRecordedEdit(recordings: number, recordedBars: number, edit: unknown): edit is JamTrackEdit {
+  return (
+    validEdit(edit, recordings, recordedBars, recordedBars, Math.max(JAM_MAX_BARS, recordedBars)) &&
+    edit.parts.slice(0, recordings).every((part) => part.length === 0)
   );
 }

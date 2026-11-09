@@ -8,6 +8,7 @@ import {
   type JamRoomVisibility,
 } from './jamRoomProtocol';
 import { BackIcon } from './JamIcons';
+import { jamBpmLabel } from './jamTracks';
 import { JamDropdown } from './JamDropdown';
 import './JamLobby.css';
 
@@ -28,8 +29,6 @@ export interface JamLobbyTrack {
   bpm: number;
   daw: boolean;
   tracks: { id: string; name: string }[];
-  // Imported from an Ableton project: its tracks are recordings, played in lesson rooms
-  imported?: boolean;
 }
 
 interface JamLobbyProps {
@@ -86,7 +85,7 @@ export function JamLobby({ rooms, unreachable, check, tracks, onEnter: enterRoom
           {ended && <div className="jam-lobby-note">{ENDED[ended]}</div>}
           {rooms && (
             <div className="jam-lobby-grid">
-              <NewRoomCard tracks={lessons ? tracks : tracks.filter((track) => !track.imported)} lessons={lessons} onCreate={(create) => onEnter({ key: newJamRoomCode(), create })} />
+              <NewRoomCard tracks={tracks} lessons={lessons} onCreate={(create) => onEnter({ key: newJamRoomCode(), create })} />
               {rooms
                 .filter((room) => (room.lesson !== null) === lessons)
                 .map((room) => (
@@ -141,7 +140,7 @@ function NewRoomCard({
     );
   }
   const options = (daw: boolean) =>
-    tracks.filter((track) => track.daw === daw).map((track) => ({ value: track.id, label: track.title, detail: `${track.bpm} BPM` }));
+    tracks.filter((track) => track.daw === daw).map((track) => ({ value: track.id, label: track.title, detail: jamBpmLabel(track.bpm) }));
   const groups = [
     { label: 'Songs', options: options(false) },
     { label: 'Daw', options: options(true) },
@@ -225,7 +224,7 @@ function RoomCard({ room, onEnter, check }: RoomCardProps) {
       <div className="jam-lobby-song">
         {room.playing && <span className="jam-lobby-live" />}
         {room.lesson ? `${room.lesson.name} · ${room.song.title}` : room.song.title}
-        <span className="jam-lobby-bpm">{room.song.bpm} BPM</span>
+        <span className="jam-lobby-bpm">{jamBpmLabel(room.song.bpm)}</span>
       </div>
       <div className="jam-lobby-players">
         {room.players.map((player, index) => (
