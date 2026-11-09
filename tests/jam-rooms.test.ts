@@ -479,6 +479,50 @@ describe('songs imported from Ableton projects', () => {
     fs.rmSync(songsDir, { recursive: true, force: true });
   });
 
+  it('lets tracks be added to an imported song, keeps its recordings, and plays it in Jam rooms', async () => {
+    const lobby = await player(url);
+    lobby.send({ t: 'importSong', c: 1, title: 'Softer', bpm: 120, ableton });
+    const id = (await lobby.next('songMade')).id!;
+    const a = await player(url);
+    a.send({ t: 'edit', song: id, name: '', sound: null, need: 0 });
+    const welcome = await a.next('welcome');
+    expect(welcome.state.song.file).toBe('ableton');
+
+    // 8 seconds at 120 BPM is 4 bars, one section. A track added to it is kept
+    // with its recordings, which have no notes; notes on a recording are refused,
+    // and so is a track count that does not fit, or a song shorter than its recordings
+    const note = { pitch: 60, step: 0, length: 1, velocity: 127 };
+    const edit = { parts: [[], [], [note]], added: [{ track: 't1', sound: 'square-stab' }] };
+    a.send({ t: 'track', file: 'ableton', edit: { parts: [[note], [], [note]], added: edit.added } });
+    a.send({ t: 'track', file: 'ableton', edit: { parts: [[], [note]] } });
+    a.send({ t: 'track', file: 'ableton', edit: { ...edit, bars: 2 } });
+    a.send({ t: 'track', file: 'ableton', edit });
+    expect((await a.next('state')).state.tracks).toEqual({ ableton: edit });
+
+    // More sections after the recordings are fine
+    a.send({ t: 'track', file: 'ableton', edit: { ...edit, bars: 8 } });
+    expect((await a.next('state')).state.tracks).toEqual({ ableton: { ...edit, bars: 8 } });
+    // Its tempo stays the recordings'
+    a.send({ t: 'tempo', bpm: 140 });
+
+    // Offered, a Jam room plays it, with the tracks added to it
+    lobby.send({ t: 'offer', song: id, offered: true });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const jam = await player(url);
+    jam.send({ t: 'join', room: 'JAMIT', create: opening(id), name: '', sound: null, need: 0 });
+    const room = await jam.next('welcome');
+    expect(room.state.lesson).toBeNull();
+    expect(room.state.song).toMatchObject({ id, bpm: 120, file: 'ableton' });
+    expect(room.state.tracks).toEqual({ ableton: { ...edit, bars: 8 } });
+
+    // Reset: the recordings alone again, the song still there
+    a.send({ t: 'track', file: 'ableton', edit: null });
+    expect((await a.next('state')).state.tracks).toEqual({});
+    [a, jam, lobby].forEach((p) => p.socket.close());
+    rooms.close();
+    expect(createJamSongStore(songsDir).get(id)).toMatchObject({ edit: null, bpm: 120, ableton });
+  });
+
   it('keeps an imported song whose audio it has, and lists its tracks', async () => {
     const lobby = await player(url);
     lobby.send({ t: 'lobby' });

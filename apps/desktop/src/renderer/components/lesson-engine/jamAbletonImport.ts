@@ -10,7 +10,8 @@ import {
 import { detectAudioTrack } from '../../utils/abletonLibrary';
 import { encodeOpusWebm } from './jamOpus';
 import { encodeWav16 } from './jamTrackRender';
-import type { JamAbletonSong, JamAbletonTrack } from './jamRoomProtocol';
+import { JAM_ABLETON_FILE, type JamAbletonSong, type JamAbletonTrack, type JamDawSong } from './jamRoomProtocol';
+import { jamRecordedBars, type JamTrack } from './jamTracks';
 
 // Daw songs from Ableton projects, read by the full app's Ableton import
 // (utils/abletonImport.ts, utils/abletonLibrary.ts) exactly as the Lessons
@@ -75,6 +76,17 @@ export async function importAbletonProject(
 
 // An imported track's export on the room server
 export const jamAbletonAudioUrl = (server: string, track: JamAbletonTrack) => `${server}/jam-audio/${track.audio}`;
+
+// An imported song as a track of the Daw and the Jam: its recordings, played as they are
+export const jamRecordedTrackOf = (server: string, song: JamDawSong & { ableton: JamAbletonSong }): JamTrack => ({
+  file: JAM_ABLETON_FILE,
+  bpm: song.bpm,
+  chords: [],
+  layers: [],
+  drums: [],
+  bars: jamRecordedBars(song.ableton.seconds, song.bpm),
+  recorded: song.ableton.tracks.map((track) => ({ name: track.name, url: jamAbletonAudioUrl(server, track) })),
+});
 
 // One of an imported song's tracks as a lesson: its notes, each a slice of its export
 export const jamAbletonLesson = (server: string, songId: string, title: string, track: JamAbletonTrack): Lesson => ({

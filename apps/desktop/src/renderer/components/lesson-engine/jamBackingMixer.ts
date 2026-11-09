@@ -36,6 +36,8 @@ export class JamBackingMixer implements BackingPlayer {
   private readonly lanes: { level: Tone.Volume; player: Tone.Player }[];
   // Audio time of the loop's start while playing
   private origin: number | null = null;
+  // An imported song's recordings' waveforms, by part
+  waveforms: Float32Array[] = [];
   loop = true;
   playbackRate = 1; // The jam always plays at its own tempo
   readonly loaded = true;
@@ -170,6 +172,60 @@ export function jamTrackLevels(mix: JamTrackMix): number[] {
 // The original tracks' loudness scales, worked out once per visit
 const scales = new Map<string, number>();
 
+// A waveform has at most this many points, however long the recording
+const WAVEFORM_POINTS = 1600;
+
+// A recording's loudest moments, one per point, as a share of its loudest
+function waveformOf(channels: Float32Array[], frames: number): Float32Array {
+  const points = new Float32Array(Math.min(WAVEFORM_POINTS, Math.max(1, frames)));
+  const stride = Math.max(1, Math.floor(frames / points.length / 32));
+  let top = 0;
+  for (let i = 0; i < frames; i += stride) {
+    const point = Math.floor((i / frames) * points.length);
+    const value = Math.max(Math.abs(channels[0][i]), Math.abs(channels[1][i]));
+    if (value > points[point]) points[point] = value;
+    if (value > top) top = value;
+  }
+  return top > 0 ? points.map((value) => value / top) : points;
+}
+
+// A recording as a part of a loop of `frames`, cut or filled with silence to
+// that length, in stereo
+async function loadRecording(url: string, frames: number, sampleRate: number): Promise<JamPartAudio> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load ${url} (${response.status})`);
+  const audio = await new OfflineAudioContext(2, 1, sampleRate).decodeAudioData(await response.arrayBuffer());
+  const left = new Float32Array(frames);
+  const right = new Float32Array(frames);
+  const count = Math.min(frames, audio.length);
+  left.set(audio.getChannelData(0).subarray(0, count));
+  right.set(audio.getChannelData(audio.numberOfChannels > 1 ? 1 : 0).subarray(0, count));
+  return { channels: [left, right], sampleRate };
+}
+
+// An imported song's mixer: its recordings, one at a time so memory only ever
+// grows by one being decoded, then the parts added in the grid (live
+// instruments play those). Scaled to the same loudness as every other track.
+async function loadRecordedMixer(track: JamTrack, partCount: number, bars: number): Promise<JamBackingMixer> {
+  const recorded = track.recorded!;
+  const sampleRate = Tone.getContext().sampleRate;
+  const seconds = jamLoopSeconds(track, bars);
+  const frames = Math.round(seconds * sampleRate);
+  const songFrames = Math.min(frames, Math.round(jamLoopSeconds(track, track.bars) * sampleRate));
+  const parts: JamPartAudio[] = [];
+  for (const { url } of recorded) parts.push(await loadRecording(url, frames, sampleRate));
+  const key = recorded.map(({ url }) => url).join();
+  if (!scales.has(key)) {
+    const scale = jamLoopScale(parts.map((audio) => audio.channels));
+    scales.set(key, Number.isFinite(scale) ? scale : 1);
+  }
+  const waveforms = parts.map((audio) => waveformOf(audio.channels as Float32Array[], songFrames));
+  while (parts.length < partCount) parts.push(silentJamPart());
+  const mixer = new JamBackingMixer(parts, scales.get(key)!, seconds);
+  mixer.waveforms = waveforms;
+  return mixer;
+}
+
 // Renders every part of a track (its own, then the ones `added` in the grid)
 // as a loop of `bars` bars and returns them in a mixer, scaled by the
 // original track's loudness (its 8 bars as they were are rendered too, once,
@@ -180,6 +236,7 @@ export async function loadJamBackingMixer(
   live: boolean[],
   bars = JAM_TRACK_BARS
 ): Promise<JamBackingMixer> {
+  if (track.recorded) return loadRecordedMixer(track, notes.length, bars);
   const parts = await Promise.all(
     notes.map((part, p) => (live[p] ? Promise.resolve(silentJamPart()) : renderJamBackingPart(track.file, p, part, undefined, bars)))
   );

@@ -61,6 +61,8 @@ const isBlackKey = (pitch: number) => [1, 3, 6, 8, 10].includes(pitch % 12);
 const noteKey = (note: JamTrackNote) => `${note.step}|${note.pitch}`;
 // A note added by another player shines in their color this long (ms)
 const FLASH_MS = 1400;
+// Bar numbers on the ruler stay at least this far apart (px): every bar, or every 2, 4, 8...
+const BAR_LABEL_PX = 26;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 // The timeline's zoom, as Instrument Lab's tracks: it shows `span` 16ths
@@ -170,6 +172,10 @@ interface JamTrackGridProps {
   // One note of a part played by its live instrument; false for a part played
   // by its original sound
   onLiveAudition: (part: number, pitch: number) => boolean;
+  // An imported song: the bars its recordings last (they cannot be deleted),
+  // and each recording's waveform, by part
+  recordedBars?: number;
+  waveforms?: Float32Array[];
   // The players editing this song together, this one with them (a Daw
   // song's room), and where this player is going out to them
   players?: JamGridPlayer[];
@@ -267,6 +273,8 @@ export function JamTrackGrid({
   trackSounds,
   onTrackInstrument,
   onLiveAudition,
+  recordedBars = 0,
+  waveforms = [],
   players = [],
   onPresence,
   remoteEdit = null,
@@ -322,6 +330,8 @@ export function JamTrackGrid({
   const [view, setView] = useState<[number, number]>([0, LOOP_STEPS]);
   const [viewStart, viewSpan] = view;
   const timelineRef = useRef<HTMLDivElement>(null);
+  const barsRef = useRef<HTMLDivElement>(null);
+  const [barsWidth, setBarsWidth] = useState(0);
   // The editor's height once dragged taller (or shorter) by its grip, else its own
   const [editorHeight, setEditorHeight] = useState<number | null>(null);
   // The editor over the whole height, the tracks down to a few rows
@@ -438,6 +448,16 @@ export function JamTrackGrid({
     };
     node.addEventListener('wheel', wheel, { passive: false });
     return () => node.removeEventListener('wheel', wheel);
+  }, []);
+
+  useLayoutEffect(() => {
+    const node = barsRef.current;
+    if (!node) return;
+    const measure = () => setBarsWidth(node.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
   }, []);
 
   // Cells fill the editor's width, four bars across, and stay square
@@ -743,8 +763,20 @@ export function JamTrackGrid({
     event.currentTarget.blur();
   };
 
-  // A clip's notes, small: the drums a row per sound, a part a row per pitch
+  // A clip's notes, small: the drums a row per sound, a part a row per pitch;
+  // a recording its waveform, two rows high around its middle
+  const waveformPaths = useMemo(
+    () =>
+      waveforms.map((points) => {
+        const x = (point: number) => ((point / points.length) * recordedBars * 16).toFixed(2);
+        const top = Array.from(points, (value, point) => `${x(point)} ${(1 - value).toFixed(3)}`);
+        const bottom = Array.from(points, (value, point) => `${x(point)} ${(1 + value).toFixed(3)}`).reverse();
+        return `M${top.join('L')}L${bottom.join('L')}Z`;
+      }),
+    [waveforms, recordedBars]
+  );
   const renderPreview = (gridTrack: GridTrack) => {
+    if (gridTrack.recorded) return <path d={waveformPaths[gridTrack.parts[0]]} />;
     if (gridTrack.kind === 'drum') {
       return gridTrack.parts.flatMap((part, row) =>
         notes[part].map((note) => (
@@ -773,6 +805,7 @@ export function JamTrackGrid({
 
   // A track's clips: one per run of sections that have notes, from its first 16th to past its last
   const clipRuns = (gridTrack: GridTrack): [number, number][] => {
+    if (gridTrack.recorded) return [[0, recordedBars * 16]];
     const filled = Array.from({ length: PAGES }, (_, section) =>
       gridTrack.parts.some((part) =>
         notes[part].some((note) => note.step < (section + 1) * PAGE_STEPS && note.step + note.length > section * PAGE_STEPS)
@@ -831,7 +864,9 @@ export function JamTrackGrid({
   };
 
   const previewRows = (gridTrack: GridTrack) =>
-    gridTrack.kind === 'drum'
+    gridTrack.recorded
+      ? 2
+      : gridTrack.kind === 'drum'
       ? gridTrack.parts.length
       : rollPitches(original[gridTrack.parts[0]].notes, notes[gridTrack.parts[0]]).length;
 
@@ -1035,12 +1070,16 @@ export function JamTrackGrid({
   const at = (step16: number) => `${((step16 - viewStart) / viewSpan) * 100}%`;
   // The ruler's marks in view: every bar, and every beat once there is room
   const markEvery = viewSpan <= 32 ? 4 : 16;
+  const barPx = (barsWidth / viewSpan) * 16;
+  let labelBars = 1;
+  while (barPx > 0 && barPx * labelBars < BAR_LABEL_PX) labelBars *= 2;
   const marks = Array.from({ length: LOOP_STEPS / markEvery }, (_, index) => index * markEvery)
     .filter((mark) => mark >= viewStart - markEvery && mark <= viewStart + viewSpan)
     .map((mark) => {
       const bar = Math.floor(mark / 16) + 1;
       const beat = (mark % 16) / 4 + 1;
-      return { at: mark, bar: beat === 1, label: beat === 1 ? `${bar}` : `${bar}.${beat}` };
+      const shown = beat !== 1 || (bar - 1) % labelBars === 0;
+      return { at: mark, bar: beat === 1, label: !shown ? '' : beat === 1 ? `${bar}` : `${bar}.${beat}` };
     });
 
   return (
@@ -1084,7 +1123,7 @@ export function JamTrackGrid({
         </div>
         <div className="jam-timeline-row jam-timeline-ruler">
           <div className="jam-timeline-head" />
-          <div className="jam-timeline-bars">
+          <div className="jam-timeline-bars" ref={barsRef}>
             {open && (
               <span
                 className="jam-timeline-page"
@@ -1114,7 +1153,7 @@ export function JamTrackGrid({
                   <JamLaneStrip
                     name={gridTrack.name}
                     tag=""
-                    onNameClick={() => onTrackInstrument(gridTrack.id)}
+                    onNameClick={gridTrack.recorded ? undefined : () => onTrackInstrument(gridTrack.id)}
                     solo={solo}
                     mute={mute}
                     level={level}
@@ -1140,13 +1179,16 @@ export function JamTrackGrid({
                 onPointerLeave={() => sendPresence({ pointer: null })}
               >
                 {/* Empty sections are only the lane: pressing anywhere on it opens the track there */}
-                <button className="jam-timeline-lane-hit" onClick={(event) => openAt(gridTrack, event)} aria-label={`Edit ${gridTrack.name}`} />
+                {!gridTrack.recorded && (
+                  <button className="jam-timeline-lane-hit" onClick={(event) => openAt(gridTrack, event)} aria-label={`Edit ${gridTrack.name}`} />
+                )}
                 {clipRuns(gridTrack).map(([from, to]) => (
                   <button
                     key={from}
                     className={`jam-timeline-clip ${open?.id === gridTrack.id ? 'open' : ''} ${
                       gridTrack.parts.every(silent) ? 'silent' : ''
-                    }`}
+                    } ${gridTrack.recorded ? 'recorded' : ''}`}
+                    disabled={gridTrack.recorded}
                     onClick={(event) => openAt(gridTrack, event)}
                     tabIndex={-1}
                     style={{ left: at(from), width: `${((to - from) / viewSpan) * 100}%` }}
@@ -1272,7 +1314,7 @@ export function JamTrackGrid({
                         ))}
                     </span>
                   )}
-                  {PAGES > 1 && (
+                  {PAGES > 1 && (index + 1) * PAGE_BARS > recordedBars && (
                     <button
                       className="jam-grid-section-remove"
                       onClick={blurAfter(() => removeSection(index))}

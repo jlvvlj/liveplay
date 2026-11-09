@@ -1081,3 +1081,14 @@
     margin-right: auto;
   }
 }
+
+/* A recording's clip: its waveform, nothing to open; the pointer passes to the lane under it */
+.jam-timeline-clip.recorded {
+  pointer-events: none;
+  cursor: default;
+}
+
+.jam-timeline-clip.recorded svg {
+  inset: 5px 0;
+  height: calc(100% - 10px);
+}

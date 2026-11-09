@@ -195,6 +195,12 @@ const GROUP_SECONDS = 0.08;
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = (key: number) => `${NOTE_NAMES[key % 12]}${Math.floor(key / 12) - 2}`; // Ableton: C3 = 60
 
+/** The key of a note's name ("C3" is 60); null for any other name. */
+export function abletonNoteKey(name: string): number | null {
+  const match = /^([A-G]#?)(-?\d+)$/.exec(name);
+  return match ? NOTE_NAMES.indexOf(match[1]) + (Number(match[2]) + 2) * 12 : null;
+}
+
 const CHORD_SHAPES: [string, number[]][] = [
   ['', [0, 4, 7]],
   ['m', [0, 3, 7]],

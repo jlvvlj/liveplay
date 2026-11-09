@@ -27,12 +27,13 @@ import {
   JAM_DAW_MIN_BPM,
   JAM_SECTION_BARS,
   jamEmptyTrackFile,
+  jamRecordedBars,
   jamTrackByFile,
   jamRecordedTempoRange,
   jamTrackFileAtTempo,
   jamTrackIsEmpty,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamTracks';
-import { validJamTrackEdit, type JamTrackEdit } from '../apps/desktop/src/renderer/components/lesson-engine/jamTrackEdits';
+import { validJamRecordedEdit, validJamTrackEdit, type JamTrackEdit } from '../apps/desktop/src/renderer/components/lesson-engine/jamTrackEdits';
 import { jamSongTracks } from '../apps/desktop/src/renderer/components/lesson-engine/jamLessonRooms';
 import type { JamSongStore } from './jamSongStore';
 
@@ -407,9 +408,14 @@ export function createJamRooms({
           break;
         }
         case 'track': {
-          const { file } = room.state.song;
-          if (room.kind !== 'daw' || message.file !== file || (message.edit !== null && !validJamTrackEdit(file, message.edit))) break;
-          const edit = message.edit ?? (jamTrackIsEmpty(jamTrackByFile(file)!) ? EMPTY_SONG_EDIT : null);
+          const { file, bpm } = room.state.song;
+          if (room.kind !== 'daw' || message.file !== file) break;
+          const imported = file === JAM_ABLETON_FILE ? songs.get(room.id)?.ableton : undefined;
+          const valid = imported
+            ? validJamRecordedEdit(imported.tracks.length, jamRecordedBars(imported.seconds, bpm), message.edit)
+            : validJamTrackEdit(file, message.edit);
+          if (message.edit !== null && !valid) break;
+          const edit = message.edit ?? (!imported && jamTrackIsEmpty(jamTrackByFile(file)!) ? EMPTY_SONG_EDIT : null);
           room.state = { ...room.state, tracks: edit ? { [file]: edit } : {} };
           songs.update(room.id, { edit });
           broadcast(room, { t: 'state', state: room.state, by: id });
