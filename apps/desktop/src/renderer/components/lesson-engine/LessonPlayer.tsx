@@ -30,6 +30,7 @@ import { loadJamReferenceSounds, jamNotesDb, type JamSoundPreset, type JamSample
 import { InstrumentChannel } from './instruments/channel';
 import { INSTRUMENTS, choiceForSound, findInstrument, jamRowNote, portInstruments, presetChoice, referenceInstruments, songPackInstruments } from './instruments/catalog';
 import { JAM_SONG_PACK_ID, type JamSongPack } from './jamSongPacks';
+import { gridTracks } from './jamGridTracks';
 import { loadPortCatalog, type PortEntry } from './instruments/engines/port';
 import { registerPortEffects } from './instruments/effects';
 import { paramsPatch, patchParams } from './instruments/engines/melodicsSynth';
@@ -3558,6 +3559,23 @@ export function LessonPlayer({
         {jamOnly && instrumentsFor === 'jam' && jamSettings && jamChoice && (
           <InstrumentPanel
             instruments={jamInstruments}
+            backing={
+              jamTrack && jamTrackMix
+                ? gridTracks(jamTrackParts(jamTrack), jamTrackAdded).map(({ id, name, parts }) => ({
+                    id,
+                    name,
+                    muted: parts.every((part) => jamTrackMix.mutes[part]),
+                    onMute: (muted: boolean) =>
+                      setJamSettings({
+                        ...jamSettings,
+                        mixes: {
+                          ...jamSettings.mixes,
+                          [jamMixKey]: { ...jamTrackMix, mutes: jamTrackMix.mutes.map((mute, part) => (parts.includes(part) ? muted : mute)) },
+                        },
+                      }),
+                  }))
+                : undefined
+            }
             choice={jamChoice}
             loading={jamReadyInstrument !== jamChoice.instrument}
             saved={jamSettings.instruments}

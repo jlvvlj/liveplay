@@ -8,8 +8,9 @@ import http from 'http';
 import type { AddressInfo } from 'net';
 import { createJamHttp } from '../server/jamHttp';
 import { createJamSongStore } from '../server/jamSongStore';
-import { abletonNoteKey } from '../apps/desktop/src/renderer/utils/abletonImport';
+import { abletonChordClasses, abletonNoteKey } from '../apps/desktop/src/renderer/utils/abletonImport';
 import { jamSongPack } from '../apps/desktop/src/renderer/components/lesson-engine/jamSongPacks';
+import { jamImportedTranspose, jamWrittenTranspose } from '../apps/desktop/src/renderer/components/lesson-engine/jamRowsKey';
 import type { JamAbletonSong } from '../apps/desktop/src/renderer/components/lesson-engine/jamRoomProtocol';
 import type { LessonStep } from '../apps/desktop/src/renderer/types/lesson';
 
@@ -65,6 +66,59 @@ describe('an imported song as a sound pack', () => {
       ],
     });
     expect(pack.instruments[0].notes[1]).toMatchObject({ audio: 'Bass', slices: [{ offset: 2, duration: 2 }] });
+  });
+
+  it('reads chord names as pitch classes, and nothing else', () => {
+    expect(abletonChordClasses('Fm')).toEqual([5, 8, 0]);
+    expect(abletonChordClasses('C#maj7/E')).toEqual([1, 5, 8, 0]);
+    expect(abletonChordClasses('D#1 E1')).toBeNull();
+    expect(abletonChordClasses('Bass')).toBeNull();
+  });
+
+  describe("a room's rows", () => {
+    // A lane per label, playing `dur` ticks
+    const lanes = (name: string, labels: [string, number][]) =>
+      track(
+        name,
+        Object.fromEntries(labels.map(([label], lane) => [36 + lane, label])),
+        labels.map(([, dur], lane) => ({ ...step(36 + lane, lane, 1), dur }))
+      );
+    const of = (...tracks: JamAbletonSong['tracks']): JamAbletonSong => ({ seconds: 8, tracks });
+
+    it('move to the key of "Else - Paris": C# minor, from its bass', () => {
+      const else_ = of(
+        lanes('Kick', [['Kick', 120]]),
+        lanes('Perc', [['C#1', 120], ['D1', 120], ['D#1', 120], ['D#1 E1', 120]]),
+        lanes('Arp', [['C#1', 1920], ['E1', 1920], ['F#1', 1920], ['G#1', 1920], ['A#2', 1920], ['B2', 3840], ['C#3', 1920], ['D#3', 11520], ['E3', 3840], ['F#3', 3840], ['G#3', 11520]]),
+        lanes('Lead', [['C#4', 14400], ['D#4', 19480]]),
+        lanes('Bass', [['C#1', 7680], ['E1', 7680], ['F#1', 7440], ['G#1', 7680]])
+      );
+      // A up to C#: every row a note of the song (C# E F# G# B)
+      expect(jamImportedTranspose(else_)).toBe(4);
+    });
+
+    it('follow a song of chords', () => {
+      expect(jamImportedTranspose(of(lanes('Pad', [['Dm', 960], ['Gm', 960], ['Am', 960], ['F', 960]])))).toBe(5);
+    });
+
+    const written = (pitches: number[]) => pitches.map((pitch, step) => ({ pitch, step, length: 4, velocity: 100 }));
+
+    it('follow the notes of a song written in the Daw', () => {
+      // C minor: C Eb F G Bb, in a part of its own
+      expect(jamWrittenTranspose({ parts: [written([48, 51, 53, 55, 58])] }, 1)).toBe(3);
+      // Already A minor, and nothing at all
+      expect(jamWrittenTranspose({ parts: [written([45, 48, 50, 52, 55])] }, 1)).toBe(0);
+      expect(jamWrittenTranspose({ parts: [[]] }, 1)).toBe(0);
+    });
+
+    it('leave out the pads of a kit in a written song', () => {
+      const kit = { track: 'a', sound: 'kit', drum: 0 };
+      expect(jamWrittenTranspose({ parts: [written([48, 51, 53, 55, 58]), written([37, 38])], added: [kit] }, 1)).toBe(3);
+    });
+
+    it('stay where they are for a song without pitches', () => {
+      expect(jamImportedTranspose(of(lanes('Kick', [['Kick', 120]]), lanes('Drums', [['Sound 1', 120], ['Sound 2', 120]])))).toBe(0);
+    });
   });
 
   it('is served for the imported songs offered to rooms only', async () => {

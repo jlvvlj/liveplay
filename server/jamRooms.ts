@@ -32,9 +32,11 @@ import {
   jamRecordedTempoRange,
   jamTrackFileAtTempo,
   jamTrackIsEmpty,
+  jamTrackParts,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamTracks';
 import { validJamRecordedEdit, validJamTrackEdit, type JamTrackEdit } from '../apps/desktop/src/renderer/components/lesson-engine/jamTrackEdits';
 import { jamSongTracks } from '../apps/desktop/src/renderer/components/lesson-engine/jamLessonRooms';
+import { jamImportedTranspose, jamWrittenTranspose } from '../apps/desktop/src/renderer/components/lesson-engine/jamRowsKey';
 import type { JamSongStore } from './jamSongStore';
 
 // Jam rooms: players who join the same room key play one jam together. The
@@ -83,7 +85,21 @@ interface Room {
 // An empty song as it starts, and as it is again when reset: one section, no parts
 const EMPTY_SONG_EDIT: JamTrackEdit = { parts: [], bars: JAM_SECTION_BARS };
 
-const dawRoomSong = ({ id, title, bpm, file, transpose }: JamDawSong): JamRoomSong => ({ id, title, bpm, file, transpose });
+// A Daw song's rows: an imported or a written song's in the key of its notes,
+// one made from a built-in song's in that song's
+function dawSongTranspose({ file, transpose, ableton, edit }: JamDawSong): number {
+  if (ableton) return jamImportedTranspose(ableton);
+  const track = jamTrackByFile(file);
+  return track && jamTrackIsEmpty(track) && edit ? jamWrittenTranspose(edit, jamTrackParts(track).length) : transpose;
+}
+
+const dawRoomSong = (song: JamDawSong): JamRoomSong => ({
+  id: song.id,
+  title: song.title,
+  bpm: song.bpm,
+  file: song.file,
+  transpose: dawSongTranspose(song),
+});
 const songTracks = (song: JamDawSong): Record<string, JamTrackEdit> => (song.edit ? { [song.file]: song.edit } : {});
 
 const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value);
