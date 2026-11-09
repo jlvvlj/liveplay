@@ -13,6 +13,8 @@ export interface GridTrack {
   parts: number[];
   color: string;
   added?: string;
+  // Plays a recording: it has a level, solo and mute, but no notes to edit
+  recorded?: boolean;
 }
 
 export const partColor = (part: number) => SOUND_COLORS[part % SOUND_COLORS.length];
@@ -37,7 +39,9 @@ export function gridTracks(own: JamTrackPart[], added: JamAddedPart[]): GridTrac
   return [
     ...(drums.length ? [{ id: 'drums', name: 'Drums', kind: 'drum' as const, parts: drums, color: partColor(drums[0]) }] : []),
     ...own.flatMap((part, index) =>
-      part.kind === 'notes' ? [{ id: `part-${index}`, name: part.name, kind: 'notes' as const, parts: [index], color: partColor(index) }] : []
+      part.kind === 'notes'
+        ? [{ id: `part-${index}`, name: part.name, kind: 'notes' as const, parts: [index], color: partColor(index), ...(part.recorded ? { recorded: true } : {}) }]
+        : []
     ),
     ...addedTracks,
   ];

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Lesson } from '../../types/lesson';
 import type { JamRoomEnd } from './jamRoom';
 import { JAM_SONG_TITLE_MAX, type JamDawSongSummary } from './jamRoomProtocol';
-import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM } from './jamTracks';
+import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM, jamBpmLabel } from './jamTracks';
 import { JamLobbyHeader, startJamAudio } from './JamLobby';
 import { JamDropdown } from './JamDropdown';
 import { canRememberFolders, readFolder } from '../../utils/abletonLibrary';
@@ -249,7 +249,7 @@ function SongCard({ song, onOpen, onOffer }: { song: JamDawSongSummary; onOpen: 
     <div className="jam-lobby-card jam-lobby-song-card">
       <button className="jam-lobby-open" onClick={onOpen} title={`Open ${song.title}`} />
       <div className="jam-lobby-card-top">
-        <span className="jam-lobby-bpm">{song.bpm} BPM</span>
+        <span className="jam-lobby-bpm">{jamBpmLabel(song.bpm)}</span>
         <label className="jam-lobby-offer">
           Jam
           <input type="checkbox" checked={song.offered} onChange={(event) => onOffer(event.target.checked)} />

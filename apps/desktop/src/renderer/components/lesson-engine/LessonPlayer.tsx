@@ -8,7 +8,7 @@ import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
 import { BackIcon, InstrumentsIcon, SidebarIcon } from './JamIcons';
 import { InstrumentPanel, type JamFavorite } from './instruments/InstrumentPanel';
-import { JAM_TRACK_BARS, jamTrackBaseFile, jamTrackByFile, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
+import { JAM_TRACK_BARS, jamTrackBaseFile, jamTrackByFile, jamTrackFor, jamTrackParts, setJamRecordedTrack, type JamTrackNote } from './jamTracks';
 import { validJamTrackEdit, type JamTrackEdit } from './jamTrackEdits';
 import { renderJamBackingPart } from './jamRenderer';
 import { jamPartKey, type JamAddedPart } from './jamAddedParts';
@@ -38,7 +38,7 @@ import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
 import { jamRoomSongLesson } from './jamSongs';
 import { jamLessonFromSong, type JamLesson } from './jamLessonRooms';
 import { defaultLessonKeys } from './lessonKeys';
-import { jamAbletonAudioUrl, jamAbletonLesson, mixJamAbletonAudio } from './jamAbletonImport';
+import { jamAbletonAudioUrl, jamAbletonLesson, jamRecordedTrackOf, mixJamAbletonAudio } from './jamAbletonImport';
 import { JAM_ABLETON_FILE, type JamDawSong } from './jamRoomProtocol';
 import { JamLessonVoices } from './jamLessonVoices';
 import type { JamLessonHit } from './NoteHighway';
@@ -360,6 +360,30 @@ export function LessonPlayer({
   // full app makes it (each hit a slice of the track's export), over the
   // others' recordings mixed as the backing
   const jamRoomAbleton = jamRoomState?.song.file === JAM_ABLETON_FILE ? jamRoomState.song.id : null;
+  // In the Daw and in a Jam room the song plays as a track of its recordings
+  const [jamRecordedSong, setJamRecordedSong] = useState<string | null>(null);
+  useEffect(() => {
+    if (!jamRoomAbleton || jamRoomLessonTrack || !jamHttpServer) return;
+    let cancelled = false;
+    (async () => {
+      const response = await fetch(`${jamHttpServer}/jam-songs/${jamRoomAbleton}`);
+      if (!response.ok) throw new Error(`The song could not be loaded (${response.status})`);
+      const song = (await response.json()) as JamDawSong;
+      if (!song.ableton) throw new Error(`${song.title} has no recordings`);
+      if (cancelled) return;
+      setJamRecordedTrack(jamRecordedTrackOf(jamHttpServer, { ...song, ableton: song.ableton }));
+      setJamRecordedSong(song.id);
+    })().catch((err) => {
+      if (cancelled) return;
+      console.error('[LessonPlayer] Could not load the imported song:', err);
+      onJamRoomEndRef.current?.('song');
+    });
+    return () => {
+      cancelled = true;
+      setJamRecordedTrack(undefined);
+      setJamRecordedSong(null);
+    };
+  }, [jamRoomAbleton, jamRoomLessonTrack, jamHttpServer]);
   const [jamAbletonRoomLesson, setJamAbletonRoomLesson] = useState<JamLesson | null>(null);
   useEffect(() => {
     if (!jamRoomAbleton || !jamRoomLessonTrack || !jamHttpServer) return;
@@ -393,7 +417,8 @@ export function LessonPlayer({
   const jamLessonRef = useRef(jamLesson);
   jamLessonRef.current = jamLesson;
   const isLessonRoom = !!jamLesson;
-  const jamWaitingForRoom = !!jamRoomJoin && (!jamRoomState || (!!jamRoomAbleton && !jamAbletonRoomLesson));
+  const jamWaitingForRoom =
+    !!jamRoomJoin && (!jamRoomState || (!!jamRoomAbleton && (jamRoomLessonTrack ? !jamAbletonRoomLesson : jamRecordedSong !== jamRoomAbleton)));
   const lessonProp = jamLesson?.lesson ?? jamRoomLesson ?? jamSongs?.find((song) => song.id === jamSettings?.songId) ?? lessonArg;
   useEffect(() => {
     if (jamSettings) saveJamSettings(jamSettings);
@@ -1020,7 +1045,7 @@ export function LessonPlayer({
   const jamTrackOriginal = useMemo(() => (jamTrack ? jamTrackParts(jamTrack).map((part) => part.notes) : null), [jamTrack]);
   const jamTrackNotes = jamTrackEdit?.parts ?? jamTrackOriginal;
   const jamTrackAdded = useMemo(() => jamTrackEdit?.added ?? [], [jamTrackEdit]);
-  const jamTrackBars = jamTrackEdit?.bars ?? JAM_TRACK_BARS;
+  const jamTrackBars = jamTrackEdit?.bars ?? jamTrack?.bars ?? JAM_TRACK_BARS;
   const jamTrackBarsRef = useRef(jamTrackBars);
   jamTrackBarsRef.current = jamTrackBars;
   const jamTrackNotesRef = useRef(jamTrackNotes);
@@ -1074,6 +1099,8 @@ export function LessonPlayer({
   const renderedTrackNotesRef = useRef<(JamTrackNote[] | null)[] | null>(null);
   const renderedTrackKeysRef = useRef<string[]>([]);
   const renderedTrackLiveRef = useRef<boolean[]>([]);
+  // An imported song's recordings' waveforms, for the grid's clips
+  const [jamWaveforms, setJamWaveforms] = useState<Float32Array[]>([]);
 
   // After an edit: take out the parts of removed tracks, add lanes for added
   // ones, render the edited parts again and swap them in at the same point of the loop
@@ -1107,9 +1134,12 @@ export function LessonPlayer({
       mixer.replace(part, silentJamPart());
       renderedLive[part] = true;
     });
-    const changed = jamTrackNotes
-      .map((_, part) => part)
-      .filter((part) => !jamLiveParts[part] && (rendered[part] !== jamTrackNotes[part] || renderedLive[part]));
+    // (an imported song's recordings stay as they are, and live instruments play what it adds)
+    const changed = jamTrack.recorded
+      ? []
+      : jamTrackNotes
+          .map((_, part) => part)
+          .filter((part) => !jamLiveParts[part] && (rendered[part] !== jamTrackNotes[part] || renderedLive[part]));
     jamTrackNotes.forEach((notes, part) => {
       if (jamLiveParts[part]) rendered[part] = notes;
     });
@@ -1137,7 +1167,8 @@ export function LessonPlayer({
 
   // The grid's mixer settings: levels, mutes and solos per part
   // Mixer settings are kept by track, whatever its tempo
-  const jamMixKey = jamTrack ? jamTrackBaseFile(jamTrack.file) : '';
+  // (an imported song's by song: they all have the same file)
+  const jamMixKey = jamTrack ? (jamRoomAbleton ? `${JAM_ABLETON_FILE}:${jamRoomAbleton}` : jamTrackBaseFile(jamTrack.file)) : '';
   const jamSavedMix = jamTrack ? jamSettings?.mixes[jamMixKey] : undefined;
   const jamPartCount = jamTrackNotes?.length ?? 0;
   const jamTrackMix = useMemo(
@@ -1278,9 +1309,14 @@ export function LessonPlayer({
           renderedTrackLiveRef.current = [...live];
           const own = notes.length - added.length;
           renderedTrackKeysRef.current = notes.map((_, part) => jamPartKey(part, part < own ? undefined : added[part - own]));
+          setJamWaveforms(mixer.waveforms);
           setBackingTrackLoaded(true);
         },
-        (err) => console.error('[LessonPlayer] Could not render the backing track:', err)
+        (err) => {
+          console.error('[LessonPlayer] Could not render the backing track:', err);
+          // An imported song without its recordings has nothing to play
+          if (jamTrackToLoad.recorded && !cancelled) onJamRoomEndRef.current?.('song');
+        }
       );
       return () => {
         cancelled = true;
@@ -2875,7 +2911,7 @@ export function LessonPlayer({
     const edit: JamTrackEdit = {
       parts,
       ...(added.length ? { added } : {}),
-      ...(bars !== JAM_TRACK_BARS ? { bars } : {}),
+      ...(bars !== (jamTrack.bars ?? JAM_TRACK_BARS) ? { bars } : {}),
       ...(Object.keys(kept).length ? { instruments: kept } : {}),
     };
     if (jamRoom && jamRoomState) {
@@ -3267,7 +3303,7 @@ export function LessonPlayer({
             onLanesOpenChange={(lanesOpen) => setJamSettings({ ...jamSettings, lanesOpen })}
             mix={jamTrackMix!}
             onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamMixKey]: mix } })}
-            tempo={jamSection === 'daw' && jamRoom && jamRoomState ? lesson.bpm : undefined}
+            tempo={jamSection === 'daw' && jamRoom && jamRoomState && !jamRoomAbleton ? lesson.bpm : undefined}
             onTempoChange={(bpm) => jamRoom?.setTempo(bpm)}
             paused={jamIsPaused}
             onTogglePause={toggleJamPause}
@@ -3295,6 +3331,8 @@ export function LessonPlayer({
               setJamSettings({ ...jamSettings, tracks, mixes });
             }}
             getStep={getJamStep}
+            recordedBars={jamTrack.recorded ? jamTrack.bars : 0}
+            waveforms={jamWaveforms}
             players={jamDawPlayers}
             onPresence={jamSection === 'daw' && jamRoom ? (presence) => jamRoom.setPresence(presence) : undefined}
             remoteEdit={jamRemoteEditColor}
