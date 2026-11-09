@@ -82,6 +82,8 @@ describe('an imported song as a sound pack', () => {
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual([jamSongPack({ id: offered.id, title: 'Offered', ableton: song })]);
     } finally {
+      // Node 18's close() waits for the connection fetch keeps open
+      server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));
       songs.flush();
       fs.rmSync(songsDir, { recursive: true, force: true });
