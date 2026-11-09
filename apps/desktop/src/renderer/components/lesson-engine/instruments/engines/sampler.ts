@@ -7,9 +7,13 @@ import { PAD_BASE_NOTE, paramValue } from '../types';
 // recorded one, re-pitched, through an envelope and a filter) and kits (one
 // sound per pad, pad i on note PAD_BASE_NOTE + i).
 
-// Where a sound comes from: a file's URL, or audio made on the spot (a
-// synthesised drum)
-export type SampleSound = { url: string } | { make: () => Float32Array[] };
+// Where a sound comes from: a file's URL (or the slices of it where the sound
+// is played, in seconds), or audio made on the spot (a synthesised drum)
+export interface SampleSlice {
+  offset: number;
+  duration: number;
+}
+export type SampleSound = { url: string; slices?: SampleSlice[] } | { make: () => Float32Array[] };
 
 export type SamplerSource =
   | { kind: 'notes'; notes: (SampleSound & { root: number })[] }
@@ -49,20 +53,85 @@ export const SAMPLER_PAD_PARAMS: ParamSpec[] = [
   p('gain', 'Level', 0, 2, 0.01, 1, 'Output'),
 ];
 
+const channelsOf = (buffer: AudioBuffer) => Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c));
+
+async function decodeFile(url: string): Promise<AudioBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+  return (await Tone.getContext().decodeAudioData(await response.arrayBuffer())) as unknown as AudioBuffer;
+}
+
+// A slice ends where its sound does: this far below its peak
+const SLICE_END_LEVEL = 0.001;
+const SLICE_FADE_SECONDS = 0.01;
+// Below this a slice has nothing to hear (-60 dB)
+const SLICE_SILENT = 0.001;
+// A slice is as good as the loudest of them down to this much of its peak
+const SLICE_NEAR_LOUDEST = 0.5;
+
+// How loud a slice of a recording peaks, and how many frames it sounds for
+function measureSlice(recording: AudioBuffer, { offset, duration }: SampleSlice) {
+  const start = Math.min(Math.round(offset * recording.sampleRate), recording.length - 1);
+  const stop = Math.min(start + Math.round(duration * recording.sampleRate), recording.length);
+  const channels = channelsOf(recording).map((channel) => channel.subarray(start, stop));
+  let peak = 0;
+  for (const channel of channels) for (const value of channel) peak = Math.max(peak, Math.abs(value));
+  let frames = 0;
+  for (const channel of channels) {
+    let last = channel.length;
+    while (last > frames && Math.abs(channel[last - 1]) <= peak * SLICE_END_LEVEL) last--;
+    frames = Math.max(frames, last);
+  }
+  return { channels, peak, frames };
+}
+
+// A sound played many times in a recording, as a sound of its own: its longest
+// sounding slice (its effects' tail) of those about as loud as the loudest (a
+// note may be quiet or silent there, the track faded or muted), faded out so
+// it never clicks
+function cutSound(recording: AudioBuffer, slices: SampleSlice[]): AudioBuffer {
+  const measured = slices.map((slice) => measureSlice(recording, slice));
+  const loudest = Math.max(...measured.map(({ peak }) => peak));
+  const { channels, frames } = measured
+    .filter(({ peak }) => peak >= loudest * SLICE_NEAR_LOUDEST)
+    .reduce((best, slice) => (slice.frames > best.frames ? slice : best));
+  const fade = Math.round(SLICE_FADE_SECONDS * recording.sampleRate);
+  const length = Math.max(1, Math.min(frames + fade, channels[0].length));
+  const buffer = Tone.getContext().createBuffer(channels.length, length, recording.sampleRate) as unknown as AudioBuffer;
+  channels.forEach((channel, c) => {
+    const cut = channel.slice(0, length);
+    for (let i = Math.max(0, length - fade); i < length; i++) cut[i] *= (length - i) / fade;
+    buffer.copyToChannel(cut, c);
+  });
+  return buffer;
+}
+
 // Decoded sounds, shared by every instrument that plays them
 const decoded = new Map<string, Promise<AudioBuffer>>();
+const slicedKey = (url: string, slices: SampleSlice[]) => `${url}#${slices[0].offset}:${slices.length}`;
+
+// Cuts the sounds not cut yet, one recording at a time: a song's recordings
+// are long, and only the sounds are kept
+async function cutSounds(sounds: SampleSound[]) {
+  const missing = sounds.flatMap((sound) =>
+    'url' in sound && sound.slices && !decoded.has(slicedKey(sound.url, sound.slices)) ? [{ url: sound.url, slices: sound.slices }] : []
+  );
+  for (const url of new Set(missing.map((sound) => sound.url))) {
+    const recording = await decodeFile(url);
+    for (const sound of missing) {
+      if (sound.url === url) decoded.set(slicedKey(url, sound.slices), Promise.resolve(cutSound(recording, sound.slices)));
+    }
+  }
+}
+
 function loadSound(sound: SampleSound, key: string): Promise<AudioBuffer> {
-  if ('url' in sound) key = sound.url;
+  if ('url' in sound) key = sound.slices ? slicedKey(sound.url, sound.slices) : sound.url;
   if (!decoded.has(key)) {
     decoded.set(
       key,
       (async () => {
         const context = Tone.getContext();
-        if ('url' in sound) {
-          const response = await fetch(sound.url);
-          if (!response.ok) throw new Error(`${sound.url}: HTTP ${response.status}`);
-          return (await context.decodeAudioData(await response.arrayBuffer())) as unknown as AudioBuffer;
-        }
+        if ('url' in sound) return decodeFile(sound.url);
         const channels = sound.make();
         const buffer = context.createBuffer(channels.length, channels[0].length, context.sampleRate) as unknown as AudioBuffer;
         channels.forEach((channel, c) => buffer.copyToChannel(channel as Float32Array<ArrayBuffer>, c));
@@ -72,8 +141,6 @@ function loadSound(sound: SampleSound, key: string): Promise<AudioBuffer> {
   }
   return decoded.get(key)!;
 }
-
-const channelsOf = (buffer: AudioBuffer) => Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c));
 
 interface Voice {
   note: number;
@@ -102,8 +169,13 @@ export class Sampler implements LiveInstrument {
 
   private async load(key: string) {
     const sounds = this.source.kind === 'notes' ? this.source.notes : this.source.pads;
-    this.buffers = await Promise.all(sounds.map((sound, i) => loadSound(sound, `${key}:${i}`)));
-    if (this.source.kind === 'notes') this.roots = this.source.notes.map((note) => note.root);
+    await cutSounds(sounds);
+    const buffers = await Promise.all(sounds.map((sound, i) => loadSound(sound, `${key}:${i}`)));
+    // A sound cut from a recording may never be heard in it (its notes muted
+    // all along): it takes no row or key of its own
+    const heard = buffers.map((buffer, i) => !('slices' in sounds[i]) || channelsOf(buffer).some((channel) => channel.some((value) => Math.abs(value) > SLICE_SILENT)));
+    this.buffers = buffers.filter((_, i) => heard[i]);
+    if (this.source.kind === 'notes') this.roots = this.source.notes.filter((_, i) => heard[i]).map((note) => note.root);
     // Judged by the median sound, as the clips were (matchJamLoudness)
     const levels = this.buffers.map((buffer) => jamLoudness(channelsOf(buffer), buffer.sampleRate)).sort((a, b) => a - b);
     this.loudness = 10 ** ((JAM_SOUND_LOUDNESS - levels[Math.floor(levels.length / 2)]) / 20);

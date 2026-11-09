@@ -1,8 +1,9 @@
 import { JAM_SOUND_PRESETS, renderJamDrum, type JamSampleSound } from '../jamSynth';
 import { jamSoundUrl } from '../jamSoundFiles';
+import { JAM_SONG_PACK_ID, jamPackAudioUrl, type JamPackSound, type JamSongPack } from '../jamSongPacks';
 import { effectSlot } from './effects';
 import { MELODICS_SYNTH_PARAMS, MelodicsSynth, patchParams } from './engines/melodicsSynth';
-import { SAMPLER_NOTE_PARAMS, SAMPLER_PAD_PARAMS, Sampler, type SamplerSource } from './engines/sampler';
+import { SAMPLER_NOTE_PARAMS, SAMPLER_PAD_PARAMS, Sampler, type SampleSlice, type SamplerSource } from './engines/sampler';
 import { PortInstrument, type PortEntry } from './engines/port';
 import type { EffectSlot, InstrumentChoice, InstrumentDef, LiveInstrument, ParamValues, Preset } from './types';
 import { PAD_BASE_NOTE } from './types';
@@ -37,7 +38,7 @@ const PAD_PRESETS: Preset[] = [
 
 const middle = (roots: number[]) => Math.round((Math.min(...roots) + Math.max(...roots)) / 2);
 
-const notesInstrument = (id: string, name: string, category: string, notes: { url: string; root: number }[]): InstrumentDef => ({
+const notesInstrument = (id: string, name: string, category: string, notes: { url: string; slices?: SampleSlice[]; root: number }[]): InstrumentDef => ({
   id,
   name,
   category,
@@ -142,6 +143,34 @@ export const referenceInstruments = (sounds: JamSampleSound[]): InstrumentDef[] 
       Object.entries(sound.samples).map(([note, file]) => ({ url: /^(blob|data|https?):|^\//.test(file) ? file : `/audio/${file}`, root: Number(note) }))
     )
   );
+
+// The songs imported from Ableton projects, each a package under its title
+// (`server` is the room server keeping their recordings); a title already
+// taken by another package gets a number
+export function songPackInstruments(packs: JamSongPack[], server: string): InstrumentDef[] {
+  const taken = new Set(INSTRUMENTS.map((instrument) => instrument.category));
+  const sliced = ({ audio, slices }: JamPackSound) => ({ url: jamPackAudioUrl(server, audio), slices });
+  return packs.flatMap((pack) => {
+    let category = pack.title;
+    for (let number = 2; taken.has(category); number++) category = `${pack.title} ${number}`;
+    taken.add(category);
+    const id = `${JAM_SONG_PACK_ID}${pack.song}`;
+    return [
+      ...(pack.kit.length
+        ? [
+            padsInstrument(`${id}:kit`, 'Drums & FX', category, {
+              kind: 'pads',
+              pads: pack.kit.map((sound) => ({ ...sliced(sound), name: sound.name })),
+              choke: true,
+            }),
+          ]
+        : []),
+      ...pack.instruments.map((instrument) =>
+        notesInstrument(`${id}:${instrument.track}`, instrument.name, category, instrument.notes.map((note) => ({ ...sliced(note), root: note.root })))
+      ),
+    ];
+  });
+}
 
 export const findInstrument = (instruments: InstrumentDef[], id: string): InstrumentDef | undefined =>
   instruments.find((instrument) => instrument.id === id);

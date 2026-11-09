@@ -28,7 +28,8 @@ import {
 } from './jamBackingMixer';
 import { loadJamReferenceSounds, jamNotesDb, type JamSoundPreset, type JamSampleSound, type JamSynthPatch } from './jamSynth';
 import { InstrumentChannel } from './instruments/channel';
-import { INSTRUMENTS, choiceForSound, findInstrument, jamRowNote, portInstruments, presetChoice, referenceInstruments } from './instruments/catalog';
+import { INSTRUMENTS, choiceForSound, findInstrument, jamRowNote, portInstruments, presetChoice, referenceInstruments, songPackInstruments } from './instruments/catalog';
+import { JAM_SONG_PACK_ID, type JamSongPack } from './jamSongPacks';
 import { loadPortCatalog, type PortEntry } from './instruments/engines/port';
 import { registerPortEffects } from './instruments/effects';
 import { paramsPatch, patchParams } from './instruments/engines/melodicsSynth';
@@ -460,21 +461,41 @@ export function LessonPlayer({
       cancelled = true;
     };
   }, [jamOnly]);
+  // The sound packs of the songs imported from Ableton projects, as the room
+  // server has them; null until it has answered
+  const [jamSongPacks, setJamSongPacks] = useState<JamSongPack[] | null>(jamOnly && jamHttpServer ? null : []);
+  const refreshJamSongPacks = useCallback(() => {
+    if (!jamOnly || !jamHttpServer) return;
+    fetch(`${jamHttpServer}/jam-song-packs`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const packs = (await response.json()) as JamSongPack[];
+        setJamSongPacks((old) => (JSON.stringify(old) === JSON.stringify(packs) ? old : packs));
+      })
+      .catch((err) => console.error('[LessonPlayer] Could not load the imported songs\' sounds:', err));
+  }, [jamOnly, jamHttpServer]);
+  useEffect(refreshJamSongPacks, [refreshJamSongPacks]);
   // Every instrument there is to play, the one chosen and how it is set
   const jamInstruments = useMemo(
-    () => [...INSTRUMENTS, ...portInstruments(jamPorts ?? []), ...referenceInstruments(jamReferenceSounds ?? [])],
-    [jamReferenceSounds, jamPorts]
+    () => [
+      ...INSTRUMENTS,
+      ...portInstruments(jamPorts ?? []),
+      ...referenceInstruments(jamReferenceSounds ?? []),
+      ...songPackInstruments(jamSongPacks ?? [], jamHttpServer ?? ''),
+    ],
+    [jamReferenceSounds, jamPorts, jamSongPacks, jamHttpServer]
   );
   const jamChoice = jamSettings?.instrument;
   const jamInstrument = jamChoice ? findInstrument(jamInstruments, jamChoice.instrument) : undefined;
   const jamInstrumentRef = useRef(jamInstrument);
   jamInstrumentRef.current = jamInstrument;
   // A remembered reference sound no longer on this machine (or a port no
-  // longer built): back to the first instrument, once both lists have loaded
+  // longer built, or a song no longer offered): back to the first instrument,
+  // once the lists have loaded
   useEffect(() => {
-    if (!jamSettings || jamReferenceSounds === null || jamPorts === null || jamInstrument) return;
+    if (!jamSettings || jamReferenceSounds === null || jamPorts === null || jamSongPacks === null || jamInstrument) return;
     setJamSettings({ ...jamSettings, instrument: presetChoice(INSTRUMENTS[0]) });
-  }, [jamSettings, jamReferenceSounds, jamPorts, jamInstrument]);
+  }, [jamSettings, jamReferenceSounds, jamPorts, jamSongPacks, jamInstrument]);
   const fullLesson = lessonProp;
 
   // Sounds (lanes) the player switched off are removed from the practice
@@ -602,6 +623,11 @@ export function LessonPlayer({
   // The instruments panel, down the left side: for the played sound ('jam')
   // or for a track of the backing track's grid (its key)
   const [instrumentsFor, setInstrumentsFor] = useState<string | null>(null);
+  // A song imported or offered since shows as the panel opens
+  const instrumentsOpen = instrumentsFor !== null;
+  useEffect(() => {
+    if (instrumentsOpen) refreshJamSongPacks();
+  }, [instrumentsOpen, refreshJamSongPacks]);
   // A new instrument or a changed setting, remembered for that instrument too
   const setJamChoice = useCallback((choice: InstrumentChoice) => {
     setJamSettings((settings) =>
@@ -1066,12 +1092,14 @@ export function LessonPlayer({
       const own = jamTrackNotes ? jamTrackNotes.length - jamTrackAdded.length : 0;
       const chosen =
         jamTrackEdit?.instruments?.[partTrack.key] ?? (part >= own ? choiceForSound(jamTrackAdded[part - own].sound) : null);
-      // A port's track waits for the ports' catalog, silent, rather than play something else
-      const pending = jamPorts === null && chosen?.instrument.startsWith('port:');
+      // A port's or an imported song's track waits for its list, silent, rather than play something else
+      const pending =
+        (jamPorts === null && chosen?.instrument.startsWith('port:')) ||
+        (jamSongPacks === null && chosen?.instrument.startsWith(JAM_SONG_PACK_ID));
       if (chosen && (pending || findInstrument(jamInstruments, chosen.instrument))) choices[partTrack.key] = chosen;
     });
     return choices;
-  }, [jamPartTrackList, jamTrackEdit, jamTrackAdded, jamTrackNotes, jamInstruments, jamPorts]);
+  }, [jamPartTrackList, jamTrackEdit, jamTrackAdded, jamTrackNotes, jamInstruments, jamPorts, jamSongPacks]);
   // Each track's instrument as the grid shows it: a synth's sound by its
   // preset's name, the others by theirs, and a kit's pads
   const jamTrackSounds = useMemo(
@@ -2020,6 +2048,17 @@ export function LessonPlayer({
     voices.keepOnly(others.map((player) => player.id));
     for (const player of others) voices.set(player.id, player.sound, jamInstruments, lessonProp.bpm);
   }, [jamRoom, jamRoomPlayers, jamInstruments, lessonProp.bpm, jamNotesVolume]);
+  // Another player or a track plays a song's sound offered since the list was
+  // read: read it again, so it is heard here too
+  const jamUnknownSongSounds = [
+    ...jamRoomPlayers.flatMap((player) => (player.sound ? [player.sound.instrument] : [])),
+    ...Object.values(jamTrackEdit?.instruments ?? {}).map((choice) => choice.instrument),
+  ]
+    .filter((id) => id.startsWith(JAM_SONG_PACK_ID) && !findInstrument(jamInstruments, id))
+    .join();
+  useEffect(() => {
+    if (jamUnknownSongSounds) refreshJamSongPacks();
+  }, [jamUnknownSongSounds, refreshJamSongPacks]);
   // This player's own level
   useEffect(() => {
     if (jamChannelRef.current) jamChannelRef.current.level = jamNotesDb(jamNotesVolume);
