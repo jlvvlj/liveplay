@@ -23,6 +23,7 @@ import {
   jamTrackLevels,
   loadJamBackingMixer,
   JAM_BACKING_TOP_DB,
+  jamLimiter,
   type BackingPlayer,
   type JamTrackMix,
 } from './jamBackingMixer';
@@ -893,13 +894,16 @@ export function LessonPlayer({
     if (!jamOnly) return;
     const bus = new Tone.Gain(1).connect(Tone.getDestination());
     // The notes and the backing together stay under 0 dBFS
-    const limiter = new Tone.Limiter(-1);
-    Tone.getDestination().chain(limiter);
+    const limiter = jamLimiter();
+    // A second pass: played notes' attacks come in too fast for one
+    const lastLimiter = jamLimiter();
+    Tone.getDestination().chain(limiter.input, limiter.output, lastLimiter.input, lastLimiter.output);
     jamNotesBusRef.current = bus;
     jamChannelRef.current = new InstrumentChannel(bus);
     return () => {
       Tone.getDestination().chain();
       limiter.dispose();
+      lastLimiter.dispose();
       jamChannelRef.current?.dispose();
       bus.dispose();
       jamNotesBusRef.current = null;

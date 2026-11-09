@@ -1,5 +1,6 @@
 import * as Tone from 'tone';
 import { renderJamBackingPart } from './jamRenderer';
+import { jamLimiter } from './jamBackingMixer';
 import type { JamAddedInstrument } from './jamAddedParts';
 
 // A backing-track part's sound on one pitch, played once: what a drum row's
@@ -14,7 +15,14 @@ const sounds = new Map<string, Promise<Tone.ToneAudioBuffer>>();
 let output: Tone.Volume | null = null;
 
 // Parts render unscaled: held under 0 dBFS, like the mixer's parts
-const auditionOutput = () => (output ??= new Tone.Volume(-6).connect(new Tone.Limiter(-1).toDestination()));
+const auditionOutput = () => {
+  if (!output) {
+    const limiter = jamLimiter();
+    limiter.output.toDestination();
+    output = new Tone.Volume(-6).connect(limiter.input);
+  }
+  return output;
+};
 
 export function renderJamPartSound(trackFile: string, part: number, pitch: number, added?: JamAddedInstrument): Promise<Tone.ToneAudioBuffer> {
   return renderJamBackingPart(trackFile, part, [{ pitch, step: 0, length: 2, velocity: 100 }], added).then((audio) => {
