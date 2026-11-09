@@ -54,6 +54,7 @@ interface NoteHighwayProps {
   onJamCursorMove?: (row: number) => void; // Jam mode: the ship's height in rows from the top
   jamShips?: JamShip[]; // Jam room: the other players' ships
   holdNotes?: boolean; // long sounds are drawn as long as they last and must be held
+  holdBpm?: number; // the tempo at which a note counts as long, when not `bpm`
   holdingSteps?: Set<number>; // hold notes whose key is down right now
   jamToolbar?: ReactNode; // Jam mode: buttons shown first in the toolbar at the top
   // Lesson rooms: the steps come at the ship, which stays where it is, every
@@ -150,6 +151,7 @@ export function NoteHighway({
   onJamCursorMove,
   jamShips = NO_JAM_SHIPS,
   holdNotes = false,
+  holdBpm,
   holdingSteps,
   jamToolbar,
   jamLesson,
@@ -242,11 +244,10 @@ export function NoteHighway({
   // Hold notes: how long each one's sound lasts (0 for ordinary notes)
   const holdMs = useMemo(
     () => steps.map((step) => {
-      if (!holdNotes) return 0;
-      const ms = stepDurationMs(step, bpm);
-      return ms >= HOLD_MIN_MS ? ms : 0;
+      if (!holdNotes || stepDurationMs(step, holdBpm ?? bpm) < HOLD_MIN_MS) return 0;
+      return stepDurationMs(step, bpm);
     }),
-    [steps, bpm, holdNotes]
+    [steps, bpm, holdNotes, holdBpm]
   );
 
   // A hold note is a rectangle from its start to the end of its sound: its
@@ -909,15 +910,26 @@ export function NoteHighway({
       steps.forEach((step, index) => {
         if (noteToLane(step.note) !== laneIndex) return;
         const at = loop * loopMs + stepTimes[index];
-        if (at < currentTime - pastMs || at > currentTime + aheadMs) return;
+        // A hold note stays until its tail has passed
+        if (at + holdMs[index] < currentTime - pastMs || at > currentTime + aheadMs) return;
         const key = `${loop}:${index}`;
         const hit = hits.get(key);
         const timing = jamLessonTiming(hit);
         const offTiming = timing === 'early' || timing === 'late';
+        const holding = holdingSteps?.has(index) && at <= currentTime;
+        if (holdMs[index]) {
+          notes.push(
+            <div
+              key={`${key}:tail`}
+              className={`jam-lesson-tail ${timing}${holding ? ' holding' : ''}`}
+              style={{ left: `${at * JAM_PIXELS_PER_MS + size / 2}px`, width: `${Math.max(0, holdMs[index] * JAM_PIXELS_PER_MS - size / 2)}px`, color }}
+            />
+          );
+        }
         notes.push(
           <div
             key={key}
-            className={`jam-lesson-note ${timing}${key === current ? ' current' : ''}`}
+            className={`jam-lesson-note ${timing}${key === current ? ' current' : ''}${holding ? ' holding' : ''}`}
             style={{
               left: `${at * JAM_PIXELS_PER_MS}px`,
               width: `${size}px`,

@@ -529,6 +529,14 @@ describe('songs imported from Ableton projects', () => {
     editor.send({ t: 'ping', c: 1 });
     await editor.next('pong');
     expect(createJamSongStore(songsDir).get(id)).toMatchObject({ bpm: 122 });
+
+    // A lesson on it can be slowed, as far as its recordings stretch, and the song stays as it was
+    a.send({ t: 'tempo', bpm: 30 });
+    a.send({ t: 'tempo', bpm: 245 });
+    a.send({ t: 'tempo', bpm: 61 });
+    const { state: slower } = await a.next('state');
+    expect(slower.song).toMatchObject({ id, file: 'ableton', bpm: 61 });
+    expect(createJamSongStore(songsDir).get(id)).toMatchObject({ bpm: 122 });
     [a, editor, lobby].forEach((p) => p.socket.close());
   });
 });

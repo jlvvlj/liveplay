@@ -119,6 +119,8 @@ describe('a lesson room\'s sidebar', () => {
   const panel = (mode: HighwayMode, overrides: Record<string, unknown> = {}) => {
     const lesson = {
       score,
+      played: 3,
+      steps: 14,
       lanes: null,
       autoPlay: 0,
       onAutoPlayChange: jest.fn(),
@@ -126,6 +128,7 @@ describe('a lesson room\'s sidebar', () => {
       game: false,
       onModeChange: jest.fn(),
       tempo: 90,
+      tempoRange: [1, 300],
       onTempoChange: jest.fn(),
       speed: 0.5,
       onSpeedChange: jest.fn(),
@@ -201,6 +204,12 @@ describe('a lesson room\'s sidebar', () => {
     expect(screen.queryByRole('button', { name: '16' })).toBeNull();
   });
 
+  it('shows how far Free and Wait have come, not a score they do not keep', () => {
+    panel('wait');
+    expect(screen.getByText(/of 14 played/)).toBeTruthy();
+    expect(screen.queryByText(/missed/)).toBeNull();
+  });
+
   it('offers nothing in Wait mode that needs a clock', () => {
     panel('wait');
     expect(screen.queryByRole('button', { name: /Pause/ })).toBeNull();
@@ -210,7 +219,7 @@ describe('a lesson room\'s sidebar', () => {
     expect(screen.queryByTitle('Collapse lanes')).toBeNull();
   });
 
-  it('offers no tempo for a song that keeps its own', () => {
+  it('offers no tempo outside a room', () => {
     panel('jam', { tempo: null });
     expect(screen.queryByLabelText('Tempo')).toBeNull();
   });

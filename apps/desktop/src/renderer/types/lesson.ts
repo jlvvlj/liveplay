@@ -53,6 +53,9 @@ export interface Lesson {
   // Notes whose sound lasts long (see HOLD_MIN_MS) must be held for their
   // whole duration; `dur` is then the length of the note's sound
   holdNotes?: boolean;
+  // The tempo of the lesson's recording, when it plays at another: which notes
+  // are long is its own, however slowly the lesson plays
+  ownBpm?: number;
 }
 
 /**

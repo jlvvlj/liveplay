@@ -8,7 +8,7 @@ import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
 import { BackIcon, InstrumentsIcon, SidebarIcon } from './JamIcons';
 import { InstrumentPanel, type JamFavorite } from './instruments/InstrumentPanel';
-import { JAM_TRACK_BARS, jamTrackBaseFile, jamTrackByFile, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
+import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM, JAM_TRACK_BARS, jamRecordedTempoRange, jamTrackBaseFile, jamTrackByFile, jamTrackFor, jamTrackParts, type JamTrackNote } from './jamTracks';
 import { validJamTrackEdit, type JamTrackEdit } from './jamTrackEdits';
 import { renderJamBackingPart } from './jamRenderer';
 import { jamPartKey, type JamAddedPart } from './jamAddedParts';
@@ -38,13 +38,14 @@ import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
 import { jamRoomSongLesson } from './jamSongs';
 import { jamLessonFromSong, type JamLesson } from './jamLessonRooms';
 import { defaultLessonKeys } from './lessonKeys';
-import { jamAbletonAudioUrl, jamAbletonLesson, mixJamAbletonAudio } from './jamAbletonImport';
+import { jamAbletonAudioUrl, jamAbletonLesson, jamAbletonLessonAtTempo, mixJamAbletonAudio } from './jamAbletonImport';
 import { JAM_ABLETON_FILE, type JamDawSong } from './jamRoomProtocol';
 import { JamLessonVoices } from './jamLessonVoices';
 import type { JamLessonHit } from './NoteHighway';
 import type { JamRoomNote, JamRoomSound, JamRoomState, JamRoomVisibility } from './jamRoomProtocol';
 import { JamRemoteVoices } from './jamRemoteVoices';
 import { holdToleranceMs, isHoldStep, stepDurationMs } from './holdNotes';
+import { stretchJamAudio } from './jamStretchWorker';
 import { useWebMidi } from '../../utils/useWebMidi';
 import { ACCENT, DANGER, SUCCESS, TEXT, WARNING } from '../../styles/palette';
 import './LessonPlayer.css';
@@ -268,6 +269,9 @@ function saveJamSettings(settings: JamSettings) {
 
 // Lesson audio is either a file under the app's /audio/ folder or already a
 // full URL (blob: for files read from a picked Ableton project folder).
+// A recording's own tempo need not be whole, the slider's is: the nearest is the same one
+const isJamBpm = (bpm: number, other: number): boolean => Math.abs(bpm - other) < 0.5;
+
 const audioUrl = (path: string): string => (/^(blob|data|https?):/.test(path) ? path : `/audio/${path}`);
 
 // The sounds a player switched off are remembered per lesson in this browser.
@@ -360,7 +364,7 @@ export function LessonPlayer({
   // full app makes it (each hit a slice of the track's export), over the
   // others' recordings mixed as the backing
   const jamRoomAbleton = jamRoomState?.song.file === JAM_ABLETON_FILE ? jamRoomState.song.id : null;
-  const [jamAbletonRoomLesson, setJamAbletonRoomLesson] = useState<JamLesson | null>(null);
+  const [jamAbletonLessonAtOwnTempo, setJamAbletonLessonAtOwnTempo] = useState<Lesson | null>(null);
   useEffect(() => {
     if (!jamRoomAbleton || !jamRoomLessonTrack || !jamHttpServer) return;
     let cancelled = false;
@@ -375,9 +379,7 @@ export function LessonPlayer({
       const others = song.ableton.tracks.filter((_, at) => at !== index).map((other) => jamAbletonAudioUrl(jamHttpServer, other));
       backing = await mixJamAbletonAudio(others, song.ableton.seconds);
       if (cancelled) return;
-      const lesson = { ...jamAbletonLesson(jamHttpServer, song.id, song.title, track), backingTrack: backing };
-      const notes = [...new Set(lesson.steps.map((step) => step.note))].sort((a, b) => a - b);
-      setJamAbletonRoomLesson({ lesson, lanes: notes.map((note) => ({ note, part: -1, pitch: note })), parts: [] });
+      setJamAbletonLessonAtOwnTempo({ ...jamAbletonLesson(jamHttpServer, song.id, song.title, track), backingTrack: backing });
     })().catch((err) => {
       if (cancelled) return;
       console.error('[LessonPlayer] Could not prepare the imported song\'s lesson:', err);
@@ -386,14 +388,54 @@ export function LessonPlayer({
     return () => {
       cancelled = true;
       if (backing) URL.revokeObjectURL(backing);
-      setJamAbletonRoomLesson(null);
+      setJamAbletonLessonAtOwnTempo(null);
     };
   }, [jamRoomAbleton, jamRoomLessonTrack, jamHttpServer]);
+  // At the room's tempo: its recordings stretched to it, at their own pitch
+  const jamRoomBpm = jamRoomAbleton ? jamRoomState!.song.bpm : null;
+  const [jamAbletonRoomLesson, setJamAbletonRoomLesson] = useState<JamLesson | null>(null);
+  useEffect(() => {
+    const own = jamAbletonLessonAtOwnTempo;
+    if (!own || jamRoomBpm === null) {
+      setJamAbletonRoomLesson(null);
+      return;
+    }
+    const show = (lesson: Lesson) => {
+      const notes = [...new Set(lesson.steps.map((step) => step.note))].sort((a, b) => a - b);
+      setJamAbletonRoomLesson({ lesson, lanes: notes.map((note) => ({ note, part: -1, pitch: note })), parts: [] });
+    };
+    if (isJamBpm(own.bpm, jamRoomBpm)) {
+      show(own);
+      return;
+    }
+    let cancelled = false;
+    const stretched: string[] = [];
+    (async () => {
+      const rate = jamRoomBpm / own.bpm;
+      for (const url of [own.backingTrack!, own.stemAudio!]) {
+        const made = await stretchJamAudio(url, rate);
+        stretched.push(made);
+        if (cancelled) return;
+      }
+      show(jamAbletonLessonAtTempo(own, jamRoomBpm, stretched[0], stretched[1]));
+    })().catch((err) => {
+      if (cancelled) return;
+      console.error('[LessonPlayer] Could not stretch the imported song to its tempo:', err);
+      onJamRoomEndRef.current?.('song');
+    });
+    return () => {
+      cancelled = true;
+      stretched.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [jamAbletonLessonAtOwnTempo, jamRoomBpm]);
   const jamLesson = jamAbletonRoomLesson ?? jamGridLesson;
   const jamLessonRef = useRef(jamLesson);
   jamLessonRef.current = jamLesson;
   const isLessonRoom = !!jamLesson;
-  const jamWaitingForRoom = !!jamRoomJoin && (!jamRoomState || (!!jamRoomAbleton && !jamAbletonRoomLesson));
+  // While a new tempo is stretched the song waits, its lesson still on screen
+  const jamWaitingForRoom =
+    !!jamRoomJoin &&
+    (!jamRoomState || (!!jamRoomAbleton && (!jamAbletonRoomLesson || !isJamBpm(jamAbletonRoomLesson.lesson.bpm, jamRoomBpm!))));
   const lessonProp = jamLesson?.lesson ?? jamRoomLesson ?? jamSongs?.find((song) => song.id === jamSettings?.songId) ?? lessonArg;
   useEffect(() => {
     if (jamSettings) saveJamSettings(jamSettings);
@@ -1797,19 +1839,23 @@ export function LessonPlayer({
       // A lesson room: the hit is judged when it is pressed, and sounds with the lesson track's sound
       const engine = engineRef.current;
       const playing = engine?.getState() === 'playing';
+      if (lesson.stemAudio) {
+        // An imported song's track: the slice of its export the press is nearest, as lesson mode plays it
+        const step = getPlayableStepForInput(row, playing ? engine!.getCurrentTimeSeconds() : heard);
+        if (step) {
+          const player = playSoundRef.current(row, step.note, jamNotesVolumeRef.current, step.slice, at, step.semitones);
+          // A long sound plays only while its key is down
+          if (atSlot === undefined && isHoldStep(lesson, step)) heldNotesRef.current.set(row, { stepIndex: null, player, done: false });
+        }
+      } else if (!lessonVoices?.play(row, at, velocity, jamNotesVolumeRef.current)) {
+        console.warn('[LessonPlayer] The lesson track\'s sounds are still being prepared; the note was not played.');
+      }
       if (playing && atSlot === undefined) engine!.processNote(row, heard);
       else if (playing) {
         // A repeat of a held press is judged as it sounds
         window.setTimeout(() => {
           if (engineRef.current === engine && engine!.getState() === 'playing') engine!.processNote(row, at - start);
         }, Math.max(0, (at - context.currentTime) * 1000));
-      }
-      if (lesson.stemAudio) {
-        // An imported song's track: the slice of its export the press is nearest, as lesson mode plays it
-        const step = getPlayableStepForInput(row, playing ? engine!.getCurrentTimeSeconds() : heard);
-        if (step) playSoundRef.current(row, step.note, jamNotesVolumeRef.current, step.slice, at, step.semitones);
-      } else if (!lessonVoices?.play(row, at, velocity, jamNotesVolumeRef.current)) {
-        console.warn('[LessonPlayer] The lesson track\'s sounds are still being prepared; the note was not played.');
       }
     } else if (channel && instrument) {
       const played = jamRowNote(instrument, row, jamRows);
@@ -2300,7 +2346,7 @@ export function LessonPlayer({
         }
         setHolding(stepIndex, false);
       },
-    });
+    }, { songNeverWaits: !!jamLessonRef.current });
 
     engine.loadLesson(lesson);
     engine.setPracticeMode(practiceMode);
@@ -2776,6 +2822,9 @@ export function LessonPlayer({
     if (currentMode === 'jam') {
       setJamLessonHits(new Map());
       setJamLessonRun((run) => run + 1);
+      // The room's song starts over, for everyone in it
+      const room = jamRoomRef.current;
+      if (room) room.setState({ startAt: jamIsPaused ? null : room.clock.now(), position: 0 });
     } else {
       engine.start();
     }
@@ -3318,6 +3367,7 @@ export function LessonPlayer({
             onJamCursorMove={jamRoom ? handleJamCursorMove : undefined}
             jamShips={jamShips}
             holdNotes={!!lesson.holdNotes}
+            holdBpm={lesson.ownBpm}
             holdingSteps={holdingSteps}
             onNoteReached={isGameMode ? handleNoteReached : undefined}
             jamToolbar={jamToolbar}
@@ -3351,13 +3401,16 @@ export function LessonPlayer({
               jamLesson
                 ? {
                     score,
+                    played: playedNotes.size,
+                    steps: lesson.steps.length,
                     lanes: renderSoundToggles(),
                     autoPlay: autoPlayVolume,
                     onAutoPlayChange: setAutoPlayVolume,
                     mode: currentMode,
                     game: isGameMode,
                     onModeChange: handleModeChange,
-                    tempo: jamRoom && !jamRoomAbleton ? lesson.bpm : null,
+                    tempo: !jamRoom ? null : jamRoomBpm !== null ? Math.round(jamRoomBpm) : lesson.bpm,
+                    tempoRange: jamAbletonLessonAtOwnTempo ? jamRecordedTempoRange(jamAbletonLessonAtOwnTempo.bpm) : [JAM_DAW_MIN_BPM, JAM_DAW_MAX_BPM],
                     onTempoChange: (bpm) => jamRoom?.setTempo(bpm),
                     speed: practiceMode.speedMultiplier,
                     onSpeedChange: handleSpeedChange,

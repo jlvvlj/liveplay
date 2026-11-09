@@ -228,6 +228,56 @@ describe('LessonEngine', () => {
       expect(engine.processNote(36, 0)?.accuracy).toBe('perfect');
     });
 
+    it('judges a press as the step of its note nearest it, on one lane too', () => {
+      // Three hits on one lane, 0.15 s apart: the second played on time after the first left unplayed
+      const lane: Lesson = {
+        ...mockLesson,
+        steps: [
+          { tick: 0, note: 36, dur: 60, velocity: 100 },
+          { tick: 120, note: 36, dur: 60, velocity: 100 },
+          { tick: 240, note: 36, dur: 60, velocity: 100 },
+        ],
+      };
+      const now = 0.15;
+      engine.loadLesson(lane);
+      engine.startOnClock(() => now);
+      const feedback = engine.processNote(36, 0);
+      expect(feedback?.accuracy).toBe('perfect');
+      expect(feedback?.expectedStep.tick).toBe(120);
+      expect(hitFeedbacks.map((hit) => hit.accuracy)).toEqual(['miss', 'perfect']);
+    });
+
+    it('counts every hit after one left unplayed in a lesson room\'s Play and game runs, off its clock', async () => {
+      const line: Lesson = {
+        ...mockLesson,
+        steps: [
+          { tick: 0, note: 36, dur: 120, velocity: 100 },
+          { tick: 240, note: 48, dur: 120, velocity: 100 },
+          { tick: 480, note: 40, dur: 120, velocity: 100 },
+          { tick: 720, note: 36, dur: 120, velocity: 100 },
+        ],
+      };
+      let now = 0;
+      (Tone.now as jest.Mock).mockImplementation(() => now);
+      const room = new LessonEngine({ onHitFeedback: (feedback) => hitFeedbacks.push(feedback) }, { songNeverWaits: true });
+      room.loadLesson(line);
+      await room.start();
+      // The first is left unplayed; each after it counts
+      for (const [at, note] of [
+        [0.3, 48],
+        [0.6, 40],
+        [0.9, 36],
+      ]) {
+        now = at;
+        expect(room.processNote(note, 0)?.accuracy).toBe('perfect');
+      }
+      expect(hitFeedbacks.map((feedback) => feedback.accuracy)).toEqual(['miss', 'perfect', 'perfect', 'perfect']);
+      expect(room.getScore()).toMatchObject({ hits: 3, misses: 1 });
+      room.stop();
+      (Tone.now as jest.Mock).mockReset();
+      (Tone.now as jest.Mock).mockReturnValue(0);
+    });
+
     it('keeps lesson mode\'s order off a room\'s clock: the lowest of notes due together first', async () => {
       engine.loadLesson(chord);
       await engine.start();

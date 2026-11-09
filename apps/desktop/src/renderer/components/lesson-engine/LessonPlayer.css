@@ -2191,7 +2191,8 @@
 }
 
 .jam-side-buttons .jam-pill-btn {
-  flex: 1;
+  flex: 1 1 auto;
+  padding-inline: 0.5rem;
 }
 
 .jam-sidebar .jam-lesson-score {

@@ -13,8 +13,8 @@ const TICKS_PER_BEAT = 480;
 export const stepDurationMs = (step: LessonStep, bpm: number): number =>
   (step.dur / TICKS_PER_BEAT) * (60000 / bpm);
 
-export const isHoldStep = (lesson: Pick<Lesson, 'holdNotes' | 'bpm'>, step: LessonStep): boolean =>
-  !!lesson.holdNotes && stepDurationMs(step, lesson.bpm) >= HOLD_MIN_MS;
+export const isHoldStep = (lesson: Pick<Lesson, 'holdNotes' | 'bpm' | 'ownBpm'>, step: LessonStep): boolean =>
+  !!lesson.holdNotes && stepDurationMs(step, lesson.ownBpm ?? lesson.bpm) >= HOLD_MIN_MS;
 
 /** How early a hold may be released and still count as held to the end. */
 export const holdToleranceMs = (durationMs: number): number => Math.max(150, durationMs * 0.1);

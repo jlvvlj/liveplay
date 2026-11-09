@@ -28,6 +28,7 @@ import {
   JAM_SECTION_BARS,
   jamEmptyTrackFile,
   jamTrackByFile,
+  jamRecordedTempoRange,
   jamTrackFileAtTempo,
   jamTrackIsEmpty,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamTracks';
@@ -421,9 +422,16 @@ export function createJamRooms({
         case 'tempo': {
           const { bpm } = message;
           const { song, tracks, startAt, position } = room.state;
-          // An imported song plays its recordings at their own tempo
-          if ((room.kind !== 'daw' && !room.state.lesson) || song.file === JAM_ABLETON_FILE || !Number.isInteger(bpm) || bpm < JAM_DAW_MIN_BPM || bpm > JAM_DAW_MAX_BPM || bpm === song.bpm) break;
-          const file = jamTrackFileAtTempo(song.file, bpm);
+          if ((room.kind !== 'daw' && !room.state.lesson) || !Number.isInteger(bpm) || bpm === song.bpm) break;
+          // An imported song's recordings are stretched for a lesson (by each
+          // player, as far as they can be); in the Daw they keep their own tempo
+          const imported = song.file === JAM_ABLETON_FILE;
+          if (imported && !room.state.lesson) break;
+          const stored = imported ? songs.get(song.id) : undefined;
+          if (imported && !stored) break;
+          const [min, max] = stored ? jamRecordedTempoRange(stored.bpm) : [JAM_DAW_MIN_BPM, JAM_DAW_MAX_BPM];
+          if (bpm < min || bpm > max) break;
+          const file = imported ? song.file : jamTrackFileAtTempo(song.file, bpm);
           const edit = tracks[song.file];
           const scale = song.bpm / bpm;
           const now = performance.now();
