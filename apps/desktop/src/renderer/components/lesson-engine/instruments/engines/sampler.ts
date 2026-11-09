@@ -2,6 +2,7 @@ import * as Tone from 'tone';
 import { JAM_SOUND_LOUDNESS, jamLoudness } from '../../jamLoudness';
 import type { LiveInstrument, ParamSpec, ParamValues } from '../types';
 import { PAD_BASE_NOTE, paramValue } from '../types';
+import { pitchCheckFrames, soundsAtNote } from './pitchCheck';
 
 // The sampler: recorded instruments (each played note from the nearest
 // recorded one, re-pitched, through an envelope and a filter) and kits (one
@@ -85,21 +86,68 @@ function measureSlice(recording: AudioBuffer, { offset, duration }: SampleSlice)
   return { channels, peak, frames };
 }
 
-// A sound played many times in a recording, as a sound of its own: its longest
-// sounding slice (its effects' tail) of those about as loud as the loudest (a
-// note may be quiet or silent there, the track faded or muted), faded out so
-// it never clicks
-function cutSound(recording: AudioBuffer, slices: SampleSlice[]): AudioBuffer {
-  const measured = slices.map((slice) => measureSlice(recording, slice));
+// How far into a slice a note may settle, looked for this often
+const SETTLE_MOST_SECONDS = 1;
+const SETTLE_STEP_SECONDS = 0.02;
+const CLEAN_SLICES_ENOUGH = 8;
+const SETTLE_MOST_SLICES = 8;
+const SLICE_FADE_IN_SECONDS = 0.005;
+
+// Where in a slice its note is heard alone, from its start or once it has
+// settled (a note that slides in from the last one); null if it never is. Other
+// notes may ring on in a recording, so a slice can hold anything.
+function noteStart(recording: AudioBuffer, slice: SampleSlice, note: number, settle: boolean): number | null {
+  const rate = recording.sampleRate;
+  const start = Math.round(slice.offset * rate);
+  const frames = pitchCheckFrames(note, rate);
+  const last = settle ? Math.min(SETTLE_MOST_SECONDS, slice.duration / 2) : 0;
+  const channels = channelsOf(recording);
+  for (let seconds = 0; seconds <= last; seconds += SETTLE_STEP_SECONDS) {
+    const from = start + Math.round((seconds + 0.01) * rate);
+    if (from + frames > recording.length) return null;
+    const mono = new Float32Array(frames);
+    for (const channel of channels) for (let i = 0; i < frames; i++) mono[i] += channel[from + i];
+    if (soundsAtNote(mono, rate, note)) return seconds;
+  }
+  return null;
+}
+
+// A note's slices as they can play it: those where it is heard alone from the
+// start (enough of them to choose from), else those where it settles, each from there
+function noteSlices(recording: AudioBuffer, slices: SampleSlice[], note: number): SampleSlice[] {
+  const clean: SampleSlice[] = [];
+  for (const slice of slices) {
+    if (noteStart(recording, slice, note, false) === 0) clean.push(slice);
+    if (clean.length === CLEAN_SLICES_ENOUGH) break;
+  }
+  if (clean.length) return clean;
+  return slices.slice(0, SETTLE_MOST_SLICES).flatMap((slice) => {
+    const settled = noteStart(recording, slice, note, true);
+    return settled === null ? [] : [{ offset: slice.offset + settled, duration: slice.duration - settled }];
+  });
+}
+
+// A sound played many times in a recording, as a sound of its own: of its
+// slices (only those playing its note, if it has one) its longest sounding
+// (its effects' tail) of those about as loud as the loudest (a note may be
+// quiet or silent there, the track faded or muted), faded so it never clicks.
+// A note never heard alone is a silent sound, which takes no key.
+function cutSound(recording: AudioBuffer, slices: SampleSlice[], note?: number): AudioBuffer {
+  const playable = note === undefined ? slices : noteSlices(recording, slices, note);
+  const rate = recording.sampleRate;
+  if (playable.length === 0) return Tone.getContext().createBuffer(recording.numberOfChannels, 1, rate) as unknown as AudioBuffer;
+  const measured = playable.map((slice) => measureSlice(recording, slice));
   const loudest = Math.max(...measured.map(({ peak }) => peak));
   const { channels, frames } = measured
     .filter(({ peak }) => peak >= loudest * SLICE_NEAR_LOUDEST)
     .reduce((best, slice) => (slice.frames > best.frames ? slice : best));
-  const fade = Math.round(SLICE_FADE_SECONDS * recording.sampleRate);
+  const fade = Math.round(SLICE_FADE_SECONDS * rate);
+  const fadeIn = Math.round(SLICE_FADE_IN_SECONDS * rate);
   const length = Math.max(1, Math.min(frames + fade, channels[0].length));
-  const buffer = Tone.getContext().createBuffer(channels.length, length, recording.sampleRate) as unknown as AudioBuffer;
+  const buffer = Tone.getContext().createBuffer(channels.length, length, rate) as unknown as AudioBuffer;
   channels.forEach((channel, c) => {
     const cut = channel.slice(0, length);
+    for (let i = 0; i < Math.min(fadeIn, length); i++) cut[i] *= i / fadeIn;
     for (let i = Math.max(0, length - fade); i < length; i++) cut[i] *= (length - i) / fade;
     buffer.copyToChannel(cut, c);
   });
@@ -114,12 +162,14 @@ const slicedKey = (url: string, slices: SampleSlice[]) => `${url}#${slices[0].of
 // are long, and only the sounds are kept
 async function cutSounds(sounds: SampleSound[]) {
   const missing = sounds.flatMap((sound) =>
-    'url' in sound && sound.slices && !decoded.has(slicedKey(sound.url, sound.slices)) ? [{ url: sound.url, slices: sound.slices }] : []
+    'url' in sound && sound.slices && !decoded.has(slicedKey(sound.url, sound.slices))
+      ? [{ url: sound.url, slices: sound.slices, note: 'root' in sound ? (sound.root as number) : undefined }]
+      : []
   );
   for (const url of new Set(missing.map((sound) => sound.url))) {
     const recording = await decodeFile(url);
     for (const sound of missing) {
-      if (sound.url === url) decoded.set(slicedKey(url, sound.slices), Promise.resolve(cutSound(recording, sound.slices)));
+      if (sound.url === url) decoded.set(slicedKey(url, sound.slices), Promise.resolve(cutSound(recording, sound.slices, sound.note)));
     }
   }
 }
@@ -172,7 +222,7 @@ export class Sampler implements LiveInstrument {
     await cutSounds(sounds);
     const buffers = await Promise.all(sounds.map((sound, i) => loadSound(sound, `${key}:${i}`)));
     // A sound cut from a recording may never be heard in it (its notes muted
-    // all along): it takes no row or key of its own
+    // all along, or always under others): it takes no row or key of its own
     const heard = buffers.map((buffer, i) => !('slices' in sounds[i]) || channelsOf(buffer).some((channel) => channel.some((value) => Math.abs(value) > SLICE_SILENT)));
     this.buffers = buffers.filter((_, i) => heard[i]);
     if (this.source.kind === 'notes') this.roots = this.source.notes.filter((_, i) => heard[i]).map((note) => note.root);

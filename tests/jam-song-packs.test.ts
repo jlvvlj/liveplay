@@ -11,6 +11,7 @@ import { createJamSongStore } from '../server/jamSongStore';
 import { abletonChordClasses, abletonNoteKey } from '../apps/desktop/src/renderer/utils/abletonImport';
 import { jamSongPack } from '../apps/desktop/src/renderer/components/lesson-engine/jamSongPacks';
 import { jamImportedTranspose, jamWrittenTranspose } from '../apps/desktop/src/renderer/components/lesson-engine/jamRowsKey';
+import { soundsAtNote } from '../apps/desktop/src/renderer/components/lesson-engine/instruments/engines/pitchCheck';
 import type { JamAbletonSong } from '../apps/desktop/src/renderer/components/lesson-engine/jamRoomProtocol';
 import type { LessonStep } from '../apps/desktop/src/renderer/types/lesson';
 
@@ -142,5 +143,29 @@ describe('an imported song as a sound pack', () => {
       songs.flush();
       fs.rmSync(songsDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('telling which note a recording plays', () => {
+  const RATE = 48000;
+  const sine = (note: number, level = 1) => {
+    const hz = 440 * 2 ** ((note - 69) / 12);
+    return Float32Array.from({ length: 8192 }, (_, i) => level * Math.sin((2 * Math.PI * hz * i) / RATE));
+  };
+  const mix = (a: Float32Array, b: Float32Array) => a.map((value, i) => value + b[i]);
+
+  it('hears a note at its pitch, high or low', () => {
+    for (const note of [37, 44, 59, 68, 75]) expect(soundsAtNote(sine(note), RATE, note)).toBe(true);
+  });
+
+  it('does not hear another note, or an octave away', () => {
+    expect(soundsAtNote(sine(40), RATE, 68)).toBe(false);
+    expect(soundsAtNote(sine(56), RATE, 68)).toBe(false);
+    expect(soundsAtNote(sine(68), RATE, 56)).toBe(false);
+    expect(soundsAtNote(sine(69), RATE, 68)).toBe(false);
+  });
+
+  it('does not hear a high note over a low one still ringing', () => {
+    expect(soundsAtNote(mix(sine(68, 0.5), sine(40)), RATE, 68)).toBe(false);
   });
 });
