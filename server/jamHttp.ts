@@ -4,12 +4,14 @@ import { createHash } from 'crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { analyzeAudio } from './analyze-audio';
 import type { JamSongStore } from './jamSongStore';
+import { jamSongPack } from '../apps/desktop/src/renderer/components/lesson-engine/jamSongPacks';
 
 // The jam server's HTTP side, for the hosted jam (server/jam-rooms.ts) and the
 // development server (apps/jam/vite.config.ts) alike:
 //   POST /jam-audio            an imported track's audio (Opus in WebM); its id back
 //   GET  /jam-audio/<id>       that audio
 //   GET  /jam-songs/<id>       a Daw song as kept, with an imported song's tracks
+//   GET  /jam-song-packs       the sounds of the imported songs offered to rooms
 //   POST /api/songs/analyze-audio?bpm=   hits in an audio track's export, as the
 //                              full app's Ableton import asks for them
 // Audio is kept by its content's hash next to the songs, in `<songs>/audio`.
@@ -81,6 +83,9 @@ export function createJamHttp({ songsDir, songs, repoRoot }: { songsDir: string;
       if (req.method === 'GET' && song) {
         const found = songs.get(song[1]);
         return found ? sendJson(res, 200, found) : sendJson(res, 404, { error: 'No such song.' });
+      }
+      if (req.method === 'GET' && url.pathname === '/jam-song-packs') {
+        return sendJson(res, 200, songs.list().filter((listed) => listed.ableton && listed.offered).map(jamSongPack));
       }
       if (req.method === 'POST' && url.pathname === '/api/songs/analyze-audio') {
         const body = await readBody(req, ANALYSIS_MAX_BYTES);
