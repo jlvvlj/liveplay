@@ -96,6 +96,21 @@ export const jamAbletonLesson = (server: string, songId: string, title: string, 
   stemAudio: jamAbletonAudioUrl(server, track),
 });
 
+// That lesson at another tempo, over its recordings stretched to it
+export const jamAbletonLessonAtTempo = (lesson: Lesson, bpm: number, backingTrack: string, stemAudio: string): Lesson => {
+  const scale = lesson.bpm / bpm;
+  return {
+    ...lesson,
+    bpm,
+    ownBpm: lesson.bpm,
+    backingTrack,
+    stemAudio,
+    steps: lesson.steps.map((step) =>
+      step.slice ? { ...step, slice: { offset: step.slice.offset * scale, duration: step.slice.duration * scale } } : step
+    ),
+  };
+};
+
 const MIX_SAMPLE_RATE = 44100;
 
 // Tracks' audio mixed into one loop of `seconds` (a WAV's blob URL), decoded one

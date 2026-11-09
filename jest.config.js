@@ -18,6 +18,7 @@ module.exports = {
     '/instrument-lab/client/timeline\\.mjs$': '<rootDir>/tests/mocks/instrumentLabTimeline.ts',
     '(^|/)jamRenderer$': '<rootDir>/tests/mocks/jamRenderer.ts',
     '(^|/)jamSoundFiles$': '<rootDir>/tests/mocks/jamSoundFiles.ts',
+    '(^|/)jamStretchWorker$': '<rootDir>/tests/mocks/jamStretchWorker.ts',
     '\\?worker&url$': '<rootDir>/tests/mocks/workerUrl.ts',
   },
 };

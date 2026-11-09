@@ -4,7 +4,7 @@ import { BackIcon, CheckIcon, LinkIcon, PauseIcon, PlayIcon, RestartIcon, SYNTH_
 import { CategoryArt } from './instruments/CategoryArt';
 import type { JamRoomPlayer } from './jamRoom';
 import { JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
-import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM, jamBpmLabel } from './jamTracks';
+import { jamBpmLabel } from './jamTracks';
 import type { HighwayMode } from './NoteHighway';
 
 const LESSON_MODES: { mode: HighwayMode; label: string }[] = [
@@ -29,6 +29,9 @@ interface JamSettingsPanelProps {
   // (0: they don't)
   lesson?: {
     score: LessonScore;
+    // How far through the lesson this pass is, in Free and Wait (they don't judge timing)
+    played: number;
+    steps: number;
     lanes: ReactNode;
     autoPlay: number;
     onAutoPlayChange: (volume: number) => void;
@@ -37,9 +40,9 @@ interface JamSettingsPanelProps {
     mode: HighwayMode;
     game: boolean;
     onModeChange: (mode: HighwayMode) => void;
-    // The room's tempo on the Jam tab; null when its song keeps its own (an
-    // imported song's recordings)
+    // The room's tempo on the Jam tab, and how far it goes
     tempo: number | null;
+    tempoRange: [number, number];
     onTempoChange: (bpm: number) => void;
     // Play mode's speed, 0 to 2
     speed: number;
@@ -179,7 +182,7 @@ function Slider({
 
 // The room's tempo: its value follows the slider while it moves, and the room
 // changes tempo once it is let go (each change renders the track again)
-function TempoSlider({ tempo, onChange }: { tempo: number; onChange: (bpm: number) => void }) {
+function TempoSlider({ tempo, range, onChange }: { tempo: number; range: [number, number]; onChange: (bpm: number) => void }) {
   const [draft, setDraft] = useState<number | null>(null);
   const shown = draft ?? tempo;
   const commit = () => {
@@ -194,8 +197,8 @@ function TempoSlider({ tempo, onChange }: { tempo: number; onChange: (bpm: numbe
       </div>
       <input
         type="range"
-        min={JAM_DAW_MIN_BPM}
-        max={JAM_DAW_MAX_BPM}
+        min={range[0]}
+        max={range[1]}
         step={1}
         value={shown}
         aria-label="Tempo"
@@ -322,18 +325,29 @@ export function JamSettingsPanel({
         </Section>
 
         {lesson && (
-          <Section title="Lesson" aside={<span className="jam-side-value">{lesson.score.accuracy.toFixed(1)}%</span>}>
-            <div className="jam-lesson-score">
-              <span>
-                <b>{lesson.score.perfectHits}</b> perfect
-              </span>
-              <span>
-                <b>{lesson.score.hits}</b> hits
-              </span>
-              <span>
-                <b>{lesson.score.misses}</b> missed
-              </span>
-            </div>
+          <Section
+            title="Lesson"
+            aside={lesson.mode === 'free' || lesson.mode === 'wait' ? undefined : <span className="jam-side-value">{lesson.score.accuracy.toFixed(1)}%</span>}
+          >
+            {lesson.mode === 'free' || lesson.mode === 'wait' ? (
+              <div className="jam-lesson-score">
+                <span>
+                  <b>{lesson.played}</b> of {lesson.steps} played
+                </span>
+              </div>
+            ) : (
+              <div className="jam-lesson-score">
+                <span>
+                  <b>{lesson.score.perfectHits}</b> perfect
+                </span>
+                <span>
+                  <b>{lesson.score.hits}</b> hits
+                </span>
+                <span>
+                  <b>{lesson.score.misses}</b> missed
+                </span>
+              </div>
+            )}
             <Segmented
               options={LESSON_MODES.map(({ mode, label }) => ({ value: mode, label }))}
               value={lesson.game ? null : lesson.mode}
@@ -354,7 +368,7 @@ export function JamSettingsPanel({
                 Start
               </button>
             </div>
-            {lesson.mode === 'jam' && lesson.tempo !== null && <TempoSlider tempo={lesson.tempo} onChange={lesson.onTempoChange} />}
+            {lesson.mode === 'jam' && lesson.tempo !== null && <TempoSlider tempo={lesson.tempo} range={lesson.tempoRange} onChange={lesson.onTempoChange} />}
             {lesson.mode === 'play' && !lesson.game && (
               <Slider
                 label="Speed"

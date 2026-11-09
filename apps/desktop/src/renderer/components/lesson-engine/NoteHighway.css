@@ -452,6 +452,49 @@
   z-index: 2;
 }
 
+/* A long sound: the note's tail runs to its end, and lights up while it is held */
+.jam-lesson-tail {
+  position: absolute;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 0 3px 3px 0;
+  background: currentColor;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.jam-lesson-tail.holding {
+  opacity: 0.95;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.jam-lesson-tail.on-time {
+  color: var(--ds-success) !important;
+  opacity: 0.8;
+}
+
+.jam-lesson-tail.early {
+  color: var(--ds-info) !important;
+  opacity: 0.8;
+}
+
+.jam-lesson-tail.late {
+  color: #fb923c !important;
+  opacity: 0.8;
+}
+
+.jam-lesson-tail.missed {
+  color: var(--ds-danger) !important;
+  opacity: 0.3;
+}
+
+.jam-lesson-note.holding {
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
+}
+
 /* On time: green, with a ring growing out of it */
 .jam-lesson-note.on-time {
   color: var(--ds-success) !important;

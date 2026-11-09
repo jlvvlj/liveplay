@@ -87,9 +87,12 @@ export class LessonEngine {
   // A lesson room's song: the lesson follows its clock (lesson seconds, back
   // to 0 at each loop) instead of its own, at the song's own speed
   private clock: (() => number) | null = null;
+  // A lesson room's lesson, on its clock or not: the song never waits for a note
+  private songNeverWaits: boolean;
 
-  constructor(callbacks: LessonEngineCallbacks = {}) {
+  constructor(callbacks: LessonEngineCallbacks = {}, { songNeverWaits = false }: { songNeverWaits?: boolean } = {}) {
     this.callbacks = callbacks;
+    this.songNeverWaits = songNeverWaits;
     this.practiceMode = {
       loopEnabled: false,
       speedMultiplier: 1.0,
@@ -259,29 +262,26 @@ export class LessonEngine {
       return null;
     }
 
-    // On a room's clock the song never waits: notes due together (a chord,
-    // an octave, drums hit at once) can be played in any order, as one ship
-    // plays one row at a time; and a note played after one left unplayed is
-    // judged as itself, the one left unplayed counted as missed (else, with
-    // notes closer than the late window, every press after one miss would be
-    // judged against the note before it)
-    if (this.clock && target.step.note !== note) {
+    // In a lesson room the song never waits: notes due together (a chord, an
+    // octave, drums hit at once) can be played in any order, as one ship plays
+    // one row at a time; and a press is judged as the step of its note nearest
+    // it, those left unplayed before it counted as missed (else, with notes
+    // closer than the late window, every press after one miss would be judged
+    // against the note before it)
+    if (this.clock || this.songNeverWaits) {
       const pending = [...this.expectedSteps.entries()]
         .filter(([stepIndex]) => !this.processedSteps.has(stepIndex))
         .sort((a, b) => a[0] - b[0]);
-      const played = pending.find(
-        ([, expected]) =>
-          expected.step.note === note &&
-          (expected.step.tick === target!.step.tick || this.loopDelta(currentTime, expected.time) >= -TIMING_WINDOWS.early)
-      );
-      if (played && played[1].step.tick !== target.step.tick) {
+      const delta = (time: number) => this.loopDelta(currentTime, time);
+      const played = pending
+        .filter(([, expected]) => expected.step.note === note && delta(expected.time) <= TIMING_WINDOWS.late && delta(expected.time) >= -TIMING_WINDOWS.early)
+        .sort((a, b) => Math.abs(delta(a[1].time)) - Math.abs(delta(b[1].time)))[0];
+      if (played) {
         const left = pending.filter(([stepIndex, expected]) => stepIndex < played[0] && expected.step.tick < played[1].step.tick);
-        if (left.every(([, expected]) => this.loopDelta(currentTime, expected.time) > 0)) {
+        if (left.every(([, expected]) => delta(expected.time) > 0)) {
           for (const [stepIndex, expected] of left) this.markMissed(stepIndex, expected.step, expected.time);
           [targetIndex, target] = played;
         }
-      } else if (played) {
-        [targetIndex, target] = played;
       }
     }
 

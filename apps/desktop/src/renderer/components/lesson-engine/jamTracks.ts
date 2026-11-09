@@ -298,6 +298,11 @@ export const JAM_TRACKS: JamTrack[] = [
 // file always names the same track.
 export const JAM_DAW_MIN_BPM = 1;
 export const JAM_DAW_MAX_BPM = 300;
+// How far a song's recordings can be stretched from their own tempo
+export const jamRecordedTempoRange = (bpm: number): [number, number] => [
+  Math.max(JAM_DAW_MIN_BPM, Math.ceil(bpm / 4)),
+  Math.min(JAM_DAW_MAX_BPM, Math.floor(bpm * 2)),
+];
 const EMPTY_TRACK_FILE = /^empty-(\d+)\.wav$/;
 const emptyTracks = new Map<string, JamTrack>();
 export const jamEmptyTrackFile = (bpm: number): string => `empty-${bpm}.wav`;
