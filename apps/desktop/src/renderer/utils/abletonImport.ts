@@ -215,6 +215,13 @@ const CHORD_SHAPES: [string, number[]][] = [
   ['5', [0, 7]],
 ];
 
+/** The pitch classes of a chord's name ("Fm", "C#maj7/E"); null for any other name. */
+export function abletonChordClasses(name: string): number[] | null {
+  const match = /^([A-G]#?)([^/]*)(?:\/[A-G]#?)?$/.exec(name);
+  const shape = match && CHORD_SHAPES.find(([suffix]) => suffix === match[2]);
+  return shape ? shape[1].map((step) => (NOTE_NAMES.indexOf(match[1]) + step) % 12) : null;
+}
+
 /** "Fm", "C#maj7", or the note names when the notes aren't a common chord. */
 function chordName(keys: number[]): string {
   const classes = [...new Set(keys.map((k) => k % 12))];

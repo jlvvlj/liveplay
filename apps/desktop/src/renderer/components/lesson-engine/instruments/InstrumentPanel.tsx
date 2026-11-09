@@ -35,6 +35,8 @@ interface InstrumentPanelProps {
   // How each instrument was last left, to go back to it
   saved: Record<string, InstrumentChoice>;
   onChange: (choice: InstrumentChoice) => void;
+  // The tracks of the song playing as the backing track, each heard or muted
+  backing?: { id: string; name: string; muted: boolean; onMute: (muted: boolean) => void }[];
   // A preset stepped to with the arrow keys: one low note of it, once it has loaded
   onPreview?: () => void;
   // The presets marked as favourites, by instrument
@@ -325,6 +327,7 @@ export function InstrumentPanel({
   instruments: all,
   choice,
   track,
+  backing,
   loading,
   saved,
   onChange,
@@ -625,6 +628,25 @@ export function InstrumentPanel({
                 </button>
               )}
             </div>
+
+            {!!backing?.length && (
+              <>
+                <div className="jam-subhead">Backing track</div>
+                <div className="instrument-options">
+                  {backing.map(({ id, name, muted, onMute }) => (
+                    <button
+                      key={id}
+                      className={`jam-sound-option ${muted ? '' : 'active'}`}
+                      aria-pressed={!muted}
+                      title={muted ? `Unmute ${name}` : `Mute ${name}`}
+                      onClick={() => onMute(!muted)}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             <div className="jam-subhead">Presets</div>
             {current.presets.length > MAX_PRESET_BUTTONS ? (
