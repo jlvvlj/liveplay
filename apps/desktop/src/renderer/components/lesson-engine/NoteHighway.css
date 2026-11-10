@@ -457,27 +457,53 @@
 .jam-lesson-tail {
   position: absolute;
   top: 50%;
-  height: 8px;
+  height: 14px;
   transform: translateY(-50%);
   box-sizing: border-box;
-  border: 1.5px solid color-mix(in srgb, currentColor 55%, transparent);
+  border: 2px solid color-mix(in srgb, currentColor 22%, transparent);
   border-left: none;
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 7px 7px 0;
   pointer-events: none;
   z-index: 1;
 }
 
 .jam-lesson-tail-fill {
   position: absolute;
-  top: -1.5px;
-  bottom: -1.5px;
+  top: -2px;
+  bottom: -2px;
   left: 0;
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 7px 7px 0;
   background: currentColor;
 }
 
+/* Filling: a glowing stream with light running through it, white-hot where
+   it meets the ship */
 .jam-lesson-tail.holding .jam-lesson-tail-fill {
-  box-shadow: 0 0 12px currentColor;
+  background:
+    repeating-linear-gradient(90deg, transparent 0, rgba(255, 255, 255, 0.22) 45px, transparent 90px),
+    currentColor;
+  background-size: 90px 100%, auto;
+  box-shadow: 0 0 10px currentColor, 0 0 24px color-mix(in srgb, currentColor 60%, transparent);
+  animation: jam-tail-stream 0.35s linear infinite;
+}
+
+.jam-lesson-tail.holding .jam-lesson-tail-fill::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0%, #ffffff 22%, currentColor 55%, transparent 72%);
+  filter: blur(0.5px);
+}
+
+@keyframes jam-tail-stream {
+  to {
+    background-position: -90px 0, 0 0;
+  }
 }
 
 .jam-lesson-tail.on-time {
@@ -494,7 +520,6 @@
 
 .jam-lesson-tail.missed {
   color: var(--ds-danger) !important;
-  opacity: 0.6;
 }
 
 .jam-lesson-note.holding {
@@ -751,16 +776,48 @@
   text-overflow: ellipsis;
 }
 
+/* Centered on the ship's middle line, so it grows from there */
 .jam-cursor-flame {
   position: absolute;
   right: 6px;
-  top: 0;
-  width: 46px;
+  top: -4px;
+  width: 58px;
   height: 8px;
   border-radius: 999px;
   background: linear-gradient(270deg, #ffffff 0%, currentColor 35%, transparent 100%);
   transform-origin: right center;
   filter: blur(1px);
+}
+
+/* Each key pressed in a lesson room fires the engine, and it burns for as
+   long as a key is down */
+.jam-cursor.firing .jam-cursor-flame {
+  animation: jam-flame-fire 0.5s ease-out;
+}
+
+.jam-cursor.burning .jam-cursor-flame {
+  animation: jam-flame-burn 0.11s ease-in-out infinite alternate;
+}
+
+@keyframes jam-flame-fire {
+  0% {
+    scale: 7 1.9;
+    opacity: 1;
+  }
+  100% {
+    scale: 1 1;
+  }
+}
+
+@keyframes jam-flame-burn {
+  from {
+    scale: 5.6 1.7;
+    opacity: 0.9;
+  }
+  to {
+    scale: 6.6 1.95;
+    opacity: 1;
+  }
 }
 
 /* Jam mode: the rows fill the whole highway, under a toolbar at the top

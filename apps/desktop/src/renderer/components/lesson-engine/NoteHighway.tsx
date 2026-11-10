@@ -56,6 +56,7 @@ interface NoteHighwayProps {
   holdNotes?: boolean; // long sounds are drawn as long as they last and must be held
   holdBpm?: number; // the tempo at which a note counts as long, when not `bpm`
   holdingSteps?: Set<number>; // hold notes whose key is down right now
+  engineBurning?: boolean; // a key, pad or pointer is down: the ship's engine burns
   jamToolbar?: ReactNode; // Jam mode: buttons shown first in the toolbar at the top
   // Lesson rooms: the steps come at the ship, which stays where it is, every
   // `loopMs` again; `hits` are how each was played, by `${loop}:${step}`.
@@ -164,6 +165,7 @@ export function NoteHighway({
   holdNotes = false,
   holdBpm,
   holdingSteps,
+  engineBurning = false,
   jamToolbar,
   jamLesson,
   highestOnTop = false,
@@ -919,6 +921,19 @@ export function NoteHighway({
   // How much of a hold note's tail is filled, 0 to 1: as far as it was held.
   // On the room's clock up to where the lesson is (or was, when let go); in
   // Wait and Free, which hold still, for as long as the key is down.
+  // Wait and Free hold still at the step waited for; a hold note being held
+  // carries the lane on for as long as it is held, so its tail fills behind the ship
+  const steppedHeldMs = (() => {
+    if (!jamLesson?.stepped || !jamLesson.holds || !holdingSteps?.size) return 0;
+    let held = 0;
+    for (const [key, hold] of jamLesson.holds) {
+      if (hold.releasedAt !== null || hold.completed) continue;
+      const ms = holdMs[Number(key.split(':')[1])] ?? 0;
+      held = Math.max(held, Math.min(ms, performance.now() - hold.pressedAt));
+    }
+    return held;
+  })();
+  const lessonTime = currentTime + steppedHeldMs;
   const lessonHoldFill = (key: string, at: number, ms: number): number => {
     const hold = jamLesson?.holds?.get(key);
     if (!hold) return 0;
@@ -935,8 +950,8 @@ export function NoteHighway({
     const aheadMs = (jamWidth - hitZoneOffset) / JAM_PIXELS_PER_MS;
     // Wait and Free keep the steps they passed on screen, as far as it shows
     const pastMs = jamLesson.stepped ? hitZoneOffset / JAM_PIXELS_PER_MS : LESSON_PAST_MS;
-    const firstLoop = Math.floor((currentTime - pastMs) / loopMs);
-    const lastLoop = Math.min(Math.floor((currentTime + aheadMs) / loopMs), jamLesson.lastLoop ?? Infinity);
+    const firstLoop = Math.floor((lessonTime - pastMs) / loopMs);
+    const lastLoop = Math.min(Math.floor((lessonTime + aheadMs) / loopMs), jamLesson.lastLoop ?? Infinity);
     const color = getLaneColor(laneIndex);
     const notes: ReactNode[] = [];
     for (let loop = Math.max(0, firstLoop); loop <= lastLoop; loop++) {
@@ -944,12 +959,12 @@ export function NoteHighway({
         if (noteToLane(step.note) !== laneIndex) return;
         const at = loop * loopMs + stepTimes[index];
         // A hold note stays until its tail has passed
-        if (at + holdMs[index] < currentTime - pastMs || at > currentTime + aheadMs) return;
+        if (at + holdMs[index] < lessonTime - pastMs || at > lessonTime + aheadMs) return;
         const key = `${loop}:${index}`;
         const hit = hits.get(key);
         const timing = jamLessonTiming(hit);
         const offTiming = timing === 'early' || timing === 'late';
-        const holding = holdingSteps?.has(index) && at <= currentTime;
+        const holding = holdingSteps?.has(index) && at <= lessonTime;
         if (holdMs[index]) {
           const filled = lessonHoldFill(key, at, holdMs[index]) * holdMs[index] * JAM_PIXELS_PER_MS - size / 2;
           notes.push(
@@ -1036,6 +1051,26 @@ export function NoteHighway({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jamNotes, mode]);
 
+  // In a lesson room the notes played are the pressed keys: each takes the
+  // ship to its row and fires its engine (the ship stays at the timing line);
+  // the engine then burns for as long as a key is down (engineBurning)
+  const padsSeenRef = useRef<Set<number>>(new Set());
+  const [lessonFire, setLessonFire] = useState(0);
+  useEffect(() => {
+    const seen = padsSeenRef.current;
+    const pressed = [...(activePads ?? [])].filter((note) => !seen.has(note));
+    padsSeenRef.current = new Set(activePads ?? []);
+    if (!lessonRoom || mode !== 'jam' || !pressed.length) return;
+    setLessonFire((n) => n + 1);
+    const played = pressed[pressed.length - 1];
+    if (jamPointerHeldRef.current) return;
+    const row = jamLanesRef.current?.querySelector<HTMLElement>(`[data-jam-note="${played}"]`);
+    if (!row) return;
+    const rect = row.getBoundingClientRect();
+    moveJamCursor(rect.top + rect.height / 2, played, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePads, lessonRoom, mode]);
+
   const jamCursorNote = jamCursorY?.note ?? null;
   useEffect(() => {
     if (jamCursorNote !== null) onJamCursorNote?.(jamCursorNote);
@@ -1104,12 +1139,17 @@ export function NoteHighway({
     return (
       <div
         key={ship}
-        className={name === undefined ? `jam-cursor ${jamCursorY?.glide ? 'gliding' : ''}` : 'jam-cursor jam-cursor-other'}
+        className={
+          name === undefined
+            ? `jam-cursor ${jamCursorY?.glide ? 'gliding' : ''} ${lessonRoom && lessonFire ? 'firing' : ''} ${engineBurning ? 'burning' : ''}`
+            : 'jam-cursor jam-cursor-other'
+        }
         style={{ transform: `translate(${hitZoneOffset + motion.x}px, ${y}px)`, color }}
       >
         <div
+          key={name === undefined ? lessonFire : undefined}
           className="jam-cursor-flame"
-          style={{ transform: `translateY(-50%) scale(${0.25 + thrust * 1.75}, ${1 + thrust})`, opacity: 0.35 + thrust * 0.65 }}
+          style={{ transform: `scale(${0.25 + thrust * 1.75}, ${1 + thrust})`, opacity: 0.35 + thrust * 0.65 }}
         />
         <div
           className="jam-cursor-ship"
@@ -1202,8 +1242,8 @@ export function NoteHighway({
                 <div
                   className="notes-scroll-container"
                   style={{
-                    transform: `translateX(${hitZoneOffset - currentTime * JAM_PIXELS_PER_MS}px)`,
-                    ...(jamLesson?.stepped && { transition: 'transform 0.3s ease-out' }),
+                    transform: `translateX(${hitZoneOffset - lessonTime * JAM_PIXELS_PER_MS}px)`,
+                    ...(jamLesson?.stepped && !steppedHeldMs && { transition: 'transform 0.3s ease-out' }),
                   }}
                 >
                   {renderJamLessonNotes(laneIndex)}
