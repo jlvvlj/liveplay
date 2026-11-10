@@ -798,6 +798,19 @@ export function LessonPlayer({
     done: boolean;
   }
   const heldNotesRef = useRef<Map<number, HeldNote>>(new Map());
+  // Keys, pads and pointers down right now: the ship's engine burns while any is
+  const keysDownRef = useRef<Set<number>>(new Set());
+  const [keysDown, setKeysDown] = useState(0);
+  const [jamPointerDown, setJamPointerDown] = useState(false);
+  // Keys let go while the window was in the background never come up
+  useEffect(() => {
+    const clear = () => {
+      keysDownRef.current.clear();
+      setKeysDown(0);
+    };
+    window.addEventListener('blur', clear);
+    return () => window.removeEventListener('blur', clear);
+  }, []);
   const [holdingSteps, setHoldingSteps] = useState<Set<number>>(new Set());
   // Lesson rooms: how long each hold note was held, by `${loop}:${step}`, so
   // its tail fills as far as it was held
@@ -2213,6 +2226,7 @@ export function LessonPlayer({
   // it, dragging changes the row
   const handleJamPointer = useCallback((note: number | null) => {
     jamPointerNoteRef.current = note;
+    setJamPointerDown(note !== null);
     updateJamHold();
   }, [updateJamHold]);
 
@@ -2236,6 +2250,8 @@ export function LessonPlayer({
 
   // Shared function to handle note input from both MIDI and keyboard
   const handleNoteInput = useCallback((hardwareNote: number, timestamp: number, velocity = JAM_KEY_VELOCITY) => {
+    keysDownRef.current.add(hardwareNote);
+    setKeysDown(keysDownRef.current.size);
     // Translate note
     let translatedNote = hardwareNote;
     if (deviceMapping) {
@@ -2401,6 +2417,8 @@ export function LessonPlayer({
   // A key or pad was released: a hold note let go before its end stops
   // sounding and does not count.
   const handleNoteRelease = useCallback((hardwareNote: number) => {
+    keysDownRef.current.delete(hardwareNote);
+    setKeysDown(keysDownRef.current.size);
     const note = deviceMapping?.mappings[hardwareNote] ?? hardwareNote;
     const held = heldNotesRef.current.get(note);
     if (held) {
@@ -3503,6 +3521,7 @@ export function LessonPlayer({
             holdNotes={!!lesson.holdNotes}
             holdBpm={lesson.ownBpm}
             holdingSteps={holdingSteps}
+            engineBurning={keysDown > 0 || jamPointerDown}
             onNoteReached={isGameMode ? handleNoteReached : undefined}
             jamToolbar={jamToolbar}
             jamLesson={
