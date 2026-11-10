@@ -190,10 +190,19 @@
   box-shadow: none;
 }
 
-/* The ruler: bars, and beats once zoomed in, from where the view starts */
+/* The ruler: bars, and beats once zoomed in, from where the view starts;
+   pressing it moves the playhead */
 .jam-timeline-bars {
   position: relative;
   overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+}
+
+/* A recording's lane moves the playhead too */
+.jam-timeline-lane.seekable {
+  cursor: pointer;
+  touch-action: pan-y;
 }
 
 .jam-timeline-mark {

@@ -68,6 +68,8 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 // The timeline's zoom, as Instrument Lab's tracks: it shows `span` 16ths
 // from `start`, never fewer than a beat
 const MIN_SPAN = 4;
+// Dragging the playhead moves every player's song at most this often (ms)
+const SCRUB_MS = 120;
 // A pinch zooms as far as it moves: a trackpad's many small steps zoom
 // smoothly, a mouse wheel's notch (capped) by about a half
 const wheelZoom = (deltaY: number) => Math.exp(clamp(deltaY, -50, 50) * 0.008);
@@ -160,6 +162,10 @@ interface JamTrackGridProps {
   onTogglePause: () => void;
   // 16ths since the backing track started, or null while it is not playing
   getStep: () => number | null;
+  // Where it waits while paused, in 16ths
+  pausedStep: number | null;
+  // Moves the playhead to a 16th of the loop
+  onSeek: (step: number) => void;
   // The song's tempo, when it can be changed here (a Daw song)
   tempo?: number;
   onTempoChange?: (bpm: number) => void;
@@ -268,6 +274,8 @@ export function JamTrackGrid({
   onReset,
   onTogglePause,
   getStep,
+  pausedStep,
+  onSeek,
   tempo,
   onTempoChange,
   trackSounds,
@@ -486,10 +494,13 @@ export function JamTrackGrid({
   stepRef.current = step;
   const viewRef = useRef(view);
   viewRef.current = view;
+  const pausedStepRef = useRef(pausedStep);
+  pausedStepRef.current = pausedStep;
   useEffect(() => {
     let frame = 0;
     const tick = () => {
-      const now = getStep();
+      // Paused, the playhead stays where the song waits
+      const now = getStep() ?? pausedStepRef.current;
       const inLoop = now === null ? 0 : ((now % LOOP_STEPS) + LOOP_STEPS) % LOOP_STEPS;
       const nowPage = Math.floor(inLoop / PAGE_STEPS);
       if (now !== null) setPlaying(nowPage);
@@ -848,6 +859,41 @@ export function JamTrackGrid({
     resizeRef.current = null;
   };
 
+  // Pressing the ruler, or a recording's lane, moves the playhead there (to
+  // the nearest 16th); dragging takes it along
+  const scrubRef = useRef<{ last: number; at: number | null; timer: number | null } | null>(null);
+  const scrubTo = (event: ReactPointerEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return clamp(Math.round(viewStart + clamp((event.clientX - rect.left) / rect.width, 0, 1) * viewSpan), 0, LOOP_STEPS - 1);
+  };
+  const startScrub = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    scrubRef.current = { last: performance.now(), at: null, timer: null };
+    onSeek(scrubTo(event));
+  };
+  const moveScrub = (event: ReactPointerEvent<HTMLElement>) => {
+    const scrub = scrubRef.current;
+    if (!scrub) return;
+    // Every player's song jumps with it: at most every SCRUB_MS
+    scrub.at = scrubTo(event);
+    if (scrub.timer !== null) return;
+    const wait = Math.max(0, SCRUB_MS - (performance.now() - scrub.last));
+    scrub.timer = window.setTimeout(() => {
+      scrub.timer = null;
+      scrub.last = performance.now();
+      if (scrub.at !== null) onSeek(scrub.at);
+      scrub.at = null;
+    }, wait);
+  };
+  const endScrub = (event: ReactPointerEvent<HTMLElement>) => {
+    const scrub = scrubRef.current;
+    if (!scrub) return;
+    scrubRef.current = null;
+    if (scrub.timer !== null) window.clearTimeout(scrub.timer);
+    if (scrub.at !== null) onSeek(scrubTo(event));
+  };
+
   // A track's editor, at the section clicked on its lane; the open track's lane closes it
   const openAt = (gridTrack: GridTrack, event: ReactMouseEvent<HTMLElement>) => {
     event.currentTarget.blur();
@@ -1063,7 +1109,7 @@ export function JamTrackGrid({
 
   // The timeline's zoom: the playhead stays put, or the view's middle while paused
   const zoomFocus = () => {
-    const now = getStep();
+    const now = getStep() ?? pausedStep;
     return now === null ? viewStart + viewSpan / 2 : ((now % LOOP_STEPS) + LOOP_STEPS) % LOOP_STEPS;
   };
   // A 16th's place across the view
@@ -1123,7 +1169,14 @@ export function JamTrackGrid({
         </div>
         <div className="jam-timeline-row jam-timeline-ruler">
           <div className="jam-timeline-head" />
-          <div className="jam-timeline-bars" ref={barsRef}>
+          <div
+            className="jam-timeline-bars"
+            ref={barsRef}
+            onPointerDown={startScrub}
+            onPointerMove={moveScrub}
+            onPointerUp={endScrub}
+            onPointerCancel={endScrub}
+          >
             {open && (
               <span
                 className="jam-timeline-page"
@@ -1164,14 +1217,18 @@ export function JamTrackGrid({
                 )}
               </div>
               <div
-                className={`jam-timeline-lane ${watchers.length ? 'watched' : ''} ${flashed ? 'flash' : ''}`}
+                className={`jam-timeline-lane ${watchers.length ? 'watched' : ''} ${flashed ? 'flash' : ''} ${gridTrack.recorded ? 'seekable' : ''}`}
                 style={
                   {
                     ...(watchers.length ? { '--watch-color': watchers[0].color } : {}),
                     ...(flashed ? { '--peer-color': flashed } : {}),
                   } as CSSProperties
                 }
+                onPointerDown={gridTrack.recorded ? startScrub : undefined}
+                onPointerUp={gridTrack.recorded ? endScrub : undefined}
+                onPointerCancel={gridTrack.recorded ? endScrub : undefined}
                 onPointerMove={(event) => {
+                  if (gridTrack.recorded) moveScrub(event);
                   if (!onPresence) return;
                   const rect = event.currentTarget.getBoundingClientRect();
                   sendPresence({ pointer: { on: 'lane', track: gridTrack.id, step: viewStart + ((event.clientX - rect.left) / rect.width) * viewSpan } });
