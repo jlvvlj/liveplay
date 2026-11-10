@@ -44,7 +44,7 @@ import { defaultLessonKeys } from './lessonKeys';
 import { JAM_RECORDED_TOP_DB, jamAbletonAudioUrl, jamAbletonLesson, jamAbletonLessonAtTempo, jamRecordedNotesDb, jamRecordedTrackOf, mixJamAbletonAudio } from './jamAbletonImport';
 import { JAM_ABLETON_FILE, type JamDawSong } from './jamRoomProtocol';
 import { JamLessonVoices } from './jamLessonVoices';
-import type { JamLessonHit } from './NoteHighway';
+import type { JamLessonHit, JamLessonHold } from './NoteHighway';
 import type { JamRoomNote, JamRoomSound, JamRoomState, JamRoomVisibility } from './jamRoomProtocol';
 import { JamRemoteVoices } from './jamRemoteVoices';
 import { holdToleranceMs, isHoldStep, stepDurationMs } from './holdNotes';
@@ -625,6 +625,10 @@ export function LessonPlayer({
   const [jamHoldTriplet, setJamHoldTriplet] = useState<boolean>(false);
   const jamHoldTripletRef = useRef<boolean>(false);
   jamHoldTripletRef.current = jamHoldTriplet;
+  // A lesson room starts with no hold repeat: a held key plays its note once
+  useEffect(() => {
+    if (isLessonRoom) setJamHoldDivision(null);
+  }, [isLessonRoom]);
   // Jam tab: the highway, or the backing track drawn as a step grid
   const [jamViewChosen, setJamView] = useState<'highway' | 'grid'>('highway');
   const jamView = jamSection === 'daw' ? 'grid' : jamSection === 'jam' ? 'highway' : jamViewChosen;
@@ -795,17 +799,40 @@ export function LessonPlayer({
   }
   const heldNotesRef = useRef<Map<number, HeldNote>>(new Map());
   const [holdingSteps, setHoldingSteps] = useState<Set<number>>(new Set());
-  const setHolding = (stepIndex: number, holding: boolean) =>
+  // Lesson rooms: how long each hold note was held, by `${loop}:${step}`, so
+  // its tail fills as far as it was held
+  const [jamLessonHolds, setJamLessonHolds] = useState<Map<string, JamLessonHold>>(() => new Map());
+  // The step's key in its loop, as the highway draws it (set once the lesson view is known)
+  const lessonHoldKeyRef = useRef<(stepIndex: number) => string | null>(() => null);
+  const lessonHoldKeysRef = useRef<Map<number, string>>(new Map());
+  const currentTimeRef = useRef(0);
+  currentTimeRef.current = currentTime;
+  // `completed`: held to its end
+  const setHolding = (stepIndex: number, holding: boolean, completed = false) => {
     setHoldingSteps((prev) => {
       const next = new Set(prev);
       if (holding) next.add(stepIndex);
       else next.delete(stepIndex);
       return next;
     });
+    const key = holding ? lessonHoldKeyRef.current(stepIndex) : lessonHoldKeysRef.current.get(stepIndex);
+    if (!key) return;
+    if (holding) lessonHoldKeysRef.current.set(stepIndex, key);
+    else lessonHoldKeysRef.current.delete(stepIndex);
+    const loop = Number(key.split(':')[0]);
+    setJamLessonHolds((prev) => {
+      const next = new Map([...prev].filter(([other]) => Number(other.split(':')[0]) >= loop - 1));
+      const hold = prev.get(key);
+      if (holding) next.set(key, { pressedAt: performance.now(), releasedAt: null, releasedTime: null, completed: false });
+      else if (hold) next.set(key, { ...hold, releasedAt: performance.now(), releasedTime: currentTimeRef.current, completed });
+      return next;
+    });
+  };
   const releaseAllHolds = () => {
     heldNotesRef.current.forEach((held) => window.clearTimeout(held.timer));
     heldNotesRef.current.clear();
     setHoldingSteps(new Set());
+    lessonHoldKeysRef.current.clear();
   };
   const nextStemPlayerRef = useRef<number>(0);
   const stemPlayerLoadedRef = useRef<boolean>(false);
@@ -2286,7 +2313,7 @@ export function LessonPlayer({
           const stepIndex = nextStepIndex;
           held.timer = window.setTimeout(() => {
             held.done = true;
-            setHolding(stepIndex, false);
+            setHolding(stepIndex, false, true);
             setPlayedNotes((prev) => {
               const next = new Set(prev).add(stepIndex);
               return next.size >= lesson.steps.length ? new Set() : next;
@@ -2319,7 +2346,7 @@ export function LessonPlayer({
           const held: HeldNote = { stepIndex, player, done: false };
           held.timer = window.setTimeout(() => {
             held.done = true;
-            setHolding(stepIndex, false);
+            setHolding(stepIndex, false, true);
             if (stepIndex >= lesson.steps.length - 1) {
               setPlayedNotes(new Set());
               setWaitModeStepIndex(0);
@@ -2437,7 +2464,7 @@ export function LessonPlayer({
             if (held.stepIndex === stepIndex) held.done = true;
           });
         }
-        setHolding(stepIndex, false);
+        setHolding(stepIndex, false, completed);
       },
     }, { songNeverWaits: !!jamLessonRef.current });
 
@@ -2482,7 +2509,10 @@ export function LessonPlayer({
   const [jamLessonHits, setJamLessonHits] = useState<Map<string, JamLessonHit>>(() => new Map());
   // Counts the restarts of a lesson room's lesson on the room's clock
   const [jamLessonRun, setJamLessonRun] = useState(0);
-  useEffect(() => setJamLessonHits(new Map()), [lesson]);
+  useEffect(() => {
+    setJamLessonHits(new Map());
+    setJamLessonHolds(new Map());
+  }, [lesson]);
   const recordLessonHitRef = useRef<(feedback: HitFeedback) => void>(() => {});
   recordLessonHitRef.current = (feedback) => {
     const start = jamStartRef.current;
@@ -2588,6 +2618,12 @@ export function LessonPlayer({
           clock: `${playedNotes.size} / ${lesson.steps.length}`,
         }
       : { time: currentTime, hits: jamLessonHits, lastLoop: isGameMode ? 0 : undefined };
+  lessonHoldKeyRef.current = (stepIndex) => {
+    if (!jamLessonView || jamLessonLoopSeconds <= 0) return null;
+    if (lessonStepped) return `${lessonLap}:${stepIndex}`;
+    const loopMs = jamLessonLoopSeconds * 1000;
+    return `${Math.max(0, Math.round((currentTimeRef.current - lessonStepMs(stepIndex)) / loopMs))}:${stepIndex}`;
+  };
 
   // Pointer play on the highway off the room's clock: a pressed row is a key
   // press, held until let go
@@ -2779,6 +2815,7 @@ export function LessonPlayer({
     resetLessonLap();
     // A lesson room's run starts with no judged steps and no dots left from before
     setJamLessonHits(new Map());
+    setJamLessonHolds(new Map());
     if (jamLessonRef.current && currentMode !== 'jam') {
       jamNotesRef.current = [];
       setJamNotes([]);
@@ -2860,6 +2897,7 @@ export function LessonPlayer({
     engineLoopsRef.current = 0;
     resetLessonLap();
     setJamLessonHits(new Map());
+    setJamLessonHolds(new Map());
     setRecentFeedback([]);
     setCurrentMode(mode);
 
@@ -2914,6 +2952,7 @@ export function LessonPlayer({
     resetRunState();
     if (currentMode === 'jam') {
       setJamLessonHits(new Map());
+    setJamLessonHolds(new Map());
       setJamLessonRun((run) => run + 1);
       // The room's song starts over, for everyone in it
       const room = jamRoomRef.current;
@@ -3471,6 +3510,7 @@ export function LessonPlayer({
                 ? {
                     loopMs: jamLessonLoopSeconds * 1000,
                     hits: jamLessonView.hits,
+                    holds: jamLessonHolds,
                     current: 'current' in jamLessonView ? jamLessonView.current : undefined,
                     stepped: 'stepped' in jamLessonView,
                     lastLoop: 'lastLoop' in jamLessonView ? jamLessonView.lastLoop : undefined,

@@ -66,6 +66,7 @@ interface NoteHighwayProps {
   jamLesson?: {
     loopMs: number;
     hits: Map<string, JamLessonHit>;
+    holds?: Map<string, JamLessonHold>;
     current?: string;
     stepped?: boolean;
     lastLoop?: number;
@@ -81,6 +82,16 @@ interface NoteHighwayProps {
 export interface JamLessonHit {
   accuracy: 'perfect' | 'good' | 'early' | 'late' | 'miss' | 'played';
   deltaMs: number;
+}
+
+// A lesson room's hold note as it was held: pressed and let go (wall clock,
+// performance.now()), and where the lesson was when it was let go (ms);
+// `completed` once held to its end
+export interface JamLessonHold {
+  pressedAt: number;
+  releasedAt: number | null;
+  releasedTime: number | null;
+  completed: boolean;
 }
 
 // How a lesson room's step was played, as its note shows it
@@ -895,6 +906,28 @@ export function NoteHighway({
   // green; early (blue) or late (orange) dimmed where they were due, with a
   // solid copy where they were played; missed red, with a shake.
   const LESSON_PAST_MS = 600;
+  const [, setHoldFrame] = useState(0);
+  const steppedHolding = !!jamLesson?.stepped && !!holdingSteps?.size;
+  useEffect(() => {
+    if (!steppedHolding) return;
+    let frame = requestAnimationFrame(function tick() {
+      setHoldFrame((n) => n + 1);
+      frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [steppedHolding]);
+  // How much of a hold note's tail is filled, 0 to 1: as far as it was held.
+  // On the room's clock up to where the lesson is (or was, when let go); in
+  // Wait and Free, which hold still, for as long as the key is down.
+  const lessonHoldFill = (key: string, at: number, ms: number): number => {
+    const hold = jamLesson?.holds?.get(key);
+    if (!hold) return 0;
+    if (hold.completed) return 1;
+    const held = jamLesson?.stepped
+      ? (hold.releasedAt ?? performance.now()) - hold.pressedAt
+      : (hold.releasedTime ?? currentTime) - at;
+    return Math.min(1, Math.max(0, held / ms));
+  };
   const renderJamLessonNotes = (laneIndex: number) => {
     if (!jamLesson || jamLesson.loopMs <= 0) return null;
     const { loopMs, hits, current } = jamLesson;
@@ -918,12 +951,15 @@ export function NoteHighway({
         const offTiming = timing === 'early' || timing === 'late';
         const holding = holdingSteps?.has(index) && at <= currentTime;
         if (holdMs[index]) {
+          const filled = lessonHoldFill(key, at, holdMs[index]) * holdMs[index] * JAM_PIXELS_PER_MS - size / 2;
           notes.push(
             <div
               key={`${key}:tail`}
               className={`jam-lesson-tail ${timing}${holding ? ' holding' : ''}`}
               style={{ left: `${at * JAM_PIXELS_PER_MS + size / 2}px`, width: `${Math.max(0, holdMs[index] * JAM_PIXELS_PER_MS - size / 2)}px`, color }}
-            />
+            >
+              {filled > 0 && <span className="jam-lesson-tail-fill" style={{ width: `${filled}px` }} />}
+            </div>
           );
         }
         notes.push(
