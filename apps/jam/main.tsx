@@ -9,7 +9,8 @@ import { JamLobbyConnection } from '../desktop/src/renderer/components/lesson-en
 import type { JamRoomEnd } from '../desktop/src/renderer/components/lesson-engine/jamRoom';
 import { JAM_SONGS, jamRoomSongOf } from '../desktop/src/renderer/components/lesson-engine/jamSongs';
 import { jamSongTracks } from '../desktop/src/renderer/components/lesson-engine/jamLessonRooms';
-import { importAbletonProject } from '../desktop/src/renderer/components/lesson-engine/jamAbletonImport';
+import { importAbletonProject, type JamImportStep } from '../desktop/src/renderer/components/lesson-engine/jamAbletonImport';
+import type { ProjectFile } from '../desktop/src/renderer/utils/abletonImport';
 import { JAM_SOUND_PRESETS } from '../desktop/src/renderer/components/lesson-engine/jamSynth';
 import {
   JAM_ROOM_CODE,
@@ -135,6 +136,14 @@ function JamApp() {
   const lessonRooms = rooms?.filter((room) => room.lesson !== null) ?? null;
   const jamRooms = rooms?.filter((room) => room.lesson === null) ?? null;
 
+  // An Ableton project made a Daw song: its id
+  const importSong = async (files: ProjectFile[], onStep: (step: JamImportStep) => void) => {
+    const song = await importAbletonProject(files, jamHttpServer, onStep);
+    const id = lobby ? await lobby.importSong(song.title, song.bpm, song.ableton) : null;
+    if (!id) throw new Error(`${song.title} could not be saved`);
+    return id;
+  };
+
   const player = (key: string, join: React.ComponentProps<typeof LessonPlayer>['jamRoomJoin'], section: 'daw' | 'jam' | 'lessons') => (
     <LessonPlayer
       key={key}
@@ -147,6 +156,7 @@ function JamApp() {
       jamHttpServer={jamHttpServer}
       jamRoomJoin={join}
       onJamRoomEnd={(reason) => backTo(section, reason)}
+      onJamImport={section === 'daw' ? async (files, onStep) => go({ at: 'song', id: await importSong(files, onStep) }) : undefined}
       onComplete={() => backTo(section)}
     />
   );
@@ -170,12 +180,7 @@ function JamApp() {
             onOpen={(id) => go({ at: 'song', id })}
             onNew={(title, from, bpm) => lobby?.newSong(title, from, bpm) ?? Promise.resolve(null)}
             onOffer={(id, offered) => lobby?.offer(id, offered)}
-            onImport={async (files, onStep) => {
-              const song = await importAbletonProject(files, jamHttpServer, onStep);
-              const id = lobby ? await lobby.importSong(song.title, song.bpm, song.ableton) : null;
-              if (!id) throw new Error(`${song.title} could not be saved`);
-              return id;
-            }}
+            onImport={importSong}
             onBack={() => go({ at: 'home' })}
             ended={ended}
           />

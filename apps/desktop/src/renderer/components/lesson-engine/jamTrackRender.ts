@@ -42,28 +42,52 @@ export function renderJamPartLoop(
   };
 
   if (part < track.drums.length) {
-    const { model, extra, lowpass } = track.drums[part];
-    const prepared = prepareDrum({ detail: 0, ...extra, model }, { channels: [new Float32Array(1)], sampleRate }, sampleRate);
-    const sound = lowpass ? prepared.map((channel) => lowPass(lowPass(channel, lowpass, sampleRate), lowpass, sampleRate)) : prepared;
+    const sound = drumSound(track, part, sampleRate);
     for (const { step, velocity } of notes) mixIn(sound, offsetOf(step), [velocity / 127, velocity / 127]);
     return effects ? withJamTrackEffects(track, loop, sampleRate) : loop;
   }
 
-  const { patch, gain, pan } = track.layers[part - track.drums.length];
-  const sides = [Math.sqrt(1 - pan) * Math.SQRT2 * gain, Math.sqrt(pan) * Math.SQRT2 * gain];
-  const tail = patchData(patch).release * 1.5 + 0.05;
+  const sides = layerSides(track, part);
   const rendered = new Map<string, Float32Array>();
-  for (const { pitch, step, length, velocity } of notes) {
-    const key = `${pitch}|${length}|${velocity}`;
+  for (const note of notes) {
+    const key = `${note.pitch}|${note.length}|${note.velocity}`;
     let sound = rendered.get(key);
     if (!sound) {
-      const seconds = length * sixteenth;
-      sound = renderNotes(patch, [{ pitch, start: 0, end: seconds, velocity }], seconds + tail, sampleRate);
+      sound = layerNote(track, part, note, sampleRate);
       rendered.set(key, sound);
     }
-    mixIn([sound], offsetOf(step), sides);
+    mixIn([sound], offsetOf(note.step), sides);
   }
   return effects ? withJamTrackEffects(track, loop, sampleRate) : loop;
+}
+
+// A drum part's hit at full velocity
+function drumSound(track: JamTrack, part: number, sampleRate: number): Float32Array[] {
+  const { model, extra, lowpass } = track.drums[part];
+  const prepared = prepareDrum({ detail: 0, ...extra, model }, { channels: [new Float32Array(1)], sampleRate }, sampleRate);
+  return lowpass ? prepared.map((channel) => lowPass(lowPass(channel, lowpass, sampleRate), lowpass, sampleRate)) : prepared;
+}
+
+// A layer's gain on each side, from its pan
+function layerSides(track: JamTrack, part: number): [number, number] {
+  const { gain, pan } = track.layers[part - track.drums.length];
+  return [Math.sqrt(1 - pan) * Math.SQRT2 * gain, Math.sqrt(pan) * Math.SQRT2 * gain];
+}
+
+// A layer's note, held for its length, then ringing out
+function layerNote(track: JamTrack, part: number, { pitch, length, velocity }: JamTrackNote, sampleRate: number): Float32Array {
+  const { patch } = track.layers[part - track.drums.length];
+  const seconds = length * (60 / track.bpm / 4);
+  const tail = patchData(patch).release * 1.5 + 0.05;
+  return renderNotes(patch, [{ pitch, start: 0, end: seconds, velocity }], seconds + tail, sampleRate);
+}
+
+// One note of a track's own drum or layer part as its loop plays it, dry: a
+// drum's hit, or a layer's note held for its length and ringing out
+export function renderJamPartNote(track: JamTrack, part: number, note: JamTrackNote, sampleRate: number): Float32Array[] {
+  if (part < track.drums.length) return drumSound(track, part, sampleRate).map((channel) => channel.map((x) => (x * note.velocity) / 127));
+  const sound = layerNote(track, part, note, sampleRate);
+  return layerSides(track, part).map((side) => sound.map((x) => x * side));
 }
 
 // A track's echo and room, folded into a part's loop. Both are linear, so a

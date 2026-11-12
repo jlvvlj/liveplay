@@ -87,7 +87,7 @@ const songSounds = (
   })),
 ];
 
-const SAMPLE_RATE = 44100;
+export const SAMPLE_RATE = 44100;
 const VELOCITY = 110;
 // Fixed boost from the engine's level to the clip (clips are then brought to
 // the reference sounds' loudness; `gain`, the Level control, sets a sound

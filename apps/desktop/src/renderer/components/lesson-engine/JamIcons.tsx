@@ -30,6 +30,18 @@ export const LanesIcon = () =>
 
 export const BackIcon = () => icon(<path d="M19 12H5M11 6l-6 6 6 6" />);
 
+// A folder with a plus: imports an Ableton project's folder
+export const ImportIcon = () =>
+  icon(
+    <>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <path d="M12 10v6M9 13h6" />
+    </>
+  );
+
+// An arrow down into a tray: exports the song (to Ableton Live)
+export const ExportIcon = () => icon(<path d="M12 4v11M7 10l5 5 5-5M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" />);
+
 // Arrows out to the corners: the editor takes the whole height
 export const ExpandIcon = () => icon(<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" />);
 
