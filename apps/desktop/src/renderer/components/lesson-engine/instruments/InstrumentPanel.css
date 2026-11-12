@@ -16,6 +16,22 @@
   animation: slideInLeft 0.25s ease-out;
 }
 
+/* Inside the Jam's sidebar, under its header: the sidebar is the panel */
+.instrument-panel.embedded {
+  position: static;
+  flex: 1;
+  min-height: 0;
+  width: auto;
+  z-index: auto;
+  border-right: none;
+  background: none;
+  animation: none;
+}
+
+.instrument-panel.embedded .instrument-panel-head h2 {
+  font-size: 1.15rem;
+}
+
 .instrument-panel-head {
   display: flex;
   align-items: center;

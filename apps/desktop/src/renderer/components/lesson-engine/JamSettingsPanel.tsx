@@ -15,6 +15,9 @@ const LESSON_MODES: { mode: HighwayMode; label: string }[] = [
 ];
 
 interface JamSettingsPanelProps {
+  // The instruments being chosen (for the played sound or a track), shown in
+  // the sidebar in place of its settings until they are closed
+  instruments?: ReactNode;
   // The Daw has only the backing track's settings and the room; the played
   // notes' settings are the Jam's
   section?: 'daw' | 'jam';
@@ -246,12 +249,13 @@ export function JamSettingsPanel({
   onLabelModeChange,
   onBack,
   onClose,
+  instruments,
 }: JamSettingsPanelProps) {
   const playing = section !== 'daw';
   const [linkCopied, setLinkCopied] = useState(false);
 
   return (
-    <div className="game-settings-sidebar jam-sidebar">
+    <div className={`game-settings-sidebar jam-sidebar ${instruments ? 'browsing' : ''}`}>
       <div className="game-settings-header jam-settings-header">
         {onBack && (
           <button className="jam-corner-btn jam-back-btn" onClick={onBack} title="Back">
@@ -267,6 +271,7 @@ export function JamSettingsPanel({
         </button>
       </div>
 
+      {instruments ?? (
       <div className="game-settings-content">
         {(songs.length > 1 || onViewChange) && (
           <Section
@@ -550,6 +555,7 @@ export function JamSettingsPanel({
         </>
         )}
       </div>
+      )}
     </div>
   );
 }

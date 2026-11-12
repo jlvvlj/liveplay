@@ -29,7 +29,7 @@ interface InstrumentPanelProps {
   // A Daw track's: its name, the instruments that fit it (kits for drums,
   // the others for notes), and for a track of the song's own its original
   // sound to go back to
-  track?: { name: string; kind: 'notes' | 'drum'; original?: () => void };
+  track?: { name: string; kind: 'notes' | 'drum'; original?: () => void; title?: string };
   // The chosen instrument is still loading
   loading: boolean;
   // How each instrument was last left, to go back to it
@@ -43,6 +43,8 @@ interface InstrumentPanelProps {
   favorites: JamFavorite[];
   onFavoritesChange: (favorites: JamFavorite[]) => void;
   onClose: () => void;
+  // Shown inside another panel (the Jam's sidebar), under its header, rather than over the page
+  embedded?: boolean;
 }
 
 export interface JamFavorite {
@@ -335,6 +337,7 @@ export function InstrumentPanel({
   favorites,
   onFavoritesChange,
   onClose,
+  embedded = false,
 }: InstrumentPanelProps) {
   const instruments = track ? all.filter((instrument) => !!instrument.pads === (track.kind === 'drum')) : all;
   // Opens on the first screen, every kind of instrument at hand
@@ -431,7 +434,7 @@ export function InstrumentPanel({
 
   const current = view.at === 'instrument' ? instruments.find((instrument) => instrument.id === view.id) : undefined;
   const title =
-    view.at === 'tag' ? view.tag : view.at === 'category' ? view.category : current ? current.name : (track?.name ?? 'Instruments');
+    view.at === 'tag' ? view.tag : view.at === 'category' ? view.category : current ? current.name : (track?.title ?? track?.name ?? 'Instruments');
   const back =
     view.at === 'home'
       ? undefined
@@ -498,7 +501,7 @@ export function InstrumentPanel({
   }, [openId]);
 
   return (
-    <aside className="instrument-panel">
+    <aside className={`instrument-panel ${embedded ? 'embedded' : ''}`}>
       <header className="instrument-panel-head">
         {back && (
           <button className="instrument-icon-btn" onClick={back} title="Back">
