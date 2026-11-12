@@ -16,20 +16,50 @@
   animation: slideInLeft 0.25s ease-out;
 }
 
-/* Inside the Jam's sidebar, under its header: the sidebar is the panel */
+/* A section of the Jam's sidebar, under its settings: headed like the
+   sidebar's other sections, scrolled with them, two cards across */
 .instrument-panel.embedded {
   position: static;
-  flex: 1;
-  min-height: 0;
   width: auto;
   z-index: auto;
+  display: block;
   border-right: none;
   background: none;
   animation: none;
 }
 
+.instrument-panel.embedded .instrument-panel-head {
+  min-height: 28px;
+  padding: 0;
+  margin-bottom: 0.7rem;
+}
+
 .instrument-panel.embedded .instrument-panel-head h2 {
-  font-size: 1.15rem;
+  font-size: 0.98rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Its own rows are headed smaller than the sidebar's sections */
+.instrument-panel.embedded .instrument-section-head h3 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ds-text-dim);
+}
+
+.instrument-panel.embedded .instrument-panel-body {
+  overflow: visible;
+  padding: 0;
+}
+
+.instrument-panel.embedded .instrument-row {
+  --instrument-columns: 2;
+}
+
+.instrument-panel.embedded .instrument-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .instrument-panel-head {

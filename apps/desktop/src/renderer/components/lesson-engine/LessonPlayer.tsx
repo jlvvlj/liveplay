@@ -3187,8 +3187,9 @@ export function LessonPlayer({
     const kind = jamPartTrackList[part].kind;
     const own = instrumentsFor === 'drums' || instrumentsFor.startsWith('part-');
     const name = instrumentsFor === 'drums' ? 'Drums' : own ? (jamTrackParts(jamTrack)[part]?.name ?? '') : (jamTrackSounds[instrumentsFor]?.name ?? '');
-    // Titled with the track's name as the grid shows it
-    const title = gridTracks(jamTrackParts(jamTrack), jamTrackAdded, jamTrackEdit?.names).find((gridTrack) => gridTrack.id === instrumentsFor)?.name;
+    // Titled with the track's name as the grid shows it, in the sidebar with its other sections
+    const trackName = gridTracks(jamTrackParts(jamTrack), jamTrackAdded, jamTrackEdit?.names).find((gridTrack) => gridTrack.id === instrumentsFor)?.name;
+    const title = `Instrument · ${trackName ?? name}`;
     return { name, kind, title, ...(own ? { original: () => setJamTrackInstrument(instrumentsFor, null) } : {}) };
   })();
 
@@ -3234,8 +3235,14 @@ export function LessonPlayer({
     }
   };
 
+  // The instruments chosen for the played sound ('jam') or a track: the
+  // sidebar opens with them in it, after its settings
+  const openJamInstruments = (key: string) => {
+    setInstrumentsFor(key);
+    setShowJamSettings(true);
+  };
   // The instruments being chosen, for the played sound ('jam') or a track,
-  // shown in the sidebar in place of its settings
+  // a section of the sidebar
   const jamInstrumentsPanel =
     jamOnly && instrumentsFor === 'jam' && jamSettings && jamChoice ? (
       <InstrumentPanel
@@ -3298,7 +3305,7 @@ export function LessonPlayer({
           <SidebarIcon />
         </button>
         {jamSection !== 'daw' && !jamLesson && (
-          <button className="jam-corner-btn" onClick={() => setInstrumentsFor('jam')} title="Instruments">
+          <button className="jam-corner-btn" onClick={() => openJamInstruments('jam')} title="Instruments">
             <InstrumentsIcon />
           </button>
         )}
@@ -3661,7 +3668,7 @@ export function LessonPlayer({
             trackNames={jamTrackEdit?.names ?? {}}
             onTrackName={setJamTrackName}
             trackSounds={jamTrackSounds}
-            onTrackInstrument={(key) => setInstrumentsFor(key)}
+            onTrackInstrument={openJamInstruments}
             onLiveAudition={(part, pitch) => {
               const partTrack = jamPartTrackList[part];
               if (!partTrack || !jamTrackChoices[partTrack.key]) return false;
@@ -3739,7 +3746,7 @@ export function LessonPlayer({
           </button>
         )}
 
-        {jamOnly && (showJamSettings || jamInstrumentsPanel) && jamSettings && jamSounds && (
+        {jamOnly && showJamSettings && jamSettings && jamSounds && (
           <JamSettingsPanel
             instruments={jamInstrumentsPanel ?? undefined}
             section={jamSection}
