@@ -1,0 +1,119 @@
+/* Daw: a track's header in the timeline. Its name on one line, what plays
+   it below, whole on as many lines as it needs, then solo, mute and level. */
+.jam-track-head {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  padding: 0.25rem 0.55rem;
+  border-radius: 10px;
+  overflow: hidden;
+  color: var(--ds-text);
+  cursor: default;
+}
+
+.jam-track-head-name,
+.jam-track-head-instrument {
+  min-width: 0;
+  margin: 0 -0.3rem;
+  padding: 1px 0.3rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  text-align: left;
+}
+
+.jam-track-head-name {
+  flex: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ds-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jam-track-head-instrument {
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  color: var(--ds-text-dim);
+}
+
+button.jam-track-head-name,
+button.jam-track-head-instrument {
+  cursor: pointer;
+}
+
+button.jam-track-head-name:hover,
+button.jam-track-head-instrument:hover {
+  background: var(--ds-raised);
+}
+
+/* Typing its name: the field sits where the name was */
+.jam-track-head-name.editing {
+  outline: none;
+  background: var(--ds-panel-2);
+  box-shadow: inset 0 0 0 1px var(--ds-border-strong);
+  cursor: text;
+}
+
+.jam-track-head-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: auto;
+}
+
+.jam-track-head-controls .jam-lane-toggle {
+  flex: 0 0 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  font-size: 0.62rem;
+}
+
+.jam-track-head-controls .jam-lane-level {
+  flex: 1 1 auto;
+  max-width: 5rem;
+  margin-left: auto;
+}
+
+@media (max-width: 700px), (max-height: 500px) {
+  .jam-track-head {
+    padding: 0.2rem 0.4rem;
+  }
+
+  .jam-track-head-controls .jam-lane-toggle {
+    flex-basis: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .jam-track-head-name {
+    font-size: 0.7rem;
+  }
+
+  .jam-track-head-instrument {
+    font-size: 0.62rem;
+  }
+}
+
+/* Upright phones: the name and what plays it, both whole, without the controls */
+@media (max-width: 480px) {
+  .jam-track-head {
+    padding: 0.2rem 0.3rem;
+  }
+
+  .jam-track-head-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .jam-track-head-controls {
+    display: none;
+  }
+}

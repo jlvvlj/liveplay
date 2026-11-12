@@ -149,35 +149,9 @@
   box-shadow: inset 4px 0 0 var(--track-color, transparent);
 }
 
-/* A track's name, its round solo and mute and its level, on one line */
-.jam-timeline-head .jam-lane-strip {
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0 0.55rem;
-  border-radius: 10px;
-}
-
-.jam-timeline-row.open .jam-timeline-head .jam-lane-strip {
+/* The open track's header is ringed in its color */
+.jam-timeline-row.open .jam-timeline-head .jam-track-head {
   box-shadow: inset 0 0 0 1.5px var(--track-color);
-}
-
-.jam-timeline-head .jam-lane-name {
-  flex: 1 1 0;
-  padding: 0;
-  background: none;
-  color: var(--ds-text);
-  font-size: 0.8rem;
-}
-
-.jam-timeline-head .jam-lane-toggle {
-  flex: 0 0 1.35rem;
-  height: 1.35rem;
-  border-radius: 50%;
-  font-size: 0.62rem;
-}
-
-.jam-timeline-head .jam-lane-level {
-  flex: 0 0 3.5rem;
 }
 
 /* Folded away: the clips take the headers' place */
@@ -859,12 +833,18 @@
 
   .jam-grid {
     --jam-head: 8rem;
+    --jam-timeline-head: 10rem;
     padding: 0.75rem;
     gap: 0.5rem;
   }
 
   .jam-timeline-row {
     height: 4.5rem;
+  }
+
+  .jam-timeline-head {
+    padding-top: 0.15rem;
+    padding-bottom: 0.15rem;
   }
 
   .jam-grid-zoom .jam-lane-level {
@@ -876,6 +856,7 @@
 @media (max-width: 480px) {
   .jam-grid {
     --jam-head: 5.5rem;
+    --jam-timeline-head: 7rem;
   }
 }
 

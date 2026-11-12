@@ -12,7 +12,7 @@ import type { JamImportStep } from './jamAbletonImport';
 import type { ProjectFile } from '../../utils/abletonImport';
 import { InstrumentPanel, type JamFavorite } from './instruments/InstrumentPanel';
 import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM, JAM_TRACK_BARS, jamRecordedTempoRange, jamTrackBaseFile, jamTrackByFile, jamTrackFor, jamTrackParts, setJamRecordedTrack, type JamTrackNote } from './jamTracks';
-import { validJamTrackEdit, type JamTrackEdit } from './jamTrackEdits';
+import { JAM_TRACK_NAME_MAX, validJamTrackEdit, type JamTrackEdit, type JamTrackNames } from './jamTrackEdits';
 import { renderJamBackingPart } from './jamRenderer';
 import { jamPartKey, type JamAddedPart } from './jamAddedParts';
 import { jamPartTracks, type JamTrackInstruments } from './jamTrackInstruments';
@@ -3106,23 +3106,29 @@ export function LessonPlayer({
   // Jam tab, with the sidebar hidden: back and the sidebar's button lead the
   // highway's or the grid's toolbar, where the sidebar's own header has them
   // A grid edit saved: in the room (and so to the Daw song), or in this
-  // browser. Instruments of tracks no longer there are left out.
+  // browser. Instruments and names of tracks no longer there are left out.
   const saveJamTrackEdit = (
     parts: JamTrackNote[][],
     added: JamAddedPart[],
     bars: number,
-    instruments: JamTrackInstruments,
-    mix?: JamTrackMix
+    {
+      instruments = jamTrackEdit?.instruments ?? {},
+      names = jamTrackEdit?.names ?? {},
+      mix,
+    }: { instruments?: JamTrackInstruments; names?: JamTrackNames; mix?: JamTrackMix } = {}
   ) => {
     if (!jamTrack || !jamSettings) return;
     const mixes = mix ? { ...jamSettings.mixes, [jamMixKey]: mix } : jamSettings.mixes;
     const keys = new Set(jamPartTracks(jamTrackParts(jamTrack), added).map((partTrack) => partTrack.key));
-    const kept = Object.fromEntries(Object.entries(instruments).filter(([key]) => keys.has(key)));
+    const keptOf = <T,>(entries: Record<string, T>) => Object.fromEntries(Object.entries(entries).filter(([key]) => keys.has(key)));
+    const keptInstruments = keptOf(instruments);
+    const keptNames = keptOf(names);
     const edit: JamTrackEdit = {
       parts,
       ...(added.length ? { added } : {}),
       ...(bars !== (jamTrack.bars ?? JAM_TRACK_BARS) ? { bars } : {}),
-      ...(Object.keys(kept).length ? { instruments: kept } : {}),
+      ...(Object.keys(keptInstruments).length ? { instruments: keptInstruments } : {}),
+      ...(Object.keys(keptNames).length ? { names: keptNames } : {}),
     };
     if (jamRoom && jamRoomState) {
       setJamRoomState({ ...jamRoomState, tracks: { ...jamRoomState.tracks, [jamTrack.file]: edit } });
@@ -3162,7 +3168,16 @@ export function LessonPlayer({
       [levels, mutes, solos] = [[...levels, ...Array(count).fill(1)], [...mutes, ...Array(count).fill(false)], [...solos, ...Array(count).fill(false)]];
     }
     const resized = parts !== jamTrackNotes;
-    saveJamTrackEdit(parts, added, jamTrackBars, instruments, resized ? { levels, mutes, solos } : undefined);
+    saveJamTrackEdit(parts, added, jamTrackBars, { instruments, mix: resized ? { levels, mutes, solos } : undefined });
+  };
+  // A track named in the grid (empty: back to its own name)
+  const setJamTrackName = (key: string, name: string) => {
+    if (!jamTrackNotes) return;
+    const names = { ...(jamTrackEdit?.names ?? {}) };
+    const given = name.trim().slice(0, JAM_TRACK_NAME_MAX);
+    if (given) names[key] = given;
+    else delete names[key];
+    saveJamTrackEdit(jamTrackNotes, jamTrackAdded, jamTrackBars, { names });
   };
   // The panel's view of a track: its name, kind, and its original sound when it is the song's own
   const jamTrackInstrumentTarget = (() => {
@@ -3196,6 +3211,7 @@ export function LessonPlayer({
           added: jamTrackAdded,
           levels: jamTrackMix.levels,
           heard: heard.map((level) => level > 0),
+          names: jamTrackEdit?.names ?? {},
           choices: jamTrackChoices,
           instruments: jamInstruments,
           scale: jamMixer.scale,
@@ -3587,7 +3603,9 @@ export function LessonPlayer({
             onTempoChange={(bpm) => jamRoom?.setTempo(bpm)}
             paused={jamIsPaused}
             onTogglePause={toggleJamPause}
-            onChange={(parts, added, bars) => saveJamTrackEdit(parts, added, bars, jamTrackEdit?.instruments ?? {})}
+            onChange={(parts, added, bars) => saveJamTrackEdit(parts, added, bars)}
+            trackNames={jamTrackEdit?.names ?? {}}
+            onTrackName={setJamTrackName}
             trackSounds={jamTrackSounds}
             onTrackInstrument={(key) => setInstrumentsFor(key)}
             onLiveAudition={(part, pitch) => {
@@ -3753,7 +3771,7 @@ export function LessonPlayer({
             instruments={jamInstruments}
             backing={
               jamTrack && jamTrackMix
-                ? gridTracks(jamTrackParts(jamTrack), jamTrackAdded).map(({ id, name, parts }) => ({
+                ? gridTracks(jamTrackParts(jamTrack), jamTrackAdded, jamTrackEdit?.names).map(({ id, name, parts }) => ({
                     id,
                     name,
                     muted: parts.every((part) => jamTrackMix.mutes[part]),

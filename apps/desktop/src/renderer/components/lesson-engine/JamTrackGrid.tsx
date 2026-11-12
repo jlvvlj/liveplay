@@ -12,6 +12,8 @@ import {
 import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM, JAM_MAX_BARS, JAM_SECTION_BARS, jamTrackParts, type JamTrack, type JamTrackNote, type JamTrackPart } from './jamTracks';
 import type { JamTrackMix } from './jamBackingMixer';
 import { JamLaneStrip } from './JamLaneStrip';
+import { JamTrackHead } from './JamTrackHead';
+import type { JamTrackNames } from './jamTrackEdits';
 import { auditionJamPart } from './jamAudition';
 import {
   jamAddedInstrument,
@@ -175,6 +177,9 @@ interface JamTrackGridProps {
   trackSounds: Record<string, { name: string; pads?: string[] }>;
   // Opens a track's instruments
   onTrackInstrument: (key: string) => void;
+  // The names given to tracks, and a track named (empty: back to its own name)
+  trackNames: JamTrackNames;
+  onTrackName: (key: string, name: string) => void;
   // One note of a part played by its live instrument; false for a part played
   // by its original sound
   onLiveAudition: (part: number, pitch: number) => boolean;
@@ -280,6 +285,8 @@ export function JamTrackGrid({
   onTempoChange,
   trackSounds,
   onTrackInstrument,
+  trackNames,
+  onTrackName,
   onLiveAudition,
   recordedBars = 0,
   waveforms = [],
@@ -303,10 +310,7 @@ export function JamTrackGrid({
     ],
     [own, added, trackSounds]
   );
-  const tracks = useMemo(
-    () => gridTracks(own, added).map((gridTrack) => (gridTrack.added && trackSounds[gridTrack.id] ? { ...gridTrack, name: trackSounds[gridTrack.id].name } : gridTrack)),
-    [own, added, trackSounds]
-  );
+  const tracks = useMemo(() => gridTracks(own, added, trackNames), [own, added, trackNames]);
   const addedAt = (part: number) => (part < own.length ? undefined : added[part - own.length]);
   // A part's sound on one pitch, an added part's from its instrument
   const audition = (part: number, pitch: number) => {
@@ -1203,10 +1207,11 @@ export function JamTrackGrid({
               style={{ '--track-color': gridTrack.color } as CSSProperties}>
               <div className="jam-timeline-head">
                 {lanesOpen && (
-                  <JamLaneStrip
+                  <JamTrackHead
                     name={gridTrack.name}
-                    tag=""
-                    onNameClick={gridTrack.recorded ? undefined : () => onTrackInstrument(gridTrack.id)}
+                    instrument={gridTrack.recorded ? undefined : (trackSounds[gridTrack.id]?.name ?? 'Original')}
+                    onRename={(name) => onTrackName(gridTrack.id, name)}
+                    onInstrument={() => onTrackInstrument(gridTrack.id)}
                     solo={solo}
                     mute={mute}
                     level={level}
