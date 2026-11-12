@@ -44,8 +44,8 @@ import { JamRoom, type JamRoomEnd, type JamRoomPlayer } from './jamRoom';
 import { jamRoomSongLesson } from './jamSongs';
 import { jamLessonFromSong, type JamLesson } from './jamLessonRooms';
 import { defaultLessonKeys } from './lessonKeys';
-import { JAM_RECORDED_TOP_DB, jamAbletonAudioUrl, jamAbletonLesson, jamAbletonLessonAtTempo, jamRecordedNotesDb, jamRecordedTrackOf, mixJamAbletonAudio } from './jamAbletonImport';
-import { JAM_ABLETON_FILE, type JamDawSong } from './jamRoomProtocol';
+import { JAM_RECORDED_TOP_DB, jamAbletonAudioUrl, jamAbletonLesson, jamAbletonLessonAtTempo, jamAbletonLessonOfTracks, jamRecordedNotesDb, jamRecordedTrackOf, joinJamAbletonAudio, mixJamAbletonAudio } from './jamAbletonImport';
+import { JAM_ABLETON_FILE, type JamAbletonTrack, type JamDawSong } from './jamRoomProtocol';
 import { JamLessonVoices } from './jamLessonVoices';
 import type { JamLessonHit, JamLessonHold } from './NoteHighway';
 import type { JamRoomNote, JamRoomSound, JamRoomState, JamRoomVisibility } from './jamRoomProtocol';
@@ -361,17 +361,18 @@ export function LessonPlayer({
   // as they are. A room plays its own song, and its backing track waits for it.
   const jamRoomSong = jamRoomState ? JSON.stringify(jamRoomState.song) : null;
   const jamRoomLesson = useMemo(() => (jamRoomSong ? jamRoomSongLesson(JSON.parse(jamRoomSong)) : null), [jamRoomSong]);
-  // A lesson room plays one track of its song as a lesson: its notes are the
-  // highway's steps, its lanes the rows (see jamLessonRooms.ts)
-  const jamRoomLessonTrack = jamRoomState?.lesson?.track ?? null;
+  // A lesson room plays one or more tracks of its song as a lesson: their
+  // notes are the highway's steps, their lanes the rows (see jamLessonRooms.ts)
+  const jamRoomLessonTrack = jamRoomState?.lesson ? jamRoomState.lesson.tracks.join(',') : null;
   const jamRoomSongEdit = jamRoomState ? jamRoomState.tracks[jamRoomState.song.file] : undefined;
   const jamGridLesson = useMemo(
-    () => (jamRoomSong && jamRoomLessonTrack ? jamLessonFromSong(JSON.parse(jamRoomSong), jamRoomSongEdit, jamRoomLessonTrack) : null),
+    () => (jamRoomSong && jamRoomLessonTrack ? jamLessonFromSong(JSON.parse(jamRoomSong), jamRoomSongEdit, jamRoomLessonTrack.split(',')) : null),
     [jamRoomSong, jamRoomSongEdit, jamRoomLessonTrack]
   );
-  // A song imported from an Ableton project: its lesson track's lesson as the
-  // full app makes it (each hit a slice of the track's export), over the
-  // others' recordings mixed as the backing
+  // A song imported from an Ableton project: its lesson tracks' lesson as the
+  // full app makes it (each hit a slice of the track's export; of several
+  // tracks, of their exports joined), over the others' recordings mixed as the
+  // backing
   const jamRoomAbleton = jamRoomState?.song.file === JAM_ABLETON_FILE ? jamRoomState.song.id : null;
   // In the Daw and in a Jam room the song plays as a track of its recordings
   const [jamRecordedSong, setJamRecordedSong] = useState<string | null>(null);
@@ -402,17 +403,26 @@ export function LessonPlayer({
     if (!jamRoomAbleton || !jamRoomLessonTrack || !jamHttpServer) return;
     let cancelled = false;
     let backing: string | null = null;
+    let joined: string | null = null;
     (async () => {
       const response = await fetch(`${jamHttpServer}/jam-songs/${jamRoomAbleton}`);
       if (!response.ok) throw new Error(`The song could not be loaded (${response.status})`);
       const song = (await response.json()) as JamDawSong;
-      const index = Number(jamRoomLessonTrack.replace('ableton-', ''));
-      const track = song.ableton?.tracks[index];
-      if (!song.ableton || !track) throw new Error(`${song.title} has no track ${jamRoomLessonTrack}`);
-      const others = song.ableton.tracks.filter((_, at) => at !== index).map((other) => jamAbletonAudioUrl(jamHttpServer, other));
+      const indexes = jamRoomLessonTrack.split(',').map((id) => Number(id.replace('ableton-', '')));
+      const tracks = indexes.map((index) => song.ableton?.tracks[index]);
+      if (!song.ableton || tracks.some((track) => !track)) throw new Error(`${song.title} has no tracks ${jamRoomLessonTrack}`);
+      const chosen = tracks as JamAbletonTrack[];
+      const others = song.ableton.tracks.filter((_, at) => !indexes.includes(at)).map((other) => jamAbletonAudioUrl(jamHttpServer, other));
       backing = await mixJamAbletonAudio(others, song.ableton.seconds);
       if (cancelled) return;
-      setJamAbletonLessonAtOwnTempo({ ...jamAbletonLesson(jamHttpServer, song.id, song.title, track), backingTrack: backing });
+      if (chosen.length === 1) {
+        setJamAbletonLessonAtOwnTempo({ ...jamAbletonLesson(jamHttpServer, song.id, song.title, chosen[0]), backingTrack: backing });
+        return;
+      }
+      const stem = await joinJamAbletonAudio(chosen.map((track) => jamAbletonAudioUrl(jamHttpServer, track)));
+      joined = stem.url;
+      if (cancelled) return;
+      setJamAbletonLessonAtOwnTempo({ ...jamAbletonLessonOfTracks(song.id, song.title, chosen, stem), backingTrack: backing });
     })().catch((err) => {
       if (cancelled) return;
       console.error('[LessonPlayer] Could not prepare the imported song\'s lesson:', err);
@@ -421,6 +431,7 @@ export function LessonPlayer({
     return () => {
       cancelled = true;
       if (backing) URL.revokeObjectURL(backing);
+      if (joined) URL.revokeObjectURL(joined);
       setJamAbletonLessonAtOwnTempo(null);
     };
   }, [jamRoomAbleton, jamRoomLessonTrack, jamHttpServer]);
@@ -1323,7 +1334,7 @@ export function LessonPlayer({
     mixer.setLevels(jamTrackLevels(jamHeardMix(jamTrackMix, jamLesson)));
   }, [jamTrackMix, backingTrackLoaded, jamLesson]);
 
-  // A lesson room's hits sound with the lesson track's own sound: its live
+  // A lesson room's hits sound with each lesson track's own sound: its live
   // instrument when it has one, on the track's own pads or pitches
   const jamLessonVoicesRef = useRef<JamLessonVoices | null>(null);
   const [jamLessonVoices, setJamLessonVoices] = useState<JamLessonVoices | null>(null);
@@ -1332,24 +1343,32 @@ export function LessonPlayer({
     const mixer = backingTrackRef.current;
     if (jamLessonVoices && backingTrackLoaded && mixer instanceof JamBackingMixer) jamLessonVoices.setScale(mixer.scale);
   }, [jamLessonVoices, backingTrackLoaded]);
-  const jamLessonChoice = jamRoomLessonTrack ? jamTrackChoices[jamRoomLessonTrack] : undefined;
+  // The lesson tracks' instrument choices, by track
+  const jamLessonChoices = useMemo(() => {
+    const keys = new Set((jamLesson?.lanes ?? []).flatMap((lane) => jamPartTrackList[lane.part]?.key ?? []));
+    return JSON.stringify([...keys].flatMap((key) => (jamTrackChoices[key] ? [[key, jamTrackChoices[key]]] : [])));
+  }, [jamLesson, jamPartTrackList, jamTrackChoices]);
   useEffect(() => {
     if (!jamLesson || !jamTrack) return;
-    const instrument = jamLessonChoice && findInstrument(jamInstruments, jamLessonChoice.instrument);
-    const live =
-      jamLessonChoice && instrument
-        ? {
-            instrument,
-            choice: jamLessonChoice,
-            bpm: jamTrack.bpm,
-            notes: new Map(
-              jamLesson.lanes.map((lane) => {
+    const live = (JSON.parse(jamLessonChoices) as [string, InstrumentChoice][]).flatMap(([key, choice]) => {
+      const instrument = findInstrument(jamInstruments, choice.instrument);
+      if (!instrument) return [];
+      return [
+        {
+          instrument,
+          choice,
+          bpm: jamTrack.bpm,
+          notes: new Map(
+            jamLesson.lanes
+              .filter((lane) => jamPartTrackList[lane.part]?.key === key)
+              .map((lane) => {
                 const partTrack = jamPartTrackList[lane.part];
-                return [lane.note, partTrack?.kind === 'drum' ? PAD_BASE_NOTE + partTrack.pad : lane.pitch] as const;
+                return [lane.note, partTrack.kind === 'drum' ? PAD_BASE_NOTE + partTrack.pad : lane.pitch] as const;
               })
-            ),
-          }
-        : null;
+          ),
+        },
+      ];
+    });
     const voices = new JamLessonVoices(jamTrack.file, jamLesson.lanes, jamTrackAddedRef.current, jamTrackParts(jamTrack).length, live);
     voices.ready.catch((err) => console.error('[LessonPlayer] Could not prepare the lesson track\'s sounds:', err));
     jamLessonVoicesRef.current = voices;
@@ -1360,7 +1379,7 @@ export function LessonPlayer({
       setJamLessonVoices((current) => (current === voices ? null : current));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jamLesson, jamTrack, jamLessonChoice]);
+  }, [jamLesson, jamTrack, jamLessonChoices]);
 
   // The tracks live instruments play, in time with the backing track's loop
   // and through its mixer (levels, mutes and solos as the grid sets them)

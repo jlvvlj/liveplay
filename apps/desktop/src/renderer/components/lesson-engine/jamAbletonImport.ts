@@ -12,6 +12,7 @@ import { encodeOpusWebm } from './jamOpus';
 import { encodeWav16 } from './jamTrackRender';
 import { JAM_ABLETON_FILE, type JamAbletonSong, type JamAbletonTrack, type JamDawSong } from './jamRoomProtocol';
 import { jamRecordedBars, type JamTrack } from './jamTracks';
+import { jamStackLanes } from './jamLessonRooms';
 
 // Daw songs from Ableton projects, read by the full app's Ableton import
 // (utils/abletonImport.ts, utils/abletonLibrary.ts) exactly as the Lessons
@@ -96,6 +97,44 @@ export const jamAbletonLesson = (server: string, songId: string, title: string, 
   stemAudio: jamAbletonAudioUrl(server, track),
 });
 
+// Several of an imported song's tracks as one lesson: their notes together,
+// each track's lanes moved up past an earlier track's where they meet, each
+// hit a slice of the tracks' exports joined end to end (joinJamAbletonAudio)
+export function jamAbletonLessonOfTracks(
+  songId: string,
+  title: string,
+  tracks: JamAbletonTrack[],
+  stem: { url: string; offsets: number[] }
+): Lesson {
+  const shifts = jamStackLanes(tracks.map((track) => [...new Set(track.lesson.steps.map((step) => step.note))]));
+  const name = tracks.map((track) => track.name).join(' + ');
+  const first = tracks[0].lesson;
+  return {
+    ...first,
+    id: `ableton:${songId}:${tracks.map((track) => track.name).join('+')}`,
+    title: `${name} — ${title}`,
+    instrument: tracks.every((track) => track.lesson.instrument === first.instrument) ? first.instrument : 'keys',
+    stemAudio: stem.url,
+    steps: tracks
+      .flatMap((track, at) =>
+        track.lesson.steps.map((step) => ({
+          ...step,
+          note: step.note + shifts[at],
+          ...(step.slice ? { slice: { ...step.slice, offset: step.slice.offset + stem.offsets[at] } } : {}),
+        }))
+      )
+      .sort((a, b) => a.tick - b.tick || a.note - b.note),
+    laneLabels: Object.fromEntries(
+      tracks.flatMap((track, at) =>
+        [...new Set(track.lesson.steps.map((step) => step.note))].map((note) => [
+          note + shifts[at],
+          track.lesson.laneLabels?.[note] ?? track.name,
+        ])
+      )
+    ),
+  };
+}
+
 // That lesson at another tempo, over its recordings stretched to it
 export const jamAbletonLessonAtTempo = (lesson: Lesson, bpm: number, backingTrack: string, stemAudio: string): Lesson => {
   const scale = lesson.bpm / bpm;
@@ -122,6 +161,30 @@ export const jamRecordedNotesDb = (volume: number, usualVolume: number, recordin
     : JAM_RECORDED_TOP_DB - 20 * Math.log10(Math.max(recordingPeak, QUIETEST_RECORDING_PEAK)) + (volume - usualVolume) * 20;
 
 const MIX_SAMPLE_RATE = 44100;
+
+// Tracks' audio one after another in one file (a WAV's blob URL), with where
+// each starts in it, in seconds
+export async function joinJamAbletonAudio(urls: string[]): Promise<{ url: string; offsets: number[] }> {
+  const decoder = new OfflineAudioContext(2, 1, MIX_SAMPLE_RATE);
+  const decoded: AudioBuffer[] = [];
+  for (const url of urls) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Could not load ${url} (${response.status})`);
+    decoded.push(await decoder.decodeAudioData(await response.arrayBuffer()));
+  }
+  const length = decoded.reduce((sum, audio) => sum + audio.length, 0);
+  const joined = [new Float32Array(length), new Float32Array(length)];
+  const offsets: number[] = [];
+  let at = 0;
+  for (const audio of decoded) {
+    offsets.push(at / MIX_SAMPLE_RATE);
+    const left = audio.getChannelData(0);
+    joined[0].set(left, at);
+    joined[1].set(audio.numberOfChannels > 1 ? audio.getChannelData(1) : left, at);
+    at += audio.length;
+  }
+  return { url: URL.createObjectURL(new Blob([encodeWav16(joined, MIX_SAMPLE_RATE)], { type: 'audio/wav' })), offsets };
+}
 
 // Tracks' audio mixed into one loop of `seconds` (a WAV's blob URL), decoded one
 // at a time so memory stays at the size of the mix; scaled down only if it would clip
