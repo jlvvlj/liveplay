@@ -3189,7 +3189,9 @@ export function LessonPlayer({
     const name = instrumentsFor === 'drums' ? 'Drums' : own ? (jamTrackParts(jamTrack)[part]?.name ?? '') : (jamTrackSounds[instrumentsFor]?.name ?? '');
     // Titled with the track's name as the grid shows it, in the sidebar with its other sections
     const trackName = gridTracks(jamTrackParts(jamTrack), jamTrackAdded, jamTrackEdit?.names).find((gridTrack) => gridTrack.id === instrumentsFor)?.name;
-    const title = `Instrument · ${trackName ?? name}`;
+    // (an added track not yet named is called Instrument itself)
+    const shownName = trackName ?? name;
+    const title = shownName === 'Instrument' ? shownName : `Instrument · ${shownName}`;
     return { name, kind, title, ...(own ? { original: () => setJamTrackInstrument(instrumentsFor, null) } : {}) };
   })();
 
