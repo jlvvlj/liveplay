@@ -8,7 +8,7 @@ import { JamHome } from '../desktop/src/renderer/components/lesson-engine/JamHom
 import { JamLobbyConnection } from '../desktop/src/renderer/components/lesson-engine/jamLobbyConnection';
 import type { JamRoomEnd } from '../desktop/src/renderer/components/lesson-engine/jamRoom';
 import { JAM_SONGS, jamRoomSongOf } from '../desktop/src/renderer/components/lesson-engine/jamSongs';
-import { jamSongTracks } from '../desktop/src/renderer/components/lesson-engine/jamLessonRooms';
+import { jamLessonChoices } from '../desktop/src/renderer/components/lesson-engine/jamLessonRooms';
 import { importAbletonProject } from '../desktop/src/renderer/components/lesson-engine/jamAbletonImport';
 import { JAM_SOUND_PRESETS } from '../desktop/src/renderer/components/lesson-engine/jamSynth';
 import {
@@ -118,7 +118,7 @@ function JamApp() {
         title: song.title,
         bpm: song.bpm,
         daw: false,
-        tracks: jamSongTracks(jamRoomSongOf(song).file, null).map(({ id, name }) => ({ id, name })),
+        tracks: jamLessonChoices(jamRoomSongOf(song).file, null),
       })),
       ...(songs ?? [])
         .filter((song) => song.offered)

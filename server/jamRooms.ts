@@ -13,6 +13,7 @@ import {
   type JamDawPresence,
   type JamDawSong,
   type JamDawSongSummary,
+  type JamRoomLesson,
   type JamRoomPeer,
   type JamRoomSong,
   type JamRoomState,
@@ -35,7 +36,7 @@ import {
   jamTrackParts,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamTracks';
 import { validJamRecordedEdit, validJamTrackEdit, type JamTrackEdit } from '../apps/desktop/src/renderer/components/lesson-engine/jamTrackEdits';
-import { jamSongTracks } from '../apps/desktop/src/renderer/components/lesson-engine/jamLessonRooms';
+import { jamLessonChoices, jamLessonName, type JamLessonChoice } from '../apps/desktop/src/renderer/components/lesson-engine/jamLessonRooms';
 import { jamImportedTranspose, jamWrittenTranspose } from '../apps/desktop/src/renderer/components/lesson-engine/jamRowsKey';
 import type { JamSongStore } from './jamSongStore';
 
@@ -146,12 +147,21 @@ function validAbletonSong(value: unknown, audioExists: (id: string) => boolean):
   );
 }
 
-// A Daw song's tracks a lesson room can play, by id: an imported song's
-// tracks in their order, else its grid's
-const songTrackList = (song: Pick<JamDawSong, 'file' | 'edit' | 'ableton'>) =>
+// A Daw song's tracks a lesson room can learn, by id: an imported song's
+// tracks in their order, else its grid's (a kit's drums each on its own)
+const songTrackList = (song: Pick<JamDawSong, 'file' | 'edit' | 'ableton'>): JamLessonChoice[] =>
   song.ableton
     ? song.ableton.tracks.map((track, index) => ({ id: `ableton-${index}`, name: track.name }))
-    : jamSongTracks(song.file, song.edit).map(({ id, name }) => ({ id, name }));
+    : jamLessonChoices(song.file, song.edit);
+
+// A lesson room's lesson from the tracks its opener chose: one or more of the
+// song's, each once; null when any is not the song's
+function roomLesson(choices: JamLessonChoice[], ids: unknown): JamRoomLesson | null {
+  if (!Array.isArray(ids) || ids.length === 0 || new Set(ids).size !== ids.length) return null;
+  if (!ids.every((id) => typeof id === 'string' && choices.some((choice) => choice.id === id))) return null;
+  const tracks = choices.filter((choice) => ids.includes(choice.id)).map((choice) => choice.id);
+  return { tracks, name: jamLessonName(choices, tracks) };
+}
 
 export function createJamRooms({
   songs,
@@ -203,9 +213,9 @@ export function createJamRooms({
   // The song a new Jam room plays: a built-in one, or a Daw song offered to rooms
   const roomSong = (
     id: string
-  ): { song: JamRoomSong; tracks: Record<string, JamTrackEdit>; lessons: { id: string; name: string }[] } | null => {
+  ): { song: JamRoomSong; tracks: Record<string, JamTrackEdit>; lessons: JamLessonChoice[] } | null => {
     const builtIn = JAM_SONGS.find((song) => song.id === id);
-    if (builtIn) return { song: jamRoomSongOf(builtIn), tracks: {}, lessons: jamSongTracks(jamRoomSongOf(builtIn).file, null) };
+    if (builtIn) return { song: jamRoomSongOf(builtIn), tracks: {}, lessons: jamLessonChoices(jamRoomSongOf(builtIn).file, null) };
     const daw = songs.get(id);
     return daw?.offered ? { song: dawRoomSong(daw), tracks: songTracks(daw), lessons: songTrackList(daw) } : null;
   };
@@ -347,10 +357,10 @@ export function createJamRooms({
         } else {
           joining = rooms.get(message.room);
           const opening = !joining && message.create ? roomSong(message.create.song) : null;
-          // A lesson room's lesson is one of its song's tracks
-          const lessonId = message.create?.lesson;
-          const lessonTrack = opening && lessonId !== undefined ? opening.lessons.find((track) => track.id === lessonId) : undefined;
-          if (!joining && (!opening || (lessonId !== undefined && !lessonTrack))) {
+          // A lesson room's lesson is one or more of its song's tracks
+          const lessonIds = message.create?.lesson;
+          const lesson = opening && lessonIds !== undefined ? roomLesson(opening.lessons, lessonIds) : null;
+          if (!joining && (!opening || (lessonIds !== undefined && !lesson))) {
             send(socket, { t: 'missing' });
             socket.close(1000, 'No such room');
             return;
@@ -367,7 +377,7 @@ export function createJamRooms({
               opened: nextRoom++,
               state: {
                 song: opening!.song,
-                lesson: lessonTrack ? { track: lessonTrack.id, name: lessonTrack.name } : null,
+                lesson,
                 startAt: null,
                 position: 0,
                 tracks: opening!.tracks,

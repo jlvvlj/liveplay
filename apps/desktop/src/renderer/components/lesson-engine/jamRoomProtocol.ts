@@ -1,6 +1,7 @@
 import type { InstrumentChoice } from './instruments/types';
 import type { JamTrackEdit } from './jamTrackEdits';
 import type { Lesson } from '../../types/lesson';
+import type { JamLessonChoice } from './jamLessonRooms';
 
 // Messages between jam players and the room server (server/jamRooms.ts), as
 // JSON over a WebSocket, and between players over their direct connections.
@@ -50,15 +51,16 @@ export interface JamAbletonTrack {
 export const JAM_ABLETON_FILE = 'ableton';
 
 // A Daw song as the lobbies list it, with the players editing it now and its
-// tracks (by the grid's ids), any of which a lesson room can play as its lesson
+// tracks a lesson room can learn, any of them together (jamLessonRooms.ts)
 export interface JamDawSongSummary extends Omit<JamDawSong, 'edit' | 'ableton'> {
   editors: { name: string; color: string }[];
-  tracks: { id: string; name: string }[];
+  tracks: JamLessonChoice[];
 }
 
-// A lesson room's lesson: one track of its song (by the grid's id), by name
+// A lesson room's lesson: some of its song's tracks (jamLessonChoices' ids),
+// by name
 export interface JamRoomLesson {
-  track: string;
+  tracks: string[];
   name: string;
 }
 
@@ -143,7 +145,7 @@ export type JamClientMessage =
   | {
       t: 'join';
       room: string;
-      create?: { visibility: JamRoomVisibility; song: string; lesson?: string };
+      create?: { visibility: JamRoomVisibility; song: string; lesson?: string[] };
       name: string;
       sound: JamRoomSound | null;
       need: number;
