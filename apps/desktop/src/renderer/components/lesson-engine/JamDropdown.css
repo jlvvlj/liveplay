@@ -156,3 +156,13 @@
   width: 12px;
   height: 12px;
 }
+
+/* Not to be picked: shown dim, its detail saying why */
+.jam-dropdown-option.disabled {
+  cursor: default;
+  color: var(--ds-text-dim);
+}
+
+.jam-dropdown-option.disabled.active {
+  background: transparent;
+}

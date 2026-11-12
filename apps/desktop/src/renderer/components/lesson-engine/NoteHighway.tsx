@@ -72,6 +72,9 @@ interface NoteHighwayProps {
     stepped?: boolean;
     lastLoop?: number;
     clock?: string;
+    // A room's other players' steps, on their own lanes: drawn as this
+    // player's are, never judged (`steps` are this player's)
+    others?: LessonStep[];
   };
   // Lanes drawn from the highest at the top in every mode, as the jam's rows
   // are (a lesson room keeps its lanes where they are when its mode changes)
@@ -202,10 +205,12 @@ export function NoteHighway({
     return mode === 'jam' && !lessonRoom ? jamWidth * JAM_CURSOR_HOME_PERCENT : containerWidth * HIT_ZONE_PERCENT;
   }, [containerWidth, mode, jamWidth, lessonRoom]);
 
-  // Get unique notes from the lesson (sorted by MIDI value)
+  // Get unique notes from the lesson (sorted by MIDI value), a room's other
+  // players' lanes too
+  const otherSteps = jamLesson?.others;
   const uniqueNotes = useMemo(() =>
-    Array.from(new Set(steps.map(s => s.note))).sort((a, b) => a - b),
-    [steps]
+    Array.from(new Set([...steps, ...(otherSteps ?? [])].map(s => s.note))).sort((a, b) => a - b),
+    [steps, otherSteps]
   );
 
   // Determine number of lanes based on unique notes in the lesson
@@ -255,11 +260,11 @@ export function NoteHighway({
   );
 
   // Hold notes: how long each one's sound lasts (0 for ordinary notes)
+  const holdLength = (step: LessonStep) =>
+    !holdNotes || stepDurationMs(step, holdBpm ?? bpm) < HOLD_MIN_MS ? 0 : stepDurationMs(step, bpm);
   const holdMs = useMemo(
-    () => steps.map((step) => {
-      if (!holdNotes || stepDurationMs(step, holdBpm ?? bpm) < HOLD_MIN_MS) return 0;
-      return stepDurationMs(step, bpm);
-    }),
+    () => steps.map(holdLength),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [steps, bpm, holdNotes, holdBpm]
   );
 
@@ -774,6 +779,11 @@ export function NoteHighway({
   // The jam rows, top to bottom (the lanes also hold the lane controls' fold)
   const jamRowElements = (): HTMLElement[] =>
     Array.from(jamLanesRef.current?.querySelectorAll<HTMLElement>(':scope > [data-jam-note]') ?? []);
+  // The rows this player's ship keeps to: in a lesson room with other players,
+  // their own lanes (one block of rows), else every row
+  const ownNotes = useMemo(() => new Set(steps.map((step) => step.note)), [steps]);
+  const isOwnNote = (note: number) => !lessonRoom || !otherSteps?.length || ownNotes.has(note);
+  const jamShipRows = (): HTMLElement[] => jamRowElements().filter((row) => isOwnNote(Number(row.dataset.jamNote)));
 
   // Where the rows are: the top row's center (px from the highway top) and
   // the distance from one row's center to the next
@@ -1000,6 +1010,30 @@ export function NoteHighway({
           );
         }
       });
+      // The other players' steps on this lane: theirs to play
+      jamLesson.others?.forEach((step, index) => {
+        if (noteToLane(step.note) !== laneIndex) return;
+        const at = loop * loopMs + ticksToMs(step.tick);
+        const hold = holdLength(step);
+        if (at + hold < lessonTime - pastMs || at > lessonTime + aheadMs) return;
+        const key = `${loop}:other:${index}`;
+        if (hold) {
+          notes.push(
+            <div
+              key={`${key}:tail`}
+              className="jam-lesson-tail"
+              style={{ left: `${at * JAM_PIXELS_PER_MS + size / 2}px`, width: `${Math.max(0, hold * JAM_PIXELS_PER_MS - size / 2)}px`, color }}
+            />
+          );
+        }
+        notes.push(
+          <div
+            key={key}
+            className="jam-lesson-note"
+            style={{ left: `${at * JAM_PIXELS_PER_MS}px`, width: `${size}px`, height: `${size}px`, color }}
+          />
+        );
+      });
     }
     return notes;
   };
@@ -1014,13 +1048,14 @@ export function NoteHighway({
   };
 
   const moveJamCursor = (clientY: number, note: number | null, glide = false) => {
-    const rows = jamRowElements();
+    const rows = jamShipRows();
     const container = containerRef.current;
     if (!rows.length || !container) return;
     const top = rows[0].getBoundingClientRect();
     const bottom = rows[rows.length - 1].getBoundingClientRect();
     const y = Math.min(bottom.top + bottom.height / 2, Math.max(top.top + top.height / 2, clientY));
-    setJamCursorY((prev) => ({ y: y - container.getBoundingClientRect().top, note: note ?? prev?.note ?? null, glide }));
+    const own = note !== null && isOwnNote(note) ? note : null;
+    setJamCursorY((prev) => ({ y: y - container.getBoundingClientRect().top, note: own ?? prev?.note ?? null, glide }));
   };
 
   // A note this player plays with a key or MIDI on another row than the
@@ -1076,23 +1111,31 @@ export function NoteHighway({
     if (jamCursorNote !== null) onJamCursorNote?.(jamCursorNote);
   }, [jamCursorNote, onJamCursorNote]);
 
-  // The ship's height in rows from the top, for the other players in a jam room
+  // The ship's height in rows from the top, for the other players in a jam
+  // room: sent as it moves, and again when the rows change under it
   const jamCursorPx = jamCursorY?.y ?? null;
+  const laneKey = `${uniqueNotes.join(',')}|${containerHeight}`;
   useEffect(() => {
     const rows = jamRowSpan();
     if (jamCursorPx === null || !rows || !onJamCursorMove) return;
     onJamCursorMove(rows.step > 0 ? (jamCursorPx - rows.top) / rows.step : 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jamCursorPx, onJamCursorMove]);
+  }, [jamCursorPx, onJamCursorMove, laneKey]);
 
-  // Start the cursor on the middle row
+  // Start the ship on the middle of its rows, and keep it on its row when the
+  // rows change (a lesson room's players come and go): on the middle again
+  // when its row is gone
+  const placedLanesRef = useRef<string | null>(null);
   useEffect(() => {
-    if (mode !== 'jam' || jamCursorY) return;
-    const rows = jamRowElements();
-    const middle = rows[Math.floor(rows.length / 2)] as HTMLElement | undefined;
-    if (!middle) return;
-    const rect = middle.getBoundingClientRect();
-    moveJamCursor(rect.top + rect.height / 2, Number(middle.dataset.jamNote));
+    if (mode !== 'jam') return;
+    if (jamCursorY && placedLanesRef.current === laneKey) return;
+    const rows = jamShipRows();
+    if (!rows.length) return;
+    placedLanesRef.current = laneKey;
+    const kept = jamCursorY?.note != null ? rows.find((row) => Number(row.dataset.jamNote) === jamCursorY.note) : undefined;
+    const row = kept ?? rows[Math.floor(rows.length / 2)];
+    const rect = row.getBoundingClientRect();
+    moveJamCursor(rect.top + rect.height / 2, Number(row.dataset.jamNote));
   });
 
   const handleJamPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {

@@ -7,9 +7,10 @@ import type { JamRoomSong } from './jamRoomProtocol';
 import { jamRoomSongLesson } from './jamSongs';
 
 // Lesson rooms: a Jam room whose song also gives a lesson, from one or more
-// of its tracks (a kit's drums each count as one: kick and snare, say). Their
-// notes come at the ship as a lesson's notes come at the timing line, a lane
-// per drum or per pitch, and loop with the song. The lesson's tracks are left
+// of its tracks (a kit's drums each count as one: kick and snare, say), each
+// player learning their own. Their notes come at the ship as a lesson's notes
+// come at the timing line, a lane per drum or per pitch, each player's lanes
+// above the one before, and loop with the song. The lesson's tracks are left
 // out of the backing; each hit plays its own track's sound.
 
 const TICKS_PER_16TH = 120; // lessons count 480 ticks a beat
@@ -18,18 +19,24 @@ const KIT_BASE_NOTE = 36; // a kit's lanes are plain ids, one per drum from 36 u
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = (pitch: number) => `${NOTE_NAMES[pitch % 12]}${Math.floor(pitch / 12) - 1}`;
 
-// A lane of the lesson: its note in the lesson, and the part and pitch it plays
+// A lane of the lesson: its note in the lesson, the part and pitch it plays,
+// and whose it is (the group of tracks it came from: in a room, a player)
 export interface JamLessonLane {
   note: number;
   part: number;
   pitch: number;
+  group: number;
 }
 
 export interface JamLesson {
   lesson: Lesson;
+  // Every lane of the room's lesson, the other players' too
   lanes: JamLessonLane[];
   // The tracks' parts, left out of the backing
   parts: number[];
+  // In a room with several players: the other players' steps, out of
+  // `lesson`, which holds this player's own
+  others?: LessonStep[];
 }
 
 // What a lesson room can learn, in the song's order: each drum of a kit on
@@ -91,9 +98,14 @@ export function jamStackLanes(groups: number[][]): number[] {
 }
 
 // The lesson some of a song's tracks make (grid track ids, or a kit's drums
-// by drum-<part>), with the song's notes as edited; null when the song has
-// none of them
-export function jamLessonFromSong(song: JamRoomSong, edit: JamTrackEdit | null | undefined, ids: string[]): JamLesson | null {
+// by drum-<part>), with the song's notes as edited: one group of tracks per
+// player, each group's lanes above the one before (lanes say whose they are,
+// by group); null when the song has none of them
+export function jamLessonFromSong(
+  song: JamRoomSong,
+  edit: JamTrackEdit | null | undefined,
+  players: string[][]
+): JamLesson | null {
   const track = jamTrackByFile(song.file);
   if (!track) return null;
   const own = jamTrackParts(track);
@@ -102,28 +114,35 @@ export function jamLessonFromSong(song: JamRoomSong, edit: JamTrackEdit | null |
   const bars = edit?.bars ?? JAM_TRACK_BARS;
   const grids = gridTracks(own, added, edit?.names);
   const partName = (part: number) => own[part]?.name ?? jamAddedPartName(added[part - own.length]);
-  const chosen = new Set(ids);
+  const ids = players.flat();
   const known = (id: string) => grids.some((grid) => grid.id === id || (grid.kind === 'drum' && grid.parts.some((part) => drumId(part) === id)));
   if (ids.length === 0 || !ids.every(known)) return null;
 
-  // The chosen drums, every kit's together; then each chosen notes track
-  const drums = grids
-    .filter((grid) => grid.kind === 'drum')
-    .flatMap((grid) => grid.parts.filter((part) => chosen.has(grid.id) || chosen.has(drumId(part))));
-  const tracks = grids.filter((grid) => grid.kind === 'notes' && chosen.has(grid.id));
-
   type Lane = JamLessonLane & { label: string };
-  const kit: Lane[] = drums
-    .filter((part) => notes[part].length > 0)
-    .map((part, lane) => ({ note: KIT_BASE_NOTE + lane, part, pitch: notes[part][0].pitch, label: partName(part) }));
-  const pitched: Lane[][] = tracks.map((grid) =>
-    [...new Set(notes[grid.parts[0]].map((note) => note.pitch))]
-      .sort((a, b) => a - b)
-      .map((pitch) => ({ note: pitch, part: grid.parts[0], pitch, label: noteName(pitch) }))
-  );
-  const groups = [kit, ...pitched];
+  // Each player's chosen drums, every kit's together; then each of their notes tracks
+  const chosenBy = players.map((group) => {
+    const chosen = new Set(group);
+    const drums = grids
+      .filter((grid) => grid.kind === 'drum')
+      .flatMap((grid) => grid.parts.filter((part) => chosen.has(grid.id) || chosen.has(drumId(part))));
+    const tracks = grids.filter((grid) => grid.kind === 'notes' && chosen.has(grid.id));
+    return { drums, tracks };
+  });
+  const groups = chosenBy.flatMap(({ drums, tracks }, player): Lane[][] => [
+    drums
+      .filter((part) => notes[part].length > 0)
+      .map((part, lane) => ({ note: KIT_BASE_NOTE + lane, part, pitch: notes[part][0].pitch, group: player, label: partName(part) })),
+    ...tracks.map((grid) =>
+      [...new Set(notes[grid.parts[0]].map((note) => note.pitch))]
+        .sort((a, b) => a - b)
+        .map((pitch) => ({ note: pitch, part: grid.parts[0], pitch, group: player, label: noteName(pitch) }))
+    ),
+  ]);
   const shifts = jamStackLanes(groups.map((group) => group.map((lane) => lane.note)));
   const lanes: Lane[] = groups.flatMap((group, at) => group.map((lane) => ({ ...lane, note: lane.note + shifts[at] })));
+  const drums = chosenBy.flatMap((chosen) => chosen.drums);
+  const tracks = chosenBy.flatMap((chosen) => chosen.tracks);
+  const chosen = new Set(ids);
 
   const drumParts = new Set(drums);
   const steps: LessonStep[] = lanes
@@ -147,7 +166,7 @@ export function jamLessonFromSong(song: JamRoomSong, edit: JamTrackEdit | null |
   return {
     lesson: {
       ...base,
-      id: `lesson:${song.id}:${[...ids].sort().join('+')}`,
+      id: `lesson:${song.id}:${players.map((group) => [...group].sort().join('+')).join('|')}`,
       title: `${name} — ${song.title}`,
       instrument: tracks.length === 0 ? 'drums' : 'keys',
       steps,
@@ -155,7 +174,7 @@ export function jamLessonFromSong(song: JamRoomSong, edit: JamTrackEdit | null |
       laneLabels: Object.fromEntries(lanes.map((lane) => [lane.note, lane.label])),
       metadata: { ...base.metadata, description: `${name} of ${song.title}` },
     },
-    lanes: lanes.map(({ note, part, pitch }) => ({ note, part, pitch })),
+    lanes: lanes.map(({ note, part, pitch, group }) => ({ note, part, pitch, group })),
     parts: [...drums, ...tracks.flatMap((grid) => grid.parts)],
   };
 }

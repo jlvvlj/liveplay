@@ -10,6 +10,8 @@ export interface JamDropdownOption {
   value: string;
   label: string;
   detail?: string;
+  // Shown, dim, but not to be picked (another player has it, say: `detail` says who)
+  disabled?: boolean;
 }
 
 export interface JamDropdownGroup {
@@ -87,6 +89,7 @@ export function JamDropdown(props: JamDropdownProps) {
     setOpen(true);
   };
   const pick = (option: JamDropdownOption) => {
+    if (option.disabled) return;
     if (props.multiple) {
       // Kept in the list's order
       const next = isPicked(option) ? props.value.filter((value) => value !== option.value) : [...props.value, option.value];
@@ -164,7 +167,8 @@ export function JamDropdown(props: JamDropdownProps) {
                     data-index={at}
                     role="option"
                     aria-selected={selected}
-                    className={`jam-dropdown-option ${at === active ? 'active' : ''} ${selected ? 'selected' : ''}`}
+                    aria-disabled={option.disabled || undefined}
+                    className={`jam-dropdown-option ${at === active ? 'active' : ''} ${selected ? 'selected' : ''} ${option.disabled ? 'disabled' : ''}`}
                     onPointerEnter={() => setActive(at)}
                     onClick={() => pick(option)}
                   >

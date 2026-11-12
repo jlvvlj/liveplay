@@ -70,7 +70,7 @@ interface LessonPlayerProps {
   // room with that song; or with `edit`, the room where the Daw song with
   // that id is edited), and what to do when the room ends by itself
   jamRoomServer?: string;
-  jamRoomJoin?: { key: string; edit?: boolean; create?: { visibility: JamRoomVisibility; song: string } };
+  jamRoomJoin?: { key: string; edit?: boolean; create?: { visibility: JamRoomVisibility; song: string; lesson?: string[] }; tracks?: string[] };
   onJamRoomEnd?: (reason: JamRoomEnd) => void;
   // In the Daw: an Ableton project's folder made a Daw song, which opens
   onJamImport?: (files: ProjectFile[], onStep: (step: JamImportStep) => void) => Promise<void>;
@@ -361,12 +361,17 @@ export function LessonPlayer({
   // as they are. A room plays its own song, and its backing track waits for it.
   const jamRoomSong = jamRoomState ? JSON.stringify(jamRoomState.song) : null;
   const jamRoomLesson = useMemo(() => (jamRoomSong ? jamRoomSongLesson(JSON.parse(jamRoomSong)) : null), [jamRoomSong]);
-  // A lesson room plays one or more tracks of its song as a lesson: their
-  // notes are the highway's steps, their lanes the rows (see jamLessonRooms.ts)
-  const jamRoomLessonTrack = jamRoomState?.lesson ? jamRoomState.lesson.tracks.join(',') : null;
+  // A lesson room plays one or more tracks of its song as a lesson, each
+  // player their own: their notes are the highway's steps, their lanes the
+  // rows, each player's above the one before (see jamLessonRooms.ts)
+  const jamRoomLessonPlayers = jamRoomState?.lesson?.players.length ? jamRoomState.lesson.players : null;
+  const jamRoomLessonTrack = jamRoomLessonPlayers ? JSON.stringify(jamRoomLessonPlayers.map((player) => player.tracks)) : null;
   const jamRoomSongEdit = jamRoomState ? jamRoomState.tracks[jamRoomState.song.file] : undefined;
   const jamGridLesson = useMemo(
-    () => (jamRoomSong && jamRoomLessonTrack ? jamLessonFromSong(JSON.parse(jamRoomSong), jamRoomSongEdit, jamRoomLessonTrack.split(',')) : null),
+    () =>
+      jamRoomSong && jamRoomLessonTrack
+        ? jamLessonFromSong(JSON.parse(jamRoomSong), jamRoomSongEdit, JSON.parse(jamRoomLessonTrack) as string[][])
+        : null,
     [jamRoomSong, jamRoomSongEdit, jamRoomLessonTrack]
   );
   // A song imported from an Ableton project: its lesson tracks' lesson as the
@@ -398,7 +403,7 @@ export function LessonPlayer({
       setJamRecordedSong(null);
     };
   }, [jamRoomAbleton, jamRoomLessonTrack, jamHttpServer]);
-  const [jamAbletonLessonAtOwnTempo, setJamAbletonLessonAtOwnTempo] = useState<Lesson | null>(null);
+  const [jamAbletonLessonAtOwnTempo, setJamAbletonLessonAtOwnTempo] = useState<{ lesson: Lesson; laneGroups: Record<number, number> } | null>(null);
   useEffect(() => {
     if (!jamRoomAbleton || !jamRoomLessonTrack || !jamHttpServer) return;
     let cancelled = false;
@@ -408,7 +413,10 @@ export function LessonPlayer({
       const response = await fetch(`${jamHttpServer}/jam-songs/${jamRoomAbleton}`);
       if (!response.ok) throw new Error(`The song could not be loaded (${response.status})`);
       const song = (await response.json()) as JamDawSong;
-      const indexes = jamRoomLessonTrack.split(',').map((id) => Number(id.replace('ableton-', '')));
+      // Each player's tracks, one after another
+      const players = JSON.parse(jamRoomLessonTrack) as string[][];
+      const indexes = players.flat().map((id) => Number(id.replace('ableton-', '')));
+      const groups = players.flatMap((tracks, player) => tracks.map(() => player));
       const tracks = indexes.map((index) => song.ableton?.tracks[index]);
       if (!song.ableton || tracks.some((track) => !track)) throw new Error(`${song.title} has no tracks ${jamRoomLessonTrack}`);
       const chosen = tracks as JamAbletonTrack[];
@@ -416,13 +424,15 @@ export function LessonPlayer({
       backing = await mixJamAbletonAudio(others, song.ableton.seconds);
       if (cancelled) return;
       if (chosen.length === 1) {
-        setJamAbletonLessonAtOwnTempo({ ...jamAbletonLesson(jamHttpServer, song.id, song.title, chosen[0]), backingTrack: backing });
+        const lesson = { ...jamAbletonLesson(jamHttpServer, song.id, song.title, chosen[0]), backingTrack: backing };
+        setJamAbletonLessonAtOwnTempo({ lesson, laneGroups: {} });
         return;
       }
       const stem = await joinJamAbletonAudio(chosen.map((track) => jamAbletonAudioUrl(jamHttpServer, track)));
       joined = stem.url;
       if (cancelled) return;
-      setJamAbletonLessonAtOwnTempo({ ...jamAbletonLessonOfTracks(song.id, song.title, chosen, stem), backingTrack: backing });
+      const made = jamAbletonLessonOfTracks(song.id, song.title, chosen, stem, groups);
+      setJamAbletonLessonAtOwnTempo({ lesson: { ...made.lesson, backingTrack: backing }, laneGroups: made.laneGroups });
     })().catch((err) => {
       if (cancelled) return;
       console.error('[LessonPlayer] Could not prepare the imported song\'s lesson:', err);
@@ -439,14 +449,15 @@ export function LessonPlayer({
   const jamRoomBpm = jamRoomAbleton ? jamRoomState!.song.bpm : null;
   const [jamAbletonRoomLesson, setJamAbletonRoomLesson] = useState<JamLesson | null>(null);
   useEffect(() => {
-    const own = jamAbletonLessonAtOwnTempo;
+    const own = jamAbletonLessonAtOwnTempo?.lesson;
     if (!own || jamRoomBpm === null) {
       setJamAbletonRoomLesson(null);
       return;
     }
+    const { laneGroups } = jamAbletonLessonAtOwnTempo!;
     const show = (lesson: Lesson) => {
       const notes = [...new Set(lesson.steps.map((step) => step.note))].sort((a, b) => a - b);
-      setJamAbletonRoomLesson({ lesson, lanes: notes.map((note) => ({ note, part: -1, pitch: note })), parts: [] });
+      setJamAbletonRoomLesson({ lesson, lanes: notes.map((note) => ({ note, part: -1, pitch: note, group: laneGroups[note] ?? 0 })), parts: [] });
     };
     if (isJamBpm(own.bpm, jamRoomBpm)) {
       show(own);
@@ -472,7 +483,26 @@ export function LessonPlayer({
       stretched.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [jamAbletonLessonAtOwnTempo, jamRoomBpm]);
-  const jamLesson = jamAbletonRoomLesson ?? jamGridLesson;
+  // The room's whole lesson, every player's lanes; this player's own steps
+  // are the lesson they play and are scored on (and their keys), the others'
+  // are only shown
+  const jamRoomWholeLesson = jamAbletonRoomLesson ?? jamGridLesson;
+  const jamLessonYou = jamRoomPlayers.find((player) => player.you)?.id;
+  const jamLessonGroup = jamRoomLessonPlayers ? jamRoomLessonPlayers.findIndex((player) => player.id === jamLessonYou) : -1;
+  const jamLesson = useMemo((): JamLesson | null => {
+    if (!jamRoomWholeLesson) return null;
+    const groupOf = new Map(jamRoomWholeLesson.lanes.map((lane) => [lane.note, lane.group]));
+    const mine = (step: LessonStep) => (groupOf.get(step.note) ?? 0) === jamLessonGroup;
+    const { lesson } = jamRoomWholeLesson;
+    if (lesson.steps.every(mine)) return jamRoomWholeLesson;
+    return {
+      ...jamRoomWholeLesson,
+      lesson: { ...lesson, steps: lesson.steps.filter(mine) },
+      others: lesson.steps.filter((step) => !mine(step)),
+    };
+  }, [jamRoomWholeLesson, jamLessonGroup]);
+  // The other players' steps, drawn on their lanes as this player's are
+  const jamLessonOthers = jamLesson?.others;
   const jamLessonRef = useRef(jamLesson);
   jamLessonRef.current = jamLesson;
   const isLessonRoom = !!jamLesson;
@@ -1568,8 +1598,10 @@ export function LessonPlayer({
     return (step.tick / 480) * (60 / lesson.bpm);
   }, [lesson.bpm]);
 
-  const getPlayableStepForInput = useCallback((note: number, lessonTimeSeconds: number): LessonStep | undefined => {
-    const matchingSteps = lesson.steps.filter((step) => step.note === note);
+  // The step a press on `note` plays: this player's own, or in a room any
+  // player's (`steps`: another player's press, on their lanes)
+  const getPlayableStepForInput = useCallback((note: number, lessonTimeSeconds: number, steps: LessonStep[] = lesson.steps): LessonStep | undefined => {
+    const matchingSteps = steps.filter((step) => step.note === note);
     if (matchingSteps.length === 0) {
       return undefined;
     }
@@ -2080,7 +2112,8 @@ export function LessonPlayer({
     if (jamLessonRef.current && lesson.stemAudio) {
       // Another player's hit on an imported song's track: the slice nearest its time in the song
       const loopSeconds = lesson.loop ? ((lesson.loop.endTick - lesson.loop.startTick) / 480) * (60 / lesson.bpm) : 0;
-      const step = getPlayableStepForInput(note.note, loopSeconds > 0 ? sounds % loopSeconds : sounds);
+      const roomSteps = [...lesson.steps, ...(jamLessonRef.current.others ?? [])];
+      const step = getPlayableStepForInput(note.note, loopSeconds > 0 ? sounds % loopSeconds : sounds, roomSteps);
       if (step) playSoundRef.current(note.note, step.note, jamNotesVolumeRef.current, step.slice, start + sounds, step.semitones);
     } else if (jamLessonRef.current) {
       if (!jamLessonVoicesRef.current?.play(note.note, start + sounds, note.velocity ?? JAM_KEY_VELOCITY, jamNotesVolumeRef.current)) {
@@ -2110,6 +2143,7 @@ export function LessonPlayer({
   const jamRoomKey = jamRoomJoin?.key;
   const jamRoomEdit = jamRoomJoin?.edit;
   const jamRoomCreate = jamRoomJoin?.create;
+  const jamRoomTracks = jamRoomJoin?.tracks;
   useEffect(() => {
     if (!jamRoomServer || !jamRoomKey || !jamSettings) return;
     let first = true;
@@ -2117,7 +2151,7 @@ export function LessonPlayer({
     const room: JamRoom = new JamRoom(
       jamRoomKey,
       jamRoomServer,
-      { edit: jamRoomEdit, create: jamRoomCreate, name: jamName, sound: jamRoomSound, need: jamRoomNeed() },
+      { edit: jamRoomEdit, create: jamRoomCreate, tracks: jamRoomTracks, name: jamName, sound: jamRoomSound, need: jamRoomNeed() },
       {
         onState: (state, by) => {
           if (by) setJamRemoteEdit((prev) => (by === room.id ? null : { by, seq: (prev?.seq ?? 0) + 1 }));
@@ -2693,7 +2727,9 @@ export function LessonPlayer({
   // Pointer play on the highway off the room's clock: a pressed row is a key
   // press, held until let go
   const lessonPointerRef = useRef<number | null>(null);
-  const handleLessonPointer = (note: number | null) => {
+  const handleLessonPointer = (pressed: number | null) => {
+    // Another player's lane is theirs to play
+    const note = pressed !== null && !allLaneNotes.includes(pressed) ? null : pressed;
     const held = lessonPointerRef.current;
     if (note === held) return;
     if (held !== null) handleNoteReleaseRef.current(held);
@@ -3671,6 +3707,7 @@ export function LessonPlayer({
                     stepped: 'stepped' in jamLessonView,
                     lastLoop: 'lastLoop' in jamLessonView ? jamLessonView.lastLoop : undefined,
                     clock: 'clock' in jamLessonView ? jamLessonView.clock : undefined,
+                    others: jamLessonOthers,
                   }
                 : undefined
             }
@@ -3701,7 +3738,7 @@ export function LessonPlayer({
                     game: isGameMode,
                     onModeChange: handleModeChange,
                     tempo: !jamRoom ? null : jamRoomBpm !== null ? Math.round(jamRoomBpm) : lesson.bpm,
-                    tempoRange: jamAbletonLessonAtOwnTempo ? jamRecordedTempoRange(jamAbletonLessonAtOwnTempo.bpm) : [JAM_DAW_MIN_BPM, JAM_DAW_MAX_BPM],
+                    tempoRange: jamAbletonLessonAtOwnTempo ? jamRecordedTempoRange(jamAbletonLessonAtOwnTempo.lesson.bpm) : [JAM_DAW_MIN_BPM, JAM_DAW_MAX_BPM],
                     onTempoChange: (bpm) => jamRoom?.setTempo(bpm),
                     speed: practiceMode.speedMultiplier,
                     onSpeedChange: handleSpeedChange,

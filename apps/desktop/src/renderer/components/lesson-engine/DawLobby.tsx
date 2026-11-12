@@ -32,7 +32,8 @@ interface DawLobbyProps {
   ended?: JamRoomEnd | null;
 }
 
-const ENDED: Record<JamRoomEnd, string> = {
+// A Daw song's room has no tracks to take (that is a lesson room's)
+const ENDED: Record<Exclude<JamRoomEnd, 'taken'>, string> = {
   full: 'That song has too many players right now',
   missing: 'That song no longer exists',
   lost: 'The connection to the song was lost',
@@ -54,7 +55,7 @@ export function DawLobby({ songs, unreachable, builtIns, onOpen: openSong, onNew
         <div className="jam-lobby-note">Can&apos;t reach the songs. Trying again…</div>
       ) : (
         <>
-          {ended && <div className="jam-lobby-note">{ENDED[ended]}</div>}
+          {ended && ended !== 'taken' && <div className="jam-lobby-note">{ENDED[ended]}</div>}
           {songs && (
             <div className="jam-lobby-grid">
               <NewSongCard builtIns={builtIns} onNew={onNew} onOpen={onOpen} />
