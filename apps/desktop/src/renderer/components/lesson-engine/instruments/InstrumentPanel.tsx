@@ -522,8 +522,19 @@ export function InstrumentPanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [openId]);
 
+  // In the sidebar, it comes into sight when it opens (for another track
+  // too), the sidebar scrolled only when it starts below the sidebar's middle
+  const panelRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const panel = panelRef.current;
+    const sidebar = panel?.closest<HTMLElement>('.game-settings-content');
+    if (!embedded || !panel || !sidebar) return;
+    const top = panel.getBoundingClientRect().top - sidebar.getBoundingClientRect().top;
+    if (top > sidebar.clientHeight / 2) sidebar.scrollTo({ top: sidebar.scrollTop + top, behavior: 'smooth' });
+  }, [embedded]);
+
   return (
-    <aside className={`instrument-panel ${embedded ? 'embedded' : ''}`}>
+    <aside ref={panelRef} className={`instrument-panel ${embedded ? 'embedded' : ''}`}>
       <header className="instrument-panel-head">
         {back && (
           <button className="instrument-icon-btn" onClick={back} title="Back">
