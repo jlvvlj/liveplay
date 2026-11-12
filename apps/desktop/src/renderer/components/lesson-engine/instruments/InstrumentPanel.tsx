@@ -16,6 +16,7 @@ import { CATEGORY_ORDER, SYNTH_TAG_ORDER, choiceEdited, presetChoice } from './c
 import { EFFECTS, availableEffects, effectSlot } from './effects';
 import type { EffectKind, EffectSlot, InstrumentChoice, InstrumentDef, ParamSpec, ParamValues, Preset } from './types';
 import { paramValue } from './types';
+import { SOUND_KINDS, soundKind, type SoundKind } from './soundKinds';
 import './InstrumentPanel.css';
 
 // The instruments panel, down the left side: synth sounds by kind and sampled
@@ -56,6 +57,8 @@ type View =
   | { at: 'home' }
   | { at: 'tag'; tag: string }
   | { at: 'category'; category: string }
+  // Every instrument and synth preset of one kind of sound
+  | { at: 'kind'; kind: SoundKind }
   | { at: 'instrument'; id: string };
 
 const SECONDS = new Set(['attack', 'decay', 'hold', 'release', 'sweepTime', 'size']);
@@ -339,7 +342,11 @@ export function InstrumentPanel({
   onClose,
   embedded = false,
 }: InstrumentPanelProps) {
-  const instruments = track ? all.filter((instrument) => !!instrument.pads === (track.kind === 'drum')) : all;
+  const trackKind = track?.kind;
+  const instruments = useMemo(
+    () => (trackKind ? all.filter((instrument) => !!instrument.pads === (trackKind === 'drum')) : all),
+    [all, trackKind]
+  );
   // Opens on the first screen, every kind of instrument at hand
   const [view, setView] = useState<View>({ at: 'home' });
   const [searching, setSearching] = useState(false);
@@ -356,6 +363,25 @@ export function InstrumentPanel({
   const tagged = (tag: string) =>
     synths.flatMap((instrument) => instrument.presets.filter((preset) => preset.tag === tag).map((preset) => ({ instrument, preset })));
   const tags = SYNTH_TAG_ORDER.filter((tag) => tagged(tag).length);
+  // Each instrument's or synth preset's kind of sound: the sampled
+  // instruments' (a kit's are drums), then every synth's presets
+  const kinded = useMemo(
+    () =>
+      (['sampler', 'melodics-synth', 'port'] as const)
+        .flatMap((engine) => instruments.filter((instrument) => instrument.engine === engine))
+        .flatMap((instrument): { instrument: InstrumentDef; preset?: Preset; kind: SoundKind }[] => {
+          if (instrument.engine === 'sampler') {
+            const kind = instrument.pads ? 'Drums' : soundKind(instrument.name);
+            return kind ? [{ instrument, kind }] : [];
+          }
+          return instrument.presets.flatMap((preset) => {
+            const kind = soundKind(preset.name, preset.tag);
+            return kind ? [{ instrument, preset, kind }] : [];
+          });
+        }),
+    [instruments]
+  );
+  const kinds = SOUND_KINDS.filter((kind) => kinded.some((entry) => entry.kind === kind));
   const artSeed = (instrument: InstrumentDef) => instruments.indexOf(instrument);
 
   const pick = (instrument: InstrumentDef, preset?: Preset) => {
@@ -434,7 +460,7 @@ export function InstrumentPanel({
 
   const current = view.at === 'instrument' ? instruments.find((instrument) => instrument.id === view.id) : undefined;
   const title =
-    view.at === 'tag' ? view.tag : view.at === 'category' ? view.category : current ? current.name : (track?.title ?? track?.name ?? 'Instruments');
+    view.at === 'tag' ? view.tag : view.at === 'kind' ? view.kind : view.at === 'category' ? view.category : current ? current.name : (track?.title ?? track?.name ?? 'Instruments');
   const back =
     view.at === 'home'
       ? undefined
@@ -536,6 +562,23 @@ export function InstrumentPanel({
       </header>
 
       <div className="instrument-panel-body">
+        {(view.at === 'home' || view.at === 'kind') && !(searching && query.trim()) && kinds.length > 1 && (
+          <div className="instrument-kinds">
+            {kinds.map((kind) => {
+              const on = view.at === 'kind' && view.kind === kind;
+              return (
+                <button
+                  key={kind}
+                  className={`instrument-kind ${on ? 'on' : ''}`}
+                  aria-pressed={on}
+                  onClick={() => setView(on ? { at: 'home' } : { at: 'kind', kind })}
+                >
+                  {kind}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {searching && query.trim() ? (
           <div className="instrument-grid">
             {results.map(({ instrument, preset }) =>
@@ -585,6 +628,12 @@ export function InstrumentPanel({
               ))}
             </CardRow>
           </>
+        ) : view.at === 'kind' ? (
+          <div className="instrument-grid">
+            {kinded
+              .filter((entry) => entry.kind === view.kind)
+              .map(({ instrument, preset }) => (preset ? synthCard(instrument, preset) : sampledCard(instrument)))}
+          </div>
         ) : view.at === 'tag' ? (
           <div className="instrument-grid">{tagged(view.tag).map(({ instrument, preset }) => synthCard(instrument, preset))}</div>
         ) : view.at === 'category' ? (

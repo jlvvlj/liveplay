@@ -91,6 +91,37 @@
   padding: 0 1.25rem 1.5rem;
 }
 
+/* The kinds of sound, at the top: each shows every instrument and synth
+   preset of its kind; the one shown is lit, pressed again it goes back */
+.instrument-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.instrument-kind {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-panel-2);
+  color: var(--ds-text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.instrument-kind:hover {
+  background: var(--ds-raised);
+}
+
+.instrument-kind.on {
+  border-color: var(--ds-text);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
+}
+
 .instrument-section + .instrument-section {
   margin-top: 1rem;
   padding-top: 1rem;
