@@ -634,6 +634,8 @@ export function LessonPlayer({
   const jamView = jamSection === 'daw' ? 'grid' : jamSection === 'jam' ? 'highway' : jamViewChosen;
   // Jam tab paused, and how far it had played when it was (seconds)
   const [jamPaused, setJamPaused] = useState<boolean>(false);
+  // Counts the jumps made in the jam outside a room: each starts it again from where it jumped to
+  const [jamSeeks, setJamSeeks] = useState(0);
   // In a room, play / pause is the room's
   const jamIsPaused = jamRoomState ? jamRoomState.startAt === null : jamPaused;
   const jamResumeAtRef = useRef<number>(0);
@@ -1740,7 +1742,7 @@ export function LessonPlayer({
       setJamNotes([]);
       setCurrentTime(0);
     };
-  }, [currentMode, lesson.bpm, lesson.timeSignature, lesson.backingTrack, backingTrackLoaded, jamIsPaused, jamRoomStartAt]);
+  }, [currentMode, lesson.bpm, lesson.timeSignature, lesson.backingTrack, backingTrackLoaded, jamIsPaused, jamRoomStartAt, jamSeeks]);
 
   // A new song starts from its beginning
   useEffect(() => {
@@ -1767,6 +1769,20 @@ export function LessonPlayer({
     }
     if (!jamPaused && jamStartRef.current !== null) jamResumeAtRef.current = jamHeardPosition();
     setJamPaused(!jamPaused);
+  };
+
+  // The jam moved to `seconds` in, for everyone in the room: it plays on from
+  // there, or waits there while paused
+  const seekJam = (seconds: number) => {
+    const position = Math.max(0, seconds);
+    const room = jamRoomRef.current;
+    if (room && jamRoomState) {
+      room.setState({ startAt: jamRoomState.startAt === null ? null : room.clock.now() - position * 1000, position });
+      return;
+    }
+    jamResumeAtRef.current = position;
+    if (jamPaused) setCurrentTime(position * 1000);
+    else setJamSeeks((count) => count + 1);
   };
 
   const playSound = (
@@ -3494,6 +3510,8 @@ export function LessonPlayer({
               setJamSettings({ ...jamSettings, tracks, mixes });
             }}
             getStep={getJamStep}
+            pausedStep={jamPausedAt === null ? null : jamPausedAt / (60 / lesson.bpm / 4)}
+            onSeek={(step) => seekJam(step * (60 / lesson.bpm / 4))}
             recordedBars={jamTrack.recorded ? jamTrack.bars : 0}
             waveforms={jamWaveforms}
             players={jamDawPlayers}
