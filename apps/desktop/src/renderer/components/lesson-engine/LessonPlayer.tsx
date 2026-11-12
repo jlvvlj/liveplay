@@ -3235,11 +3235,28 @@ export function LessonPlayer({
     }
   };
 
+  // The sidebar always has instruments in it: in the Daw the first track's
+  // that plays an instrument (a recording plays none) until another track's
+  // are chosen, in a Jam room the played sound's
+  const jamDefaultInstrumentsFor = !jamOnly
+    ? null
+    : jamSection === 'daw'
+      ? jamTrack
+        ? (gridTracks(jamTrackParts(jamTrack), jamTrackAdded).find((gridTrack) => !gridTrack.recorded)?.id ?? null)
+        : null
+      : jamLesson
+        ? null
+        : 'jam';
+  useEffect(() => {
+    if (showJamSettings && instrumentsFor === null && jamDefaultInstrumentsFor !== null) setInstrumentsFor(jamDefaultInstrumentsFor);
+  }, [showJamSettings, instrumentsFor, jamDefaultInstrumentsFor]);
   // The instruments chosen for the played sound ('jam') or a track: the
   // sidebar opens with them in it, after its settings
+  const [jamInstrumentsAsked, setJamInstrumentsAsked] = useState(0);
   const openJamInstruments = (key: string) => {
     setInstrumentsFor(key);
     setShowJamSettings(true);
+    setJamInstrumentsAsked((asked) => asked + 1);
   };
   // The instruments being chosen, for the played sound ('jam') or a track,
   // a section of the sidebar
@@ -3247,6 +3264,7 @@ export function LessonPlayer({
     jamOnly && instrumentsFor === 'jam' && jamSettings && jamChoice ? (
       <InstrumentPanel
         embedded
+        reveal={jamInstrumentsAsked}
         instruments={jamInstruments}
         backing={
           jamTrack && jamTrackMix
@@ -3279,6 +3297,7 @@ export function LessonPlayer({
     ) : jamOnly && instrumentsFor && instrumentsFor !== 'jam' && jamSettings && jamTrackInstrumentTarget ? (
       <InstrumentPanel
         embedded
+        reveal={jamInstrumentsAsked}
         key={instrumentsFor}
         instruments={jamInstruments}
         choice={jamTrackChoices[instrumentsFor] ?? null}
@@ -3803,7 +3822,7 @@ export function LessonPlayer({
                   }
                 : null
             }
-            onOpenInstruments={() => setInstrumentsFor('jam')}
+            onOpenInstruments={() => openJamInstruments('jam')}
             holdDivisions={JAM_HOLD_DIVISIONS}
             holdDivision={jamKeyDivisions.length ? jamKeyDivisions[jamKeyDivisions.length - 1] : jamHoldDivision}
             onHoldDivisionChange={setJamHoldDivision}

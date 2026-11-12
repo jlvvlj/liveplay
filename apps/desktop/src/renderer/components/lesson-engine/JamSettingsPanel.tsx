@@ -531,8 +531,9 @@ export function JamSettingsPanel({
           </div>
         </Section>
 
-        {/* A lesson room's hits play its lesson track's own sound */}
-        {!lesson && (
+        {/* A lesson room's hits play its lesson track's own sound; with the
+            instruments shown below, they say what plays */}
+        {!lesson && !instruments && (
         <Section title="Instrument">
           {instrument && (
             <button className="jam-instrument-current" onClick={onOpenInstruments}>
