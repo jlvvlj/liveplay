@@ -16,6 +16,7 @@
 
 /* Its controls go on as many lines as they need (the players' avatars join them) */
 .jam-grid-head {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

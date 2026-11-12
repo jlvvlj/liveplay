@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { Lesson } from '../../types/lesson';
 import type { JamRoomEnd } from './jamRoom';
 import { JAM_SONG_TITLE_MAX, type JamDawSongSummary } from './jamRoomProtocol';
 import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM, jamBpmLabel } from './jamTracks';
 import { JamLobbyHeader, startJamAudio } from './JamLobby';
 import { JamDropdown } from './JamDropdown';
-import { canRememberFolders, readFolder } from '../../utils/abletonLibrary';
 import type { ProjectFile } from '../../utils/abletonImport';
 import type { JamImportStep } from './jamAbletonImport';
+import { useAbletonImport } from './useAbletonImport';
 import './JamLobby.css';
 
 // The jam app's Daw section: every Daw song as a card, opened with a click to
@@ -79,50 +79,10 @@ const IMPORT_STAGES: Record<JamImportStep['stage'], string> = {
 // The card that imports an Ableton project: its folder is read as the Lessons
 // tab reads it, every exported track sent, and the new song opens
 function ImportCard({ onImport, onOpen }: { onImport: DawLobbyProps['onImport']; onOpen: (id: string) => void }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [step, setStep] = useState<JamImportStep | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
-  useEffect(() => input.current?.setAttribute('webkitdirectory', ''), []);
-
-  const run = async (files: ProjectFile[]) => {
-    setProblem(null);
-    try {
-      const id = await onImport(files, setStep);
-      setStep(null);
-      onOpen(id);
-    } catch (error) {
-      setStep(null);
-      setProblem(error instanceof Error ? error.message : String(error));
-    }
-  };
-  const pick = async () => {
-    if (step) return;
-    if (!canRememberFolders()) {
-      input.current?.click();
-      return;
-    }
-    try {
-      const handle = await window.showDirectoryPicker!({ id: 'ableton-project', mode: 'read' });
-      setStep({ stage: 'reading' });
-      run(await readFolder(handle));
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) setProblem(String(error));
-    }
-  };
-
-  const share = step && step.stage !== 'reading' ? step.done / step.total : 0;
+  const { pick, inputProps, step, share, problem } = useAbletonImport(async (files, onStep) => onOpen(await onImport(files, onStep)));
   return (
     <button className={`jam-lobby-card jam-lobby-new jam-lobby-import ${step ? 'busy' : ''}`} onClick={pick} disabled={!!step}>
-      <input
-        ref={input}
-        type="file"
-        hidden
-        onChange={(event) => {
-          const files = Array.from(event.target.files ?? []).map((file) => ({ path: file.webkitRelativePath, file }));
-          event.target.value = '';
-          if (files.length) run(files);
-        }}
-      />
+      <input {...inputProps} />
       {step ? (
         <>
           <span className="jam-lobby-import-stage">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from 'react';
 import * as Tone from 'tone';
 import { LessonEngine, LessonEngineState } from './LessonEngine';
 import { Lesson, LessonStep, HitFeedback, LessonScore, PracticeModeSettings } from '../../types/lesson';
@@ -6,7 +6,10 @@ import { MidiEvent, DeviceMapping } from '../../types/electron';
 import { NoteHighway, HighwayMode, JamNote, JamShip } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
-import { BackIcon, InstrumentsIcon, SidebarIcon } from './JamIcons';
+import { BackIcon, ExportIcon, ImportIcon, InstrumentsIcon, SidebarIcon } from './JamIcons';
+import { useAbletonImport } from './useAbletonImport';
+import type { JamImportStep } from './jamAbletonImport';
+import type { ProjectFile } from '../../utils/abletonImport';
 import { InstrumentPanel, type JamFavorite } from './instruments/InstrumentPanel';
 import { JAM_DAW_MAX_BPM, JAM_DAW_MIN_BPM, JAM_TRACK_BARS, jamRecordedTempoRange, jamTrackBaseFile, jamTrackByFile, jamTrackFor, jamTrackParts, setJamRecordedTrack, type JamTrackNote } from './jamTracks';
 import { validJamTrackEdit, type JamTrackEdit } from './jamTrackEdits';
@@ -69,6 +72,8 @@ interface LessonPlayerProps {
   jamRoomServer?: string;
   jamRoomJoin?: { key: string; edit?: boolean; create?: { visibility: JamRoomVisibility; song: string } };
   onJamRoomEnd?: (reason: JamRoomEnd) => void;
+  // In the Daw: an Ableton project's folder made a Daw song, which opens
+  onJamImport?: (files: ProjectFile[], onStep: (step: JamImportStep) => void) => Promise<void>;
   // The jam app's sections: the Daw shows only the backing track's grid, the
   // Jam only the highway; both play their room's song. Unset, the Jam tab
   // switches between them and picks its song in the sidebar.
@@ -319,6 +324,7 @@ export function LessonPlayer({
   jamRoomServer,
   jamRoomJoin,
   onJamRoomEnd,
+  onJamImport,
   jamSection,
   jamHttpServer,
 }: LessonPlayerProps) {
@@ -1315,6 +1321,12 @@ export function LessonPlayer({
       jamSavedMix ? fitJamTrackMix(jamSavedMix, jamPartCount) : jamTrackNotes ? defaultJamTrackMix(jamPartCount) : undefined,
     [jamSavedMix, jamPartCount, jamTrackNotes]
   );
+  // The Daw song being exported to Ableton: how far along (0-1), and why the
+  // last export failed
+  const [jamExporting, setJamExporting] = useState<number | null>(null);
+  const [jamExportProblem, setJamExportProblem] = useState<string | null>(null);
+  // An Ableton project imported from the Daw's toolbar
+  const jamImport = useAbletonImport(async (files, onStep) => onJamImport?.(files, onStep));
   // A lesson room leaves its lesson track out of the backing: the hits play it
   useEffect(() => {
     const mixer = backingTrackRef.current;
@@ -3163,6 +3175,47 @@ export function LessonPlayer({
     return { name, kind, ...(own ? { original: () => setJamTrackInstrument(instrumentsFor, null) } : {}) };
   })();
 
+  // The Daw song as an Ableton Live project, downloaded as a zip
+  const jamMixer = backingTrackLoaded && backingTrackRef.current instanceof JamBackingMixer ? backingTrackRef.current : null;
+  const exportJamToAbleton = async () => {
+    if (!jamTrack || !jamTrackNotes || !jamTrackMix || !jamMixer || jamExporting !== null) return;
+    setJamExportProblem(null);
+    setJamExporting(0);
+    const title = jamRoomState?.song.title ?? lesson.title;
+    try {
+      await Tone.start();
+      const { exportJamAbletonProject } = await import('./jamAbletonExport');
+      const heard = jamTrackLevels(jamHeardMix(jamTrackMix, jamLesson));
+      const zip = await exportJamAbletonProject(
+        {
+          title,
+          bpm: lesson.bpm,
+          bars: jamTrackBars,
+          track: jamTrack,
+          notes: jamTrackNotes,
+          added: jamTrackAdded,
+          levels: jamTrackMix.levels,
+          heard: heard.map((level) => level > 0),
+          choices: jamTrackChoices,
+          instruments: jamInstruments,
+          scale: jamMixer.scale,
+        },
+        (step) => setJamExporting(step.total ? step.done / step.total : 1)
+      );
+      const url = URL.createObjectURL(zip);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${title} Project.zip`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      console.error('[LessonPlayer] Could not export the song to Ableton:', err);
+      setJamExportProblem(err instanceof Error ? err.message : String(err));
+    } finally {
+      setJamExporting(null);
+    }
+  };
+
   const jamToolbar =
     jamOnly && !showJamSettings ? (
       <>
@@ -3178,6 +3231,35 @@ export function LessonPlayer({
           <button className="jam-corner-btn" onClick={() => setInstrumentsFor('jam')} title="Instruments">
             <InstrumentsIcon />
           </button>
+        )}
+        {jamSection === 'daw' && onJamImport && (
+          <span className="jam-task">
+            <button
+              className={`jam-corner-btn jam-task-btn ${jamImport.step ? 'busy' : ''}`}
+              onClick={jamImport.pick}
+              disabled={!!jamImport.step}
+              title="Import Ableton project"
+              style={jamImport.step ? ({ '--share': `${Math.round(jamImport.share * 100)}%` } as CSSProperties) : undefined}
+            >
+              <input {...jamImport.inputProps} />
+              <ImportIcon />
+            </button>
+            {jamImport.problem && <span className="jam-task-problem">{jamImport.problem}</span>}
+          </span>
+        )}
+        {jamSection === 'daw' && jamMixer && (
+          <span className="jam-task">
+            <button
+              className={`jam-corner-btn jam-task-btn ${jamExporting !== null ? 'busy' : ''}`}
+              onClick={exportJamToAbleton}
+              disabled={jamExporting !== null}
+              title="Export to Ableton Live"
+              style={jamExporting !== null ? ({ '--share': `${Math.round(jamExporting * 100)}%` } as CSSProperties) : undefined}
+            >
+              <ExportIcon />
+            </button>
+            {jamExportProblem && <span className="jam-task-problem">{jamExportProblem}</span>}
+          </span>
         )}
       </>
     ) : null;
