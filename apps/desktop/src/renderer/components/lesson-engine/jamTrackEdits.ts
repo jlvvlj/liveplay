@@ -4,14 +4,24 @@ import { validJamTrackInstruments, type JamTrackInstruments } from './jamTrackIn
 
 // An edited backing track: its notes, one list per part (its own parts, then
 // the ones added in the grid, played by `added`), its length in bars when
-// the grid made it other than its own 8, and the instruments its tracks play
-// (see jamTrackInstruments.ts)
+// the grid made it other than its own 8, the instruments its tracks play
+// (see jamTrackInstruments.ts) and the names given to its tracks
 export interface JamTrackEdit {
   parts: JamTrackNote[][];
   added?: JamAddedPart[];
   bars?: number;
   instruments?: JamTrackInstruments;
+  names?: JamTrackNames;
 }
+
+// Names given to tracks in the grid, by track (as JamTrackInstruments' keys)
+export type JamTrackNames = Record<string, string>;
+export const JAM_TRACK_NAME_MAX = 60;
+
+const validNames = (value: unknown): value is JamTrackNames =>
+  !!value &&
+  typeof value === 'object' &&
+  Object.values(value).every((name) => typeof name === 'string' && name.trim() === name && name.length > 0 && name.length <= JAM_TRACK_NAME_MAX);
 
 const validNote = (note: unknown): boolean => {
   if (!note || typeof note !== 'object') return false;
@@ -21,9 +31,10 @@ const validNote = (note: unknown): boolean => {
 
 function validEdit(edit: unknown, ownParts: number, ownBars: number, leastBars: number, mostBars: number): edit is JamTrackEdit {
   if (!edit || typeof edit !== 'object') return false;
-  const { parts, added = [], bars = ownBars, instruments = {} } = edit as Partial<JamTrackEdit>;
+  const { parts, added = [], bars = ownBars, instruments = {}, names = {} } = edit as Partial<JamTrackEdit>;
   return (
     validJamTrackInstruments(instruments) &&
+    validNames(names) &&
     typeof bars === 'number' &&
     Number.isInteger(bars / JAM_SECTION_BARS) &&
     bars >= leastBars &&

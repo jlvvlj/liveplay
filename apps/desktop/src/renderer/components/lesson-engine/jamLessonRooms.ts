@@ -50,7 +50,7 @@ export function jamLessonChoices(file: string, edit: JamTrackEdit | null | undef
   const added = edit?.added ?? [];
   const notes = edit?.parts ?? own.map((part) => part.notes);
   const partName = (part: number) => own[part]?.name ?? jamAddedPartName(added[part - own.length]);
-  return gridTracks(own, added).flatMap((grid) =>
+  return gridTracks(own, added, edit?.names).flatMap((grid) =>
     grid.kind === 'drum'
       ? grid.parts.filter((part) => notes[part]?.length).map((part) => ({ id: drumId(part), name: partName(part), kit: grid.name }))
       : [{ id: grid.id, name: grid.name }]
@@ -100,7 +100,7 @@ export function jamLessonFromSong(song: JamRoomSong, edit: JamTrackEdit | null |
   const added = edit?.added ?? [];
   const notes = edit?.parts ?? own.map((part) => part.notes);
   const bars = edit?.bars ?? JAM_TRACK_BARS;
-  const grids = gridTracks(own, added);
+  const grids = gridTracks(own, added, edit?.names);
   const partName = (part: number) => own[part]?.name ?? jamAddedPartName(added[part - own.length]);
   const chosen = new Set(ids);
   const known = (id: string) => grids.some((grid) => grid.id === id || (grid.kind === 'drum' && grid.parts.some((part) => drumId(part) === id)));

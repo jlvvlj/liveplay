@@ -4,7 +4,9 @@ import midiTrackTemplate from './ableton/midi-track.xml?raw';
 import audioTrackTemplate from './ableton/audio-track.xml?raw';
 import samplerTemplate from './ableton/sampler.xml?raw';
 import { abletonLiveSet, type AbletonNote, type AbletonSample, type AbletonTrack, type AbletonZone } from './jamAbletonSet';
-import { jamAddedInstrument, jamAddedPartName, jamAddedTrackName, type JamAddedPart } from './jamAddedParts';
+import { jamAddedInstrument, jamAddedPartName, type JamAddedPart } from './jamAddedParts';
+import { gridTracks } from './jamGridTracks';
+import type { JamTrackNames } from './jamTrackEdits';
 import { renderJamClip, renderJamDrum, SAMPLE_RATE as JAM_SYNTH_RATE } from './jamSynth';
 import { jamSoundUrl } from './jamSoundFiles';
 import { jamPartTracks, type JamTrackInstruments } from './jamTrackInstruments';
@@ -32,6 +34,8 @@ export interface JamAbletonExport {
   // Each part's level (0-1) and whether it is heard (not muted, not left out of a solo)
   levels: number[];
   heard: boolean[];
+  // The names given to tracks in the grid
+  names: JamTrackNames;
   // The instrument each track plays live
   choices: JamTrackInstruments;
   instruments: InstrumentDef[];
@@ -135,10 +139,12 @@ export async function exportJamAbletonProject(song: JamAbletonExport, onStep: (s
     if (group) group.parts.push(part);
     else groups.push({ key: partTrack.key, parts: [part] });
   });
-  const trackName = (key: string, part: number) => {
-    const extra = addedOf(part);
-    if (extra) return jamAddedTrackName(extra);
-    return key === 'drums' ? 'Drums' : own[part].name;
+  // Each track named as the grid names it
+  const trackNames = new Map(gridTracks(own, added, song.names).map((gridTrack) => [gridTrack.id, gridTrack.name]));
+  const trackName = (key: string) => {
+    const name = trackNames.get(key);
+    if (name === undefined) throw new Error(`No grid track ${key}`);
+    return name;
   };
   const partName = (part: number) => {
     const extra = addedOf(part);
@@ -160,7 +166,7 @@ export async function exportJamAbletonProject(song: JamAbletonExport, onStep: (s
 
   const tracks: AbletonTrack[] = [];
   for (const [index, { key, parts }] of groups.entries()) {
-    const name = trackName(key, parts[0]);
+    const name = trackName(key);
     const color = COLORS[index % COLORS.length];
     const on = parts.some((part) => song.heard[part]);
     onStep({ track: name, done: index, total: groups.length });
