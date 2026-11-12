@@ -34,7 +34,7 @@ describe('lesson rooms', () => {
   });
 
   it('makes an instrument track a lesson with a lane per pitch, looping with the song', () => {
-    const made = jamLessonFromSong(CHIP, null, ['part-3'])!;
+    const made = jamLessonFromSong(CHIP, null, [['part-3']])!;
     const bass = parts[3].notes;
     expect(made.parts).toEqual([3]);
     expect(made.lanes.map((lane) => lane.note)).toEqual([...new Set(bass.map((note) => note.pitch))].sort((a, b) => a - b));
@@ -46,22 +46,22 @@ describe('lesson rooms', () => {
   });
 
   it('makes a kit a lesson with a lane per drum that plays', () => {
-    const made = jamLessonFromSong(CHIP, null, ['drums'])!;
+    const made = jamLessonFromSong(CHIP, null, [['drums']])!;
     const drums = parts.flatMap((part, index) => (part.kind === 'drum' && part.notes.length ? [index] : []));
     expect(made.parts).toEqual(parts.flatMap((part, index) => (part.kind === 'drum' ? [index] : [])));
     expect(made.lanes.map((lane) => lane.part)).toEqual(drums);
     expect(made.lanes.map((lane) => lane.note)).toEqual(drums.map((_, lane) => 36 + lane));
     expect(made.lesson.laneLabels?.[36]).toBe(parts[drums[0]].name);
     // Its drums all chosen one by one make the same lesson
-    expect(jamLessonFromSong(CHIP, null, ['drum-0', 'drum-1', 'drum-2'])!.lesson.steps).toEqual(made.lesson.steps);
+    expect(jamLessonFromSong(CHIP, null, [['drum-0', 'drum-1', 'drum-2']])!.lesson.steps).toEqual(made.lesson.steps);
   });
 
   it('makes kick and snare a lesson of those two drums, the others left in the backing', () => {
-    const made = jamLessonFromSong(CHIP, null, ['drum-1', 'drum-0'])!;
+    const made = jamLessonFromSong(CHIP, null, [['drum-1', 'drum-0']])!;
     expect(made.parts).toEqual([0, 1]);
     expect(made.lanes).toEqual([
-      { note: 36, part: 0, pitch: parts[0].notes[0].pitch },
-      { note: 37, part: 1, pitch: parts[1].notes[0].pitch },
+      { note: 36, part: 0, pitch: parts[0].notes[0].pitch, group: 0 },
+      { note: 37, part: 1, pitch: parts[1].notes[0].pitch, group: 0 },
     ]);
     expect(made.lesson.steps).toHaveLength(parts[0].notes.length + parts[1].notes.length);
     expect(made.lesson.laneLabels).toEqual({ 36: 'Kick', 37: 'Snare' });
@@ -70,24 +70,56 @@ describe('lesson rooms', () => {
   });
 
   it('puts tracks whose lanes meet one above the other, each lane on its own sound', () => {
-    const made = jamLessonFromSong(CHIP, null, ['part-4', 'part-3'])!;
+    const made = jamLessonFromSong(CHIP, null, [['part-4', 'part-3']])!;
     const pitches = (part: number) => [...new Set(parts[part].notes.map((note) => note.pitch))].sort((a, b) => a - b);
     const bass = pitches(3);
     const arp = pitches(4);
     const shift = Math.min(...arp) <= Math.max(...bass) ? Math.max(...bass) + 1 - Math.min(...arp) : 0;
     expect(made.parts).toEqual([3, 4]);
     expect(made.lanes).toEqual([
-      ...bass.map((pitch) => ({ note: pitch, part: 3, pitch })),
-      ...arp.map((pitch) => ({ note: pitch + shift, part: 4, pitch })),
+      ...bass.map((pitch) => ({ note: pitch, part: 3, pitch, group: 0 })),
+      ...arp.map((pitch) => ({ note: pitch + shift, part: 4, pitch, group: 0 })),
     ]);
     // No two lanes share a note
     expect(new Set(made.lanes.map((lane) => lane.note)).size).toBe(made.lanes.length);
     expect(made.lesson.steps).toHaveLength(parts[3].notes.length + parts[4].notes.length);
   });
 
+  it('stacks each player\'s lanes above the one before, in the order they joined', () => {
+    // Bass joined first, then kick and snare
+    const made = jamLessonFromSong(CHIP, null, [['part-3'], ['drum-0', 'drum-1']])!;
+    const bass = [...new Set(parts[3].notes.map((note) => note.pitch))].sort((a, b) => a - b);
+    const top = Math.max(...bass);
+    const above = (note: number) => (note <= top ? top + 1 - 36 : 0);
+    expect(made.lanes).toEqual([
+      ...bass.map((pitch) => ({ note: pitch, part: 3, pitch, group: 0 })),
+      { note: 36 + above(37), part: 0, pitch: parts[0].notes[0].pitch, group: 1 },
+      { note: 37 + above(37), part: 1, pitch: parts[1].notes[0].pitch, group: 1 },
+    ]);
+    // Every lane of the second player above every lane of the first
+    const highest = (group: number) => Math.max(...made.lanes.filter((lane) => lane.group === group).map((lane) => lane.note));
+    const lowest = (group: number) => Math.min(...made.lanes.filter((lane) => lane.group === group).map((lane) => lane.note));
+    expect(lowest(1)).toBeGreaterThan(highest(0));
+    // Both players' tracks are out of the backing; all their notes are in the lesson
+    expect(made.parts).toEqual([0, 1, 3]);
+    expect(made.lesson.steps).toHaveLength(parts[0].notes.length + parts[1].notes.length + parts[3].notes.length);
+    expect(made.lesson.title).toBe(`Kick + Snare + Bass — ${CHIP.title}`);
+    // Who joined when changes the lesson
+    expect(jamLessonFromSong(CHIP, null, [['drum-0', 'drum-1'], ['part-3']])!.lesson.id).not.toBe(made.lesson.id);
+  });
+
+  it('gives two players\' kits their own lanes', () => {
+    const made = jamLessonFromSong(CHIP, null, [['drum-1'], ['drum-0']])!;
+    expect(made.lanes).toEqual([
+      { note: 36, part: 1, pitch: parts[1].notes[0].pitch, group: 0 },
+      { note: 37, part: 0, pitch: parts[0].notes[0].pitch, group: 1 },
+    ]);
+  });
+
   it('knows no track the song does not have', () => {
-    expect(jamLessonFromSong(CHIP, null, ['part-99'])).toBeNull();
-    expect(jamLessonFromSong(CHIP, null, ['part-3', 'drum-99'])).toBeNull();
+    expect(jamLessonFromSong(CHIP, null, [['part-99']])).toBeNull();
+    expect(jamLessonFromSong(CHIP, null, [['part-3', 'drum-99']])).toBeNull();
+    expect(jamLessonFromSong(CHIP, null, [[]])).toBeNull();
     expect(jamLessonFromSong(CHIP, null, [])).toBeNull();
   });
 });
@@ -120,10 +152,12 @@ describe('several of an imported song\'s tracks', () => {
   });
 
   it('makes one lesson, each hit a slice of its own track in the joined recording', () => {
-    const made = jamAbletonLessonOfTracks('song', 'Paris', [track('Kick', 36, 0), track('Snare', 36, 0.25)], {
+    const { lesson: made, laneGroups } = jamAbletonLessonOfTracks('song', 'Paris', [track('Kick', 36, 0), track('Snare', 36, 0.25)], {
       url: 'blob:joined',
       offsets: [0, 8],
-    });
+    }, [0, 1]);
+    // Each lane is its own track's player's
+    expect(laneGroups).toEqual({ 36: 0, 37: 1 });
     expect(made.title).toBe('Kick + Snare — Paris');
     expect(made.stemAudio).toBe('blob:joined');
     expect(made.laneLabels).toEqual({ 36: 'Kick', 37: 'Snare' });
@@ -140,11 +174,11 @@ describe('several of an imported song\'s tracks', () => {
 describe('a lesson room at another tempo', () => {
   it('plays its built-in song over the track at that tempo, its lesson too', () => {
     const faster = { ...CHIP, bpm: 130, file: `${CHIP.file}@130` };
-    const made = jamLessonFromSong(faster, null, ['drums'])!;
+    const made = jamLessonFromSong(faster, null, [['drums']])!;
     expect(made.lesson.bpm).toBe(130);
     expect(made.lesson.backingTrack).toBe(`samples/pentatonic_jam/${CHIP.file}@130`);
     // The same notes, at the new tempo
-    expect(made.lesson.steps).toEqual(jamLessonFromSong(CHIP, null, ['drums'])!.lesson.steps);
-    expect(jamLessonFromSong(CHIP, null, ['drums'])!.lesson.bpm).toBe(CHIP.bpm);
+    expect(made.lesson.steps).toEqual(jamLessonFromSong(CHIP, null, [['drums']])!.lesson.steps);
+    expect(jamLessonFromSong(CHIP, null, [['drums']])!.lesson.bpm).toBe(CHIP.bpm);
   });
 });

@@ -44,7 +44,8 @@ export interface JamRoomPlayer extends JamRoomPeer {
 
 // Why a room ended for this player: it was full, it no longer exists, the
 // connection to it was lost, or its song's recordings could not be loaded
-export type JamRoomEnd = 'full' | 'missing' | 'lost' | 'song';
+// `taken`: a lesson room's tracks this player picked went to another player first
+export type JamRoomEnd = 'full' | 'missing' | 'lost' | 'song' | 'taken';
 
 export interface JamRoomEvents {
   // `by`: the player whose edit of a Daw song's grid this is
@@ -100,6 +101,8 @@ export class JamRoom {
     join: {
       edit?: boolean;
       create?: { visibility: JamRoomVisibility; song: string; lesson?: string[] };
+      // In a lesson room, the tracks this player learns
+      tracks?: string[];
       name: string;
       sound: JamRoomSound | null;
       need: number;
@@ -108,8 +111,12 @@ export class JamRoom {
   ) {
     this.socket = new WebSocket(url);
     this.socket.onopen = () => {
-      const { edit, create, ...player } = join;
-      this.send(edit ? { t: 'edit', song: code, ...player } : { t: 'join', room: code, ...(create ? { create } : {}), ...player });
+      const { edit, create, tracks, ...player } = join;
+      this.send(
+        edit
+          ? { t: 'edit', song: code, ...player }
+          : { t: 'join', room: code, ...(create ? { create } : {}), ...(tracks ? { tracks } : {}), ...player }
+      );
       for (let i = 0; i < CLOCK_BURST; i++) {
         this.timers.push(setTimeout(() => this.send({ t: 'ping', c: performance.now() }), i * CLOCK_BURST_MS));
       }
@@ -276,6 +283,7 @@ export class JamRoom {
         break;
       case 'full':
       case 'missing':
+      case 'taken':
         this.shutDown();
         this.events.onClosed(message.t);
         break;

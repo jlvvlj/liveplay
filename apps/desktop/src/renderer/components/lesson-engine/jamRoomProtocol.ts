@@ -58,10 +58,16 @@ export interface JamDawSongSummary extends Omit<JamDawSong, 'edit' | 'ableton'> 
 }
 
 // A lesson room's lesson: some of its song's tracks (jamLessonChoices' ids),
-// by name
+// each player's own, by name. Each player picks theirs on the way in; no two
+// players share a track. Their lanes are stacked by player, in the order they
+// joined.
 export interface JamRoomLesson {
-  tracks: string[];
+  // Every player's tracks, in the order they joined (a player's own in the song's order)
+  players: { id: string; tracks: string[] }[];
+  // All of them by name, in the song's order (empty while nobody is in the room)
   name: string;
+  // The song's tracks a lesson can learn
+  choices: JamLessonChoice[];
 }
 
 // A Jam room as the lobby lists it
@@ -76,7 +82,7 @@ export interface JamRoomSummary {
   // A lesson room's lesson; null for a Jam room
   lesson: JamRoomLesson | null;
   playing: boolean;
-  players: { name: string; color: string }[];
+  players: { id: string; name: string; color: string }[];
   full: boolean;
 }
 
@@ -146,6 +152,8 @@ export type JamClientMessage =
       t: 'join';
       room: string;
       create?: { visibility: JamRoomVisibility; song: string; lesson?: string[] };
+      // In a lesson room, the tracks this player learns (the opener's are `create.lesson`)
+      tracks?: string[];
       name: string;
       sound: JamRoomSound | null;
       need: number;
@@ -180,6 +188,8 @@ export type JamServerMessage =
   | { t: 'welcome'; id: string; visibility: JamRoomVisibility; state: JamRoomState; peers: JamRoomPeer[] }
   | { t: 'full' }
   | { t: 'missing' }
+  // A lesson room's tracks this player picked went to another player first
+  | { t: 'taken' }
   | { t: 'rooms'; rooms: JamRoomSummary[] }
   | { t: 'songs'; songs: JamDawSongSummary[] }
   // The new Daw song's id; null when it could not be made

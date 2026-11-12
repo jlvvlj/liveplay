@@ -9,7 +9,7 @@ import {
 } from './jamRoomProtocol';
 import { BackIcon } from './JamIcons';
 import { jamBpmLabel } from './jamTracks';
-import { JamDropdown } from './JamDropdown';
+import { JamDropdown, type JamDropdownGroup } from './JamDropdown';
 import { jamLessonName, type JamLessonChoice } from './jamLessonRooms';
 import './JamLobby.css';
 
@@ -20,6 +20,8 @@ import './JamLobby.css';
 export interface JamRoomEntry {
   key: string;
   create?: { visibility: JamRoomVisibility; song: string; lesson?: string[] };
+  // Into a lesson room: the tracks this player learns there
+  tracks?: string[];
 }
 
 // A track a new room can play: a built-in song, or a Daw song offered to
@@ -45,6 +47,8 @@ interface JamLobbyProps {
   ended?: JamRoomEnd | null;
   // The Lessons section: its rooms are lesson rooms, each opened with a lesson track
   lessons?: boolean;
+  // A lesson room whose card opens to pick tracks (its key)
+  pick?: string;
 }
 
 const ENDED: Record<JamRoomEnd, string> = {
@@ -52,7 +56,24 @@ const ENDED: Record<JamRoomEnd, string> = {
   missing: 'That room has ended',
   lost: 'The connection to the room was lost',
   song: "That room's song could not be loaded",
+  taken: 'Someone else took those tracks first',
 };
+
+// A song's lesson tracks as the dropdown lists them: a kit's drums under its
+// name, then the other tracks. A track another player has is shown, dim, with
+// their name.
+function lessonTrackGroups(choices: JamLessonChoice[], holders: Map<string, string> = new Map()): JamDropdownGroup[] {
+  const groups = choices.reduce<(JamDropdownGroup & { kit?: string })[]>((made, track) => {
+    const last = made[made.length - 1];
+    const holder = holders.get(track.id);
+    const option = { value: track.id, label: track.name, ...(holder !== undefined ? { detail: holder, disabled: true } : {}) };
+    if (last && last.kit === track.kit) last.options.push(option);
+    else made.push({ kit: track.kit, label: track.kit, options: [option] });
+    return made;
+  }, []);
+  if (groups.some((group) => group.kit !== undefined)) for (const group of groups) if (group.kit === undefined) group.label = 'Tracks';
+  return groups.map(({ label, options }) => ({ ...(label !== undefined ? { label } : {}), options }));
+}
 
 // Browsers (Safari above all) only start audio within a tap or click, and the
 // room's Jam opens after it: the click that leads into a room starts it
@@ -69,7 +90,7 @@ const LockIcon = () => (
   </svg>
 );
 
-export function JamLobby({ rooms, unreachable, check, tracks, onEnter: enterRoom, onBack, ended, lessons = false }: JamLobbyProps) {
+export function JamLobby({ rooms, unreachable, check, tracks, onEnter: enterRoom, onBack, ended, lessons = false, pick }: JamLobbyProps) {
   const onEnter = (entry: JamRoomEntry) => {
     startJamAudio();
     enterRoom(entry);
@@ -95,6 +116,7 @@ export function JamLobby({ rooms, unreachable, check, tracks, onEnter: enterRoom
                   room={room}
                   onEnter={onEnter}
                   check={(code) => check(room.id, code)}
+                  picking={!!pick && room.key === pick}
                 />
               ))}
             </div>
@@ -148,19 +170,7 @@ function NewRoomCard({
     { label: 'Daw', options: options(true) },
   ].filter((group) => group.options.length);
   const lessonTracks = tracks.find((track) => track.id === song)?.tracks ?? [];
-  // A kit's drums under its name, then the other tracks
-  const lessonGroups = lessonTracks.reduce<{ label?: string; kit?: string; options: { value: string; label: string }[] }[]>(
-    (groups, track) => {
-      const last = groups[groups.length - 1];
-      const option = { value: track.id, label: track.name };
-      if (last && last.kit === track.kit) last.options.push(option);
-      else groups.push({ kit: track.kit, label: track.kit, options: [option] });
-      return groups;
-    },
-    []
-  );
-  if (lessonGroups.some((group) => group.kit !== undefined))
-    for (const group of lessonGroups) if (group.kit === undefined) group.label = 'Tracks';
+  const lessonGroups = lessonTrackGroups(lessonTracks);
   const ready = song && (!lessons || lesson.length > 0);
   const create = (visibility: JamRoomVisibility) => onCreate({ visibility, song, ...(lessons ? { lesson } : {}) });
   return (
@@ -216,15 +226,31 @@ interface RoomCardProps {
   room: JamRoomSummary;
   onEnter: (entry: JamRoomEntry) => void;
   check: (code: string) => Promise<boolean | null>;
+  // Opens straight to picking tracks (a lesson room's link without them)
+  picking?: boolean;
 }
 
-// A live room: its song and players. An open room is joined with a click; a
-// private room asks for its code on the card first.
-function RoomCard({ room, onEnter, check }: RoomCardProps) {
-  const [asking, setAsking] = useState(false);
+// A live room: its song and players. An open Jam room is joined with a click;
+// a private room asks for its code on the card first, and a lesson room for
+// the tracks to learn there, from those no one else has.
+function RoomCard({ room, onEnter, check, picking = false }: RoomCardProps) {
+  const [asking, setAsking] = useState(picking);
   const [code, setCode] = useState('');
+  const [picked, setPicked] = useState<string[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+
+  // A lesson room's tracks: whose each one is, and those still free
+  const lesson = room.lesson;
+  const holders = new Map(
+    (lesson?.players ?? []).flatMap((holder) => {
+      const name = room.players.find((player) => player.id === holder.id)?.name ?? '';
+      return holder.tracks.map((track) => [track, name] as const);
+    })
+  );
+  const free = (lesson?.choices ?? []).filter((choice) => !holders.has(choice.id));
+  const tracks = picked.filter((id) => free.some((choice) => choice.id === id));
+  const full = room.full || (!!lesson && free.length === 0);
 
   const body = (
     <>
@@ -233,14 +259,12 @@ function RoomCard({ room, onEnter, check }: RoomCardProps) {
           {room.visibility === 'private' && <LockIcon />}
           {room.visibility === 'open' ? 'Open' : 'Private'}
         </span>
-        <span className="jam-lobby-count">
-          {room.full ? 'Full' : `${room.players.length}/${JAM_ROOM_MAX_PLAYERS}`}
-        </span>
+        <span className="jam-lobby-count">{full ? 'Full' : `${room.players.length}/${JAM_ROOM_MAX_PLAYERS}`}</span>
       </div>
       <div className="jam-lobby-title">{room.host}&apos;s room</div>
       <div className="jam-lobby-song">
         {room.playing && <span className="jam-lobby-live" />}
-        {room.lesson ? `${room.lesson.name} · ${room.song.title}` : room.song.title}
+        {lesson?.name ? `${lesson.name} · ${room.song.title}` : room.song.title}
         <span className="jam-lobby-bpm">{jamBpmLabel(room.song.bpm)}</span>
       </div>
       <div className="jam-lobby-players">
@@ -254,31 +278,49 @@ function RoomCard({ room, onEnter, check }: RoomCardProps) {
     </>
   );
 
-  if (room.visibility === 'open' || !asking) {
+  if (!asking || full) {
     return (
       <button
         className="jam-lobby-card"
-        disabled={room.full}
-        onClick={() => (room.visibility === 'open' && room.key ? onEnter({ key: room.key }) : setAsking(true))}
+        disabled={full}
+        onClick={() => (room.visibility === 'open' && room.key && !lesson ? onEnter({ key: room.key }) : setAsking(true))}
       >
         {body}
       </button>
     );
   }
 
+  const coded = room.visibility === 'open' || JAM_ROOM_CODE.test(code);
+  const ready = coded && (!lesson || tracks.length > 0) && !checking;
   const submit = async () => {
-    if (!JAM_ROOM_CODE.test(code) || checking) return;
+    if (!ready) return;
+    const entry = (key: string): JamRoomEntry => ({ key, ...(lesson ? { tracks } : {}) });
+    if (room.visibility === 'open' && room.key) {
+      onEnter(entry(room.key));
+      return;
+    }
     startJamAudio(); // now, while this is still the player's click
     setChecking(true);
     const ok = await check(code);
     setChecking(false);
-    if (ok) onEnter({ key: code });
+    if (ok) onEnter(entry(code));
     else setProblem(ok === false ? 'Wrong code' : "Can't reach the rooms");
   };
 
   return (
     <div className="jam-lobby-card jam-lobby-asking">
       {body}
+      {lesson && (
+        <JamDropdown
+          multiple
+          groups={lessonTrackGroups(lesson.choices, holders)}
+          value={tracks}
+          onChange={setPicked}
+          summary={(ids) => jamLessonName(lesson.choices, ids)}
+          placeholder="Your tracks"
+          autoFocus={room.visibility === 'open'}
+        />
+      )}
       <form
         className="jam-lobby-code"
         onSubmit={(event) => {
@@ -286,24 +328,34 @@ function RoomCard({ room, onEnter, check }: RoomCardProps) {
           submit();
         }}
       >
-        <input
-          className={problem ? 'wrong' : undefined}
-          value={code}
-          onChange={(event) => {
-            setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
-            setProblem(null);
-          }}
-          placeholder="Code"
-          maxLength={8}
-          autoFocus
-          autoCapitalize="characters"
-          autoComplete="off"
-          spellCheck={false}
-        />
-        <button type="submit" disabled={!JAM_ROOM_CODE.test(code) || checking}>
+        {room.visibility === 'private' && (
+          <input
+            className={problem ? 'wrong' : undefined}
+            value={code}
+            onChange={(event) => {
+              setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+              setProblem(null);
+            }}
+            placeholder="Code"
+            maxLength={8}
+            autoFocus
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        )}
+        <button type="submit" disabled={!ready}>
           Join
         </button>
-        <button type="button" className="jam-lobby-cancel" onClick={() => setAsking(false)} title="Cancel">
+        <button
+          type="button"
+          className="jam-lobby-cancel"
+          onClick={() => {
+            setAsking(false);
+            setPicked([]);
+          }}
+          title="Cancel"
+        >
           &times;
         </button>
       </form>

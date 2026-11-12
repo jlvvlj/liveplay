@@ -154,14 +154,20 @@ const songTrackList = (song: Pick<JamDawSong, 'file' | 'edit' | 'ableton'>): Jam
     ? song.ableton.tracks.map((track, index) => ({ id: `ableton-${index}`, name: track.name }))
     : jamLessonChoices(song.file, song.edit);
 
-// A lesson room's lesson from the tracks its opener chose: one or more of the
-// song's, each once; null when any is not the song's
-function roomLesson(choices: JamLessonChoice[], ids: unknown): JamRoomLesson | null {
+// The tracks a player chose for a lesson room, in the song's order: one or
+// more of the song's, each once, none another player has; null otherwise
+function lessonClaim(choices: JamLessonChoice[], ids: unknown, taken: string[] = []): string[] | null {
   if (!Array.isArray(ids) || ids.length === 0 || new Set(ids).size !== ids.length) return null;
-  if (!ids.every((id) => typeof id === 'string' && choices.some((choice) => choice.id === id))) return null;
-  const tracks = choices.filter((choice) => ids.includes(choice.id)).map((choice) => choice.id);
-  return { tracks, name: jamLessonName(choices, tracks) };
+  if (!ids.every((id) => typeof id === 'string' && choices.some((choice) => choice.id === id) && !taken.includes(id))) return null;
+  return choices.filter((choice) => ids.includes(choice.id)).map((choice) => choice.id);
 }
+
+// A lesson room's lesson with these players' tracks
+const roomLesson = (choices: JamLessonChoice[], players: JamRoomLesson['players']): JamRoomLesson => ({
+  players,
+  name: jamLessonName(choices, players.flatMap((player) => player.tracks)),
+  choices,
+});
 
 export function createJamRooms({
   songs,
@@ -188,7 +194,7 @@ export function createJamRooms({
   const broadcast = (room: Room, message: JamServerMessage, except?: string) => {
     for (const [id, member] of room.members) if (id !== except) send(member.socket, message);
   };
-  const players = (room: Room) => [...room.members.values()].map(({ peer }) => ({ name: peer.name, color: peer.color }));
+  const players = (room: Room) => [...room.members.values()].map(({ peer }) => ({ id: peer.id, name: peer.name, color: peer.color }));
 
   // Rooms with players first, then the empty ones; the newest first in each
   const summaries = (): JamRoomSummary[] =>
@@ -244,6 +250,12 @@ export function createJamRooms({
       const left = room;
       room = null;
       left.members.delete(id);
+      // A lesson room's player leaves their tracks to the backing and to whoever comes next
+      const lesson = left.state.lesson;
+      if (lesson?.players.some((player) => player.id === id)) {
+        left.state = { ...left.state, lesson: roomLesson(lesson.choices, lesson.players.filter((player) => player.id !== id)) };
+        broadcast(left, { t: 'state', state: left.state });
+      }
       // A Daw song is kept as it is edited: its room closes with its last player
       if (left.kind === 'daw' && left.members.size === 0) {
         dawRooms.delete(left.id);
@@ -357,9 +369,10 @@ export function createJamRooms({
         } else {
           joining = rooms.get(message.room);
           const opening = !joining && message.create ? roomSong(message.create.song) : null;
-          // A lesson room's lesson is one or more of its song's tracks
+          // A lesson room's lesson is one or more of its song's tracks, the opener's first
           const lessonIds = message.create?.lesson;
-          const lesson = opening && lessonIds !== undefined ? roomLesson(opening.lessons, lessonIds) : null;
+          const claim = opening && lessonIds !== undefined ? lessonClaim(opening.lessons, lessonIds) : null;
+          const lesson = claim ? roomLesson(opening!.lessons, [{ id, tracks: claim }]) : null;
           if (!joining && (!opening || (lessonIds !== undefined && !lesson))) {
             send(socket, { t: 'missing' });
             socket.close(1000, 'No such room');
@@ -391,6 +404,19 @@ export function createJamRooms({
           send(socket, { t: 'full' });
           socket.close(1000, 'Room full');
           return;
+        }
+        // Into a lesson room on the tracks this player picked, while nobody else has them
+        const joinedLesson = joining.state.lesson;
+        if (joinedLesson && !joinedLesson.players.some((player) => player.id === id)) {
+          const taken = joinedLesson.players.flatMap((player) => player.tracks);
+          const claim = message.t === 'join' ? lessonClaim(joinedLesson.choices, message.tracks, taken) : null;
+          if (!claim) {
+            send(socket, { t: 'taken' });
+            socket.close(1000, 'Tracks taken');
+            return;
+          }
+          joining.state = { ...joining.state, lesson: roomLesson(joinedLesson.choices, [...joinedLesson.players, { id, tracks: claim }]) };
+          broadcast(joining, { t: 'state', state: joining.state });
         }
         room = joining;
         if (room.kind === 'daw') dawRooms.set(room.id, room);

@@ -99,19 +99,23 @@ export const jamAbletonLesson = (server: string, songId: string, title: string, 
 
 // Several of an imported song's tracks as one lesson: their notes together,
 // each track's lanes moved up past an earlier track's where they meet, each
-// hit a slice of the tracks' exports joined end to end (joinJamAbletonAudio)
+// hit a slice of the tracks' exports joined end to end (joinJamAbletonAudio).
+// `groups` says whose each track is (in a room, a player: their tracks come
+// one after another); the lanes' groups come back by lane note.
 export function jamAbletonLessonOfTracks(
   songId: string,
   title: string,
   tracks: JamAbletonTrack[],
-  stem: { url: string; offsets: number[] }
-): Lesson {
-  const shifts = jamStackLanes(tracks.map((track) => [...new Set(track.lesson.steps.map((step) => step.note))]));
+  stem: { url: string; offsets: number[] },
+  groups: number[] = tracks.map(() => 0)
+): { lesson: Lesson; laneGroups: Record<number, number> } {
+  const notesOf = (track: JamAbletonTrack) => [...new Set(track.lesson.steps.map((step) => step.note))];
+  const shifts = jamStackLanes(tracks.map(notesOf));
   const name = tracks.map((track) => track.name).join(' + ');
   const first = tracks[0].lesson;
-  return {
+  const lesson: Lesson = {
     ...first,
-    id: `ableton:${songId}:${tracks.map((track) => track.name).join('+')}`,
+    id: `ableton:${songId}:${tracks.map((track, at) => `${groups[at]}.${track.name}`).join('+')}`,
     title: `${name} — ${title}`,
     instrument: tracks.every((track) => track.lesson.instrument === first.instrument) ? first.instrument : 'keys',
     stemAudio: stem.url,
@@ -125,14 +129,11 @@ export function jamAbletonLessonOfTracks(
       )
       .sort((a, b) => a.tick - b.tick || a.note - b.note),
     laneLabels: Object.fromEntries(
-      tracks.flatMap((track, at) =>
-        [...new Set(track.lesson.steps.map((step) => step.note))].map((note) => [
-          note + shifts[at],
-          track.lesson.laneLabels?.[note] ?? track.name,
-        ])
-      )
+      tracks.flatMap((track, at) => notesOf(track).map((note) => [note + shifts[at], track.lesson.laneLabels?.[note] ?? track.name]))
     ),
   };
+  const laneGroups = Object.fromEntries(tracks.flatMap((track, at) => notesOf(track).map((note) => [note + shifts[at], groups[at]])));
+  return { lesson, laneGroups };
 }
 
 // That lesson at another tempo, over its recordings stretched to it

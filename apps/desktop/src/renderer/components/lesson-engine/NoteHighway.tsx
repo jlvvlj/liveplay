@@ -72,6 +72,9 @@ interface NoteHighwayProps {
     stepped?: boolean;
     lastLoop?: number;
     clock?: string;
+    // A room's other players' steps, on their own lanes in their color: shown,
+    // never judged (`steps` are this player's)
+    others?: { step: LessonStep; color: string }[];
   };
   // Lanes drawn from the highest at the top in every mode, as the jam's rows
   // are (a lesson room keeps its lanes where they are when its mode changes)
@@ -202,10 +205,12 @@ export function NoteHighway({
     return mode === 'jam' && !lessonRoom ? jamWidth * JAM_CURSOR_HOME_PERCENT : containerWidth * HIT_ZONE_PERCENT;
   }, [containerWidth, mode, jamWidth, lessonRoom]);
 
-  // Get unique notes from the lesson (sorted by MIDI value)
+  // Get unique notes from the lesson (sorted by MIDI value), a room's other
+  // players' lanes too
+  const otherSteps = jamLesson?.others;
   const uniqueNotes = useMemo(() =>
-    Array.from(new Set(steps.map(s => s.note))).sort((a, b) => a - b),
-    [steps]
+    Array.from(new Set([...steps, ...(otherSteps ?? []).map((other) => other.step)].map(s => s.note))).sort((a, b) => a - b),
+    [steps, otherSteps]
   );
 
   // Determine number of lanes based on unique notes in the lesson
@@ -255,11 +260,11 @@ export function NoteHighway({
   );
 
   // Hold notes: how long each one's sound lasts (0 for ordinary notes)
+  const holdLength = (step: LessonStep) =>
+    !holdNotes || stepDurationMs(step, holdBpm ?? bpm) < HOLD_MIN_MS ? 0 : stepDurationMs(step, bpm);
   const holdMs = useMemo(
-    () => steps.map((step) => {
-      if (!holdNotes || stepDurationMs(step, holdBpm ?? bpm) < HOLD_MIN_MS) return 0;
-      return stepDurationMs(step, bpm);
-    }),
+    () => steps.map(holdLength),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [steps, bpm, holdNotes, holdBpm]
   );
 
@@ -999,6 +1004,30 @@ export function NoteHighway({
             />
           );
         }
+      });
+      // The other players' steps on this lane: theirs to play
+      jamLesson.others?.forEach(({ step, color: theirs }, index) => {
+        if (noteToLane(step.note) !== laneIndex) return;
+        const at = loop * loopMs + ticksToMs(step.tick);
+        const hold = holdLength(step);
+        if (at + hold < lessonTime - pastMs || at > lessonTime + aheadMs) return;
+        const key = `${loop}:other:${index}`;
+        if (hold) {
+          notes.push(
+            <div
+              key={`${key}:tail`}
+              className="jam-lesson-tail other"
+              style={{ left: `${at * JAM_PIXELS_PER_MS + size / 2}px`, width: `${Math.max(0, hold * JAM_PIXELS_PER_MS - size / 2)}px`, color: theirs }}
+            />
+          );
+        }
+        notes.push(
+          <div
+            key={key}
+            className="jam-lesson-note other"
+            style={{ left: `${at * JAM_PIXELS_PER_MS}px`, width: `${size}px`, height: `${size}px`, color: theirs }}
+          />
+        );
       });
     }
     return notes;

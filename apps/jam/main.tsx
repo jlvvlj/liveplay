@@ -28,19 +28,26 @@ const jamRoomServer =
 const jamHttpServer = new URL(jamRoomServer.replace(/^ws/, 'http')).origin;
 
 // Where the address leads: home, a section's lobby (?daw, ?jam, ?lessons), a
-// Daw song being edited (?song=ID) or a room (?room=KEY), Jam or lesson room
+// Daw song being edited (?song=ID) or a room (?room=KEY), Jam or lesson room.
+// A lesson room's address has the player's tracks (&lesson=ID,ID): without
+// them it leads to the Lessons lobby, the room's card open to pick them.
 type Place =
   | { at: 'home' }
   | { at: 'daw' }
   | { at: 'jam' }
-  | { at: 'lessons' }
+  | { at: 'lessons'; pick?: string }
   | { at: 'song'; id: string }
   | { at: 'room'; entry: JamRoomEntry; from: 'jam' | 'lessons' };
 
 function placeInAddress(): Place {
   const query = new URLSearchParams(location.search);
   const key = query.get('room')?.toUpperCase();
-  if (key && JAM_ROOM_CODE.test(key)) return { at: 'room', entry: { key }, from: query.has('lesson') ? 'lessons' : 'jam' };
+  const lessonTracks = query.get('lesson');
+  if (key && JAM_ROOM_CODE.test(key) && lessonTracks === '') return { at: 'lessons', pick: key };
+  if (key && JAM_ROOM_CODE.test(key)) {
+    const tracks = lessonTracks?.split(',').filter(Boolean);
+    return { at: 'room', entry: { key, ...(tracks ? { tracks } : {}) }, from: tracks ? 'lessons' : 'jam' };
+  }
   const song = query.get('song')?.toUpperCase();
   if (song && JAM_ROOM_CODE.test(song)) return { at: 'song', id: song };
   if (query.has('daw')) return { at: 'daw' };
@@ -59,8 +66,10 @@ const addressOf = (place: Place): string => {
       return `?${place.at}`;
     case 'song':
       return `?song=${place.id}`;
-    case 'room':
-      return `?room=${place.entry.key}${place.from === 'lessons' ? '&lesson' : ''}`;
+    case 'room': {
+      const tracks = place.entry.tracks ?? place.entry.create?.lesson;
+      return `?room=${place.entry.key}${place.from === 'lessons' ? `&lesson=${tracks?.join(',') ?? ''}` : ''}`;
+    }
   }
 };
 
@@ -103,11 +112,12 @@ function JamApp() {
     setEnded(null);
     setPlace(next);
   };
-  // Back from a song or a room to its section's lobby
-  const backTo = (section: 'daw' | 'jam' | 'lessons', reason: JamRoomEnd | null = null) => {
+  // Back from a song or a room to its section's lobby (a lesson room whose
+  // tracks were taken to its card, to pick others)
+  const backTo = (section: 'daw' | 'jam' | 'lessons', reason: JamRoomEnd | null = null, key?: string) => {
     history.replaceState(null, '', addressOf({ at: section }));
     setEnded(reason);
-    setPlace({ at: section });
+    setPlace(section === 'lessons' && reason === 'taken' && key ? { at: section, pick: key } : { at: section });
   };
 
   // A new room's tracks: the built-in songs, then the Daw songs offered to
@@ -155,7 +165,7 @@ function JamApp() {
       jamRoomServer={jamRoomServer}
       jamHttpServer={jamHttpServer}
       jamRoomJoin={join}
-      onJamRoomEnd={(reason) => backTo(section, reason)}
+      onJamRoomEnd={(reason) => backTo(section, reason, join?.key)}
       onJamImport={section === 'daw' ? async (files, onStep) => go({ at: 'song', id: await importSong(files, onStep) }) : undefined}
       onComplete={() => backTo(section)}
     />
@@ -189,6 +199,7 @@ function JamApp() {
           <JamLobby
             key={place.at}
             lessons={place.at === 'lessons'}
+            pick={place.at === 'lessons' ? place.pick : undefined}
             rooms={rooms}
             unreachable={unreachable}
             check={(id, code) => lobby?.check(id, code) ?? Promise.resolve(null)}
