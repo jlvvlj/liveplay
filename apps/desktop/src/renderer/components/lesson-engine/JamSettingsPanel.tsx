@@ -313,8 +313,9 @@ export function JamSettingsPanel({
               onChange={onNotesVolumeChange}
             />
           )}
+          {/* The whole song: in the Daw every track, under the played notes the backing track */}
           <Slider
-            label="Backing track"
+            label={playing ? 'Backing track' : 'Master'}
             value={backingVolume}
             display={`${Math.round(backingVolume * 100)}%`}
             min={0}
