@@ -10,6 +10,7 @@ import {
 import { BackIcon } from './JamIcons';
 import { jamBpmLabel } from './jamTracks';
 import { JamDropdown } from './JamDropdown';
+import { jamLessonName, type JamLessonChoice } from './jamLessonRooms';
 import './JamLobby.css';
 
 // The jam app's Jam section: every live room as a card, open rooms joined
@@ -18,17 +19,17 @@ import './JamLobby.css';
 
 export interface JamRoomEntry {
   key: string;
-  create?: { visibility: JamRoomVisibility; song: string; lesson?: string };
+  create?: { visibility: JamRoomVisibility; song: string; lesson?: string[] };
 }
 
 // A track a new room can play: a built-in song, or a Daw song offered to
-// rooms, with its own tracks (a lesson room's lesson is one of them)
+// rooms, with its own tracks (a lesson room's lesson is one or more of them)
 export interface JamLobbyTrack {
   id: string;
   title: string;
   bpm: number;
   daw: boolean;
-  tracks: { id: string; name: string }[];
+  tracks: JamLessonChoice[];
 }
 
 interface JamLobbyProps {
@@ -117,8 +118,9 @@ export function JamLobbyHeader({ title, onBack }: { title: string; onBack: () =>
 }
 
 // The card that opens a new room: its track first (the room plays it for as
-// long as it lasts), for a lesson room then which of its tracks to learn, then
-// open to everyone or private with a code
+// long as it lasts), for a lesson room then which of its tracks to learn (any
+// of them together: a kit's drums are listed each on its own, under the kit),
+// then open to everyone or private with a code
 function NewRoomCard({
   tracks,
   lessons,
@@ -126,11 +128,11 @@ function NewRoomCard({
 }: {
   tracks: JamLobbyTrack[];
   lessons: boolean;
-  onCreate: (create: { visibility: JamRoomVisibility; song: string; lesson?: string }) => void;
+  onCreate: (create: { visibility: JamRoomVisibility; song: string; lesson?: string[] }) => void;
 }) {
   const [choosing, setChoosing] = useState(false);
   const [song, setSong] = useState('');
-  const [lesson, setLesson] = useState('');
+  const [lesson, setLesson] = useState<string[]>([]);
   if (!choosing) {
     return (
       <button className="jam-lobby-card jam-lobby-new" onClick={() => setChoosing(true)}>
@@ -146,7 +148,20 @@ function NewRoomCard({
     { label: 'Daw', options: options(true) },
   ].filter((group) => group.options.length);
   const lessonTracks = tracks.find((track) => track.id === song)?.tracks ?? [];
-  const ready = song && (!lessons || lesson);
+  // A kit's drums under its name, then the other tracks
+  const lessonGroups = lessonTracks.reduce<{ label?: string; kit?: string; options: { value: string; label: string }[] }[]>(
+    (groups, track) => {
+      const last = groups[groups.length - 1];
+      const option = { value: track.id, label: track.name };
+      if (last && last.kit === track.kit) last.options.push(option);
+      else groups.push({ kit: track.kit, label: track.kit, options: [option] });
+      return groups;
+    },
+    []
+  );
+  if (lessonGroups.some((group) => group.kit !== undefined))
+    for (const group of lessonGroups) if (group.kit === undefined) group.label = 'Tracks';
+  const ready = song && (!lessons || lesson.length > 0);
   const create = (visibility: JamRoomVisibility) => onCreate({ visibility, song, ...(lessons ? { lesson } : {}) });
   return (
     <div className="jam-lobby-card jam-lobby-new jam-lobby-choosing">
@@ -156,17 +171,19 @@ function NewRoomCard({
         value={song}
         onChange={(next) => {
           setSong(next);
-          setLesson('');
+          setLesson([]);
         }}
         placeholder="Track"
         autoFocus
       />
       {lessons && song && (
         <JamDropdown
-          groups={[{ options: lessonTracks.map((track) => ({ value: track.id, label: track.name })) }]}
+          multiple
+          groups={lessonGroups}
           value={lesson}
           onChange={setLesson}
-          placeholder="Lesson track"
+          summary={(picked) => jamLessonName(lessonTracks, picked)}
+          placeholder="Lesson tracks"
         />
       )}
       {ready && (
@@ -185,7 +202,7 @@ function NewRoomCard({
         onClick={() => {
           setChoosing(false);
           setSong('');
-          setLesson('');
+          setLesson([]);
         }}
         title="Cancel"
       >

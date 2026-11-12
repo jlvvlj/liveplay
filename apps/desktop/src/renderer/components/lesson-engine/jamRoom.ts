@@ -99,7 +99,7 @@ export class JamRoom {
     // room `code`, opened with `create` when it is new
     join: {
       edit?: boolean;
-      create?: { visibility: JamRoomVisibility; song: string; lesson?: string };
+      create?: { visibility: JamRoomVisibility; song: string; lesson?: string[] };
       name: string;
       sound: JamRoomSound | null;
       need: number;

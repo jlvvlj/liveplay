@@ -219,26 +219,36 @@ describe('jam rooms', () => {
     lobby.socket.close();
   });
 
-  it('opens a lesson room on one of its song\'s tracks, and lists it with its lesson', async () => {
+  it('opens a lesson room on some of its song\'s tracks, and lists it with its lesson', async () => {
     const lobby = await player(url);
     lobby.send({ t: 'lobby' });
     await lobby.next('rooms');
     const a = await player(url);
-    a.send({ t: 'join', room: 'LESSON', create: { visibility: 'open', song: 'chip-run-jam', lesson: 'part-3' }, name: 'Aiko', sound: null, need: 0 });
-    expect((await a.next('welcome')).state.lesson).toEqual({ track: 'part-3', name: 'Bass' });
+    a.send({ t: 'join', room: 'LESSON', create: { visibility: 'open', song: 'chip-run-jam', lesson: ['part-3'] }, name: 'Aiko', sound: null, need: 0 });
+    expect((await a.next('welcome')).state.lesson).toEqual({ tracks: ['part-3'], name: 'Bass' });
     let rooms = (await lobby.next('rooms')).rooms;
     while (!rooms.length) rooms = (await lobby.next('rooms')).rooms;
-    expect(rooms[0]).toMatchObject({ id: 'LESSON', lesson: { track: 'part-3', name: 'Bass' } });
-    // A track the song does not have opens nothing
-    const b = await player(url);
-    b.send({ t: 'join', room: 'NOLESSON', create: { visibility: 'open', song: 'chip-run-jam', lesson: 'part-99' }, name: '', sound: null, need: 0 });
-    await b.next('missing');
-    [a, lobby].forEach((p) => p.socket.close());
+    expect(rooms[0]).toMatchObject({ id: 'LESSON', lesson: { tracks: ['part-3'], name: 'Bass' } });
+    // A kit's drums each count as a track, in the song's order whatever the order chosen
+    const kick = await player(url);
+    kick.send({ t: 'join', room: 'KICKSNAR', create: { visibility: 'open', song: 'chip-run-jam', lesson: ['drum-1', 'drum-0'] }, name: '', sound: null, need: 0 });
+    expect((await kick.next('welcome')).state.lesson).toEqual({ tracks: ['drum-0', 'drum-1'], name: 'Kick + Snare' });
+    // Every drum of a kit is named by the kit
+    const kit = await player(url);
+    kit.send({ t: 'join', room: 'WHOLEKIT', create: { visibility: 'open', song: 'chip-run-jam', lesson: ['part-3', 'drum-0', 'drum-1', 'drum-2'] }, name: '', sound: null, need: 0 });
+    expect((await kit.next('welcome')).state.lesson).toEqual({ tracks: ['drum-0', 'drum-1', 'drum-2', 'part-3'], name: 'Drums + Bass' });
+    // A track the song does not have, none, or one twice opens nothing
+    for (const [room, lesson] of [['NOLESSON', ['part-99']], ['NONE', []], ['TWICE', ['part-3', 'part-3']], ['WHOLEKT', ['drums']]] as const) {
+      const b = await player(url);
+      b.send({ t: 'join', room, create: { visibility: 'open', song: 'chip-run-jam', lesson: [...lesson] }, name: '', sound: null, need: 0 });
+      await b.next('missing');
+    }
+    [a, kick, kit, lobby].forEach((p) => p.socket.close());
   });
 
   it('changes a lesson room\'s tempo for everyone in it, never a Jam room\'s', async () => {
     const a = await player(url);
-    a.send({ t: 'join', room: 'TEMPO', create: { visibility: 'open', song: 'chip-run-jam', lesson: 'drums' }, name: '', sound: null, need: 0 });
+    a.send({ t: 'join', room: 'TEMPO', create: { visibility: 'open', song: 'chip-run-jam', lesson: ['drum-0'] }, name: '', sound: null, need: 0 });
     await a.next('welcome');
     const b = await player(url);
     b.send({ t: 'join', room: 'TEMPO', name: '', sound: null, need: 0 });
@@ -254,7 +264,7 @@ describe('jam rooms', () => {
     expect((await b.next('state')).state.song).toMatchObject({ bpm: 1, file: `${CHIP.file}@1` });
     a.send({ t: 'tempo', bpm: 300 });
     expect((await b.next('state')).state.song).toMatchObject({ bpm: 300, file: `${CHIP.file}@300` });
-    expect(state.lesson).toEqual({ track: 'drums', name: 'Drums' });
+    expect(state.lesson).toEqual({ tracks: ['drum-0'], name: 'Kick' });
 
     // A Jam room's song stays at the tempo it was opened at
     const jam = await player(url);
@@ -557,12 +567,16 @@ describe('songs imported from Ableton projects', () => {
     lobby.send({ t: 'offer', song: id, offered: true });
 
     const a = await player(url);
-    a.send({ t: 'join', room: 'SOFTER', create: { visibility: 'open', song: id, lesson: 'ableton-1' }, name: 'Aiko', sound: null, need: 0 });
+    a.send({ t: 'join', room: 'SOFTER', create: { visibility: 'open', song: id, lesson: ['ableton-1'] }, name: 'Aiko', sound: null, need: 0 });
     const { state } = await a.next('welcome');
     expect(state.song).toMatchObject({ id, file: 'ableton', bpm: 122 });
-    expect(state.lesson).toEqual({ track: 'ableton-1', name: 'Chords' });
+    expect(state.lesson).toEqual({ tracks: ['ableton-1'], name: 'Chords' });
+    const both = await player(url);
+    both.send({ t: 'join', room: 'BOTH', create: { visibility: 'open', song: id, lesson: ['ableton-1', 'ableton-0'] }, name: '', sound: null, need: 0 });
+    expect((await both.next('welcome')).state.lesson).toEqual({ tracks: ['ableton-0', 'ableton-1'], name: 'Kick + Chords' });
+    both.socket.close();
     const b = await player(url);
-    b.send({ t: 'join', room: 'NOTRACK', create: { visibility: 'open', song: id, lesson: 'ableton-2' }, name: '', sound: null, need: 0 });
+    b.send({ t: 'join', room: 'NOTRACK', create: { visibility: 'open', song: id, lesson: ['ableton-2'] }, name: '', sound: null, need: 0 });
     await b.next('missing');
 
     // Its recordings play at their own tempo: the Daw does not change it
