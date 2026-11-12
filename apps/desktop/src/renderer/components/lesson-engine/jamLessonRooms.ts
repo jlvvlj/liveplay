@@ -34,9 +34,9 @@ export interface JamLesson {
   lanes: JamLessonLane[];
   // The tracks' parts, left out of the backing
   parts: number[];
-  // In a room with several players: the other players' steps (by player id),
-  // out of `lesson`, which holds this player's own
-  others?: { step: LessonStep; player: string }[];
+  // In a room with several players: the other players' steps, out of
+  // `lesson`, which holds this player's own
+  others?: LessonStep[];
 }
 
 // What a lesson room can learn, in the song's order: each drum of a kit on

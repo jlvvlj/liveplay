@@ -485,33 +485,24 @@ export function LessonPlayer({
   }, [jamAbletonLessonAtOwnTempo, jamRoomBpm]);
   // The room's whole lesson, every player's lanes; this player's own steps
   // are the lesson they play and are scored on (and their keys), the others'
-  // are only shown, in their player's color
+  // are only shown
   const jamRoomWholeLesson = jamAbletonRoomLesson ?? jamGridLesson;
   const jamLessonYou = jamRoomPlayers.find((player) => player.you)?.id;
   const jamLessonGroup = jamRoomLessonPlayers ? jamRoomLessonPlayers.findIndex((player) => player.id === jamLessonYou) : -1;
-  const jamLessonOwners = jamRoomLessonPlayers?.map((player) => player.id).join(',') ?? '';
   const jamLesson = useMemo((): JamLesson | null => {
     if (!jamRoomWholeLesson) return null;
     const groupOf = new Map(jamRoomWholeLesson.lanes.map((lane) => [lane.note, lane.group]));
     const mine = (step: LessonStep) => (groupOf.get(step.note) ?? 0) === jamLessonGroup;
     const { lesson } = jamRoomWholeLesson;
     if (lesson.steps.every(mine)) return jamRoomWholeLesson;
-    const owners = jamLessonOwners.split(',');
     return {
       ...jamRoomWholeLesson,
       lesson: { ...lesson, steps: lesson.steps.filter(mine) },
-      others: lesson.steps.filter((step) => !mine(step)).map((step) => ({ step, player: owners[groupOf.get(step.note) ?? 0] ?? '' })),
+      others: lesson.steps.filter((step) => !mine(step)),
     };
-  }, [jamRoomWholeLesson, jamLessonGroup, jamLessonOwners]);
-  // The other players' steps as the highway draws them, in their player's color
-  const jamLessonOthers = useMemo(
-    () =>
-      jamLesson?.others?.map(({ step, player }) => ({
-        step,
-        color: jamRoomPlayers.find((candidate) => candidate.id === player)?.color ?? 'rgba(255, 255, 255, 0.5)',
-      })),
-    [jamLesson, jamRoomPlayers]
-  );
+  }, [jamRoomWholeLesson, jamLessonGroup]);
+  // The other players' steps, drawn on their lanes as this player's are
+  const jamLessonOthers = jamLesson?.others;
   const jamLessonRef = useRef(jamLesson);
   jamLessonRef.current = jamLesson;
   const isLessonRoom = !!jamLesson;
@@ -2121,7 +2112,7 @@ export function LessonPlayer({
     if (jamLessonRef.current && lesson.stemAudio) {
       // Another player's hit on an imported song's track: the slice nearest its time in the song
       const loopSeconds = lesson.loop ? ((lesson.loop.endTick - lesson.loop.startTick) / 480) * (60 / lesson.bpm) : 0;
-      const roomSteps = [...lesson.steps, ...(jamLessonRef.current.others ?? []).map((other) => other.step)];
+      const roomSteps = [...lesson.steps, ...(jamLessonRef.current.others ?? [])];
       const step = getPlayableStepForInput(note.note, loopSeconds > 0 ? sounds % loopSeconds : sounds, roomSteps);
       if (step) playSoundRef.current(note.note, step.note, jamNotesVolumeRef.current, step.slice, start + sounds, step.semitones);
     } else if (jamLessonRef.current) {

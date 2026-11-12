@@ -522,12 +522,6 @@
   color: var(--ds-danger) !important;
 }
 
-/* Another player's step in a room: in their color, theirs to play */
-.jam-lesson-note.other,
-.jam-lesson-tail.other {
-  opacity: 0.5;
-}
-
 .jam-lesson-note.holding {
   background: currentColor;
   box-shadow: 0 0 12px currentColor;
