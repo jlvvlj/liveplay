@@ -12,10 +12,11 @@ import {
 } from '../JamIcons';
 import { JamDropdown } from '../JamDropdown';
 import { CategoryArt } from './CategoryArt';
-import { CATEGORY_ORDER, SYNTH_TAG_ORDER, choiceEdited, presetChoice } from './catalog';
+import { CATEGORY_ORDER, choiceEdited, presetChoice } from './catalog';
 import { EFFECTS, availableEffects, effectSlot } from './effects';
 import type { EffectKind, EffectSlot, InstrumentChoice, InstrumentDef, ParamSpec, ParamValues, Preset } from './types';
 import { paramValue } from './types';
+import { SOUND_KINDS, soundKind, type SoundKind } from './soundKinds';
 import './InstrumentPanel.css';
 
 // The instruments panel, down the left side: synth sounds by kind and sampled
@@ -56,8 +57,9 @@ export interface JamFavorite {
 
 type View =
   | { at: 'home' }
-  | { at: 'tag'; tag: string }
   | { at: 'category'; category: string }
+  // Every instrument and synth preset of one kind of sound
+  | { at: 'kind'; kind: SoundKind }
   | { at: 'instrument'; id: string };
 
 const SECONDS = new Set(['attack', 'decay', 'hold', 'release', 'sweepTime', 'size']);
@@ -342,7 +344,11 @@ export function InstrumentPanel({
   embedded = false,
   reveal = 0,
 }: InstrumentPanelProps) {
-  const instruments = track ? all.filter((instrument) => !!instrument.pads === (track.kind === 'drum')) : all;
+  const trackKind = track?.kind;
+  const instruments = useMemo(
+    () => (trackKind ? all.filter((instrument) => !!instrument.pads === (trackKind === 'drum')) : all),
+    [all, trackKind]
+  );
   // Opens on the first screen, every kind of instrument at hand
   const [view, setView] = useState<View>({ at: 'home' });
   const [searching, setSearching] = useState(false);
@@ -351,14 +357,29 @@ export function InstrumentPanel({
   const [presetFilter, setPresetFilter] = useState('');
   const [presetKind, setPresetKind] = useState<string | null>(null);
 
-  const synths = instruments.filter((instrument) => instrument.engine === 'melodics-synth');
   const engines = instruments.filter((instrument) => instrument.engine === 'port');
   const sampled = instruments.filter((instrument) => instrument.engine === 'sampler');
   const rank = (category: string) => (CATEGORY_ORDER.includes(category) ? CATEGORY_ORDER.indexOf(category) : CATEGORY_ORDER.length);
   const categories = [...new Set(sampled.map((instrument) => instrument.category))].sort((a, b) => rank(a) - rank(b));
-  const tagged = (tag: string) =>
-    synths.flatMap((instrument) => instrument.presets.filter((preset) => preset.tag === tag).map((preset) => ({ instrument, preset })));
-  const tags = SYNTH_TAG_ORDER.filter((tag) => tagged(tag).length);
+  // Each instrument's or synth preset's kind of sound: the sampled
+  // instruments' (a kit's are drums), then every synth's presets
+  const kinded = useMemo(
+    () =>
+      (['sampler', 'melodics-synth', 'port'] as const)
+        .flatMap((engine) => instruments.filter((instrument) => instrument.engine === engine))
+        .flatMap((instrument): { instrument: InstrumentDef; preset?: Preset; kind: SoundKind }[] => {
+          if (instrument.engine === 'sampler') {
+            const kind = instrument.pads ? 'Drums' : soundKind(instrument.name);
+            return kind ? [{ instrument, kind }] : [];
+          }
+          return instrument.presets.flatMap((preset) => {
+            const kind = soundKind(preset.name, preset.tag);
+            return kind ? [{ instrument, preset, kind }] : [];
+          });
+        }),
+    [instruments]
+  );
+  const kinds = SOUND_KINDS.filter((kind) => kinded.some((entry) => entry.kind === kind));
   const artSeed = (instrument: InstrumentDef) => instruments.indexOf(instrument);
 
   const pick = (instrument: InstrumentDef, preset?: Preset) => {
@@ -437,14 +458,15 @@ export function InstrumentPanel({
 
   const current = view.at === 'instrument' ? instruments.find((instrument) => instrument.id === view.id) : undefined;
   const title =
-    view.at === 'tag' ? view.tag : view.at === 'category' ? view.category : current ? current.name : (track?.title ?? track?.name ?? 'Instruments');
+    view.at === 'kind' ? view.kind : view.at === 'category' ? view.category : current ? current.name : (track?.title ?? track?.name ?? 'Instruments');
   const back =
     view.at === 'home'
       ? undefined
       : () => {
           if (view.at === 'instrument' && current?.engine === 'melodics-synth') {
             const preset = current.presets.find((candidate) => candidate.id === choice?.preset);
-            setView(preset?.tag ? { at: 'tag', tag: preset.tag } : { at: 'home' });
+            const kind = preset && soundKind(preset.name, preset.tag);
+            setView(kind ? { at: 'kind', kind } : { at: 'home' });
           } else if (view.at === 'instrument' && current && current.engine === 'sampler') setView({ at: 'category', category: current.category });
           else setView({ at: 'home' });
         };
@@ -552,6 +574,23 @@ export function InstrumentPanel({
       </header>
 
       <div className="instrument-panel-body">
+        {(view.at === 'home' || view.at === 'kind') && !(searching && query.trim()) && kinds.length > 1 && (
+          <div className="instrument-kinds">
+            {kinds.map((kind) => {
+              const on = view.at === 'kind' && view.kind === kind;
+              return (
+                <button
+                  key={kind}
+                  className={`instrument-kind ${on ? 'on' : ''}`}
+                  aria-pressed={on}
+                  onClick={() => setView(on ? { at: 'home' } : { at: 'kind', kind })}
+                >
+                  {kind}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {searching && query.trim() ? (
           <div className="instrument-grid">
             {results.map(({ instrument, preset }) =>
@@ -574,20 +613,6 @@ export function InstrumentPanel({
             {favoriteCards.length > 0 && (
               <CardRow title="Favourites">{favoriteCards.map(({ instrument, preset }) => favoriteCard(instrument, preset))}</CardRow>
             )}
-            {tags.length > 0 && <CardRow title="Synths">
-              {tags.map((tag) => {
-                const Icon = SYNTH_TAG_ICONS[tag];
-                return (
-                  <Card
-                    key={tag}
-                    art={<span className="instrument-card-icon">{Icon && <Icon />}</span>}
-                    name={tag}
-                    detail={plural(tagged(tag).length, 'sound')}
-                    onClick={() => setView({ at: 'tag', tag })}
-                  />
-                );
-              })}
-            </CardRow>}
             {engines.length > 0 && <CardRow title="Synth engines">{engines.map(engineCard)}</CardRow>}
             <CardRow title="Samplers">
               {categories.map((category) => (
@@ -601,8 +626,12 @@ export function InstrumentPanel({
               ))}
             </CardRow>
           </>
-        ) : view.at === 'tag' ? (
-          <div className="instrument-grid">{tagged(view.tag).map(({ instrument, preset }) => synthCard(instrument, preset))}</div>
+        ) : view.at === 'kind' ? (
+          <div className="instrument-grid">
+            {kinded
+              .filter((entry) => entry.kind === view.kind)
+              .map(({ instrument, preset }) => (preset ? synthCard(instrument, preset) : sampledCard(instrument)))}
+          </div>
         ) : view.at === 'category' ? (
           <div className="instrument-grid">
             {sampled.filter((instrument) => instrument.category === view.category).map(sampledCard)}
