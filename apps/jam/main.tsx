@@ -5,7 +5,8 @@ import { LessonPlayer } from '../desktop/src/renderer/components/lesson-engine/L
 import { JamLobby, type JamLobbyTrack, type JamRoomEntry } from '../desktop/src/renderer/components/lesson-engine/JamLobby';
 import { DawLobby } from '../desktop/src/renderer/components/lesson-engine/DawLobby';
 import { JamHome } from '../desktop/src/renderer/components/lesson-engine/JamHome';
-import { JamLobbyConnection } from '../desktop/src/renderer/components/lesson-engine/jamLobbyConnection';
+import { JamLobbyConnection, type JamInvite } from '../desktop/src/renderer/components/lesson-engine/jamLobbyConnection';
+import { JamInvites } from '../desktop/src/renderer/components/lesson-engine/JamInvites';
 import type { JamRoomEnd } from '../desktop/src/renderer/components/lesson-engine/jamRoom';
 import { JAM_SONGS, jamRoomSongOf } from '../desktop/src/renderer/components/lesson-engine/jamSongs';
 import { jamLessonChoices } from '../desktop/src/renderer/components/lesson-engine/jamLessonRooms';
@@ -83,6 +84,8 @@ function JamApp() {
   const [songs, setSongs] = useState<JamDawSongSummary[] | null>(null);
   const [unreachable, setUnreachable] = useState(false);
   const [lobby, setLobby] = useState<JamLobbyConnection | null>(null);
+  // Invites taken, the latest last
+  const [invites, setInvites] = useState<JamInvite[]>([]);
   useEffect(() => {
     const connection = new JamLobbyConnection(
       jamRoomServer,
@@ -92,7 +95,8 @@ function JamApp() {
         // Losing the server says more than why the last room ended
         else setEnded(null);
       },
-      setSongs
+      setSongs,
+      (invite) => setInvites((taken) => [...taken, invite])
     );
     setLobby(connection);
     return () => connection.close();
@@ -167,12 +171,23 @@ function JamApp() {
       jamRoomJoin={join}
       onJamRoomEnd={(reason) => backTo(section, reason, join?.key)}
       onJamImport={section === 'daw' ? async (files, onStep) => go({ at: 'song', id: await importSong(files, onStep) }) : undefined}
+      onJamInvite={(to, at, name) => lobby?.invite(to, at, name) ?? Promise.resolve(null)}
       onComplete={() => backTo(section)}
     />
   );
 
   return (
     <div className="app app-jam">
+      <JamInvites
+        invites={invites}
+        onDismiss={(invite) => setInvites((taken) => taken.filter((other) => other !== invite))}
+        onJoin={(invite) => {
+          setInvites((taken) => taken.filter((other) => other !== invite));
+          const { at } = invite;
+          // A lesson room's players pick their tracks on the way in
+          go(at.kind === 'song' ? { at: 'song', id: at.id } : invite.lesson ? { at: 'lessons', pick: at.key } : { at: 'room', entry: { key: at.key }, from: 'jam' });
+        }}
+      />
       <main className="app-main">
         {place.at === 'home' && (
           <JamHome

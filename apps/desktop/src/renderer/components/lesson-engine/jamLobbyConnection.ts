@@ -1,7 +1,12 @@
-import type { JamAbletonSong, JamClientMessage, JamDawSongSummary, JamRoomSummary, JamServerMessage } from './jamRoomProtocol';
+import type { JamAbletonSong, JamClientMessage, JamDawSongSummary, JamInviteTarget, JamRoomSummary, JamServerMessage } from './jamRoomProtocol';
+import { jamPlayerIdentity } from './jamPlayer';
+
+// An invite this app's player got
+export type JamInvite = Extract<JamServerMessage, { t: 'invited' }>;
 
 // The jam app's connection to the room server: the Jam rooms and the Daw
-// songs as they change, checks of private room codes, and new Daw songs. A
+// songs as they change, checks of private room codes, new Daw songs, and
+// invites, sent and taken (its inbox is open the whole time). A
 // dropped connection is opened again, waiting longer after each failure.
 
 const RETRY_FIRST_MS = 1000;
@@ -13,6 +18,7 @@ export class JamLobbyConnection {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private checks = new Map<number, (ok: boolean | null) => void>();
   private made = new Map<number, (id: string | null) => void>();
+  private invites = new Map<number, (reached: string[] | null) => void>();
   private nextCheck = 1;
   private closed = false;
 
@@ -21,7 +27,8 @@ export class JamLobbyConnection {
     // The rooms as they change; null when the connection is lost (the last
     // rooms heard stay true until it is back)
     private onRooms: (rooms: JamRoomSummary[] | null) => void,
-    private onSongs: (songs: JamDawSongSummary[]) => void
+    private onSongs: (songs: JamDawSongSummary[]) => void,
+    private onInvite: (invite: JamInvite) => void
   ) {
     this.connect();
   }
@@ -57,6 +64,17 @@ export class JamLobbyConnection {
     });
   }
 
+  // Invites players (by lasting id) there, from `name`: those whose app was
+  // open to take it; null when the server could not be asked
+  invite(to: string[], at: JamInviteTarget, name: string): Promise<string[] | null> {
+    if (this.socket?.readyState !== WebSocket.OPEN) return Promise.resolve(null);
+    const c = this.nextCheck++;
+    return new Promise((resolve) => {
+      this.invites.set(c, resolve);
+      this.send({ t: 'invite', c, to, at, name });
+    });
+  }
+
   offer(song: string, offered: boolean): void {
     this.send({ t: 'offer', song, offered });
   }
@@ -73,6 +91,7 @@ export class JamLobbyConnection {
     socket.onopen = () => {
       this.retryMs = RETRY_FIRST_MS;
       this.send({ t: 'lobby' });
+      jamPlayerIdentity().then(({ key }) => this.send({ t: 'inbox', key }));
     };
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data) as JamServerMessage;
@@ -81,6 +100,11 @@ export class JamLobbyConnection {
       else if (message.t === 'songMade') {
         this.made.get(message.c)?.(message.id);
         this.made.delete(message.c);
+      }
+      else if (message.t === 'invited') this.onInvite(message);
+      else if (message.t === 'inviteSent') {
+        this.invites.get(message.c)?.(message.reached);
+        this.invites.delete(message.c);
       }
       else if (message.t === 'checked') {
         this.checks.get(message.c)?.(message.ok);
@@ -91,9 +115,10 @@ export class JamLobbyConnection {
       if (this.closed) return;
       this.onRooms(null);
       // Checks waiting on the lost connection can no longer be answered
-      for (const resolve of [...this.checks.values(), ...this.made.values()]) resolve(null);
+      for (const resolve of [...this.checks.values(), ...this.made.values(), ...this.invites.values()]) resolve(null);
       this.checks.clear();
       this.made.clear();
+      this.invites.clear();
       this.retryTimer = setTimeout(() => this.connect(), this.retryMs);
       this.retryMs = Math.min(this.retryMs * 2, RETRY_MAX_MS);
     };

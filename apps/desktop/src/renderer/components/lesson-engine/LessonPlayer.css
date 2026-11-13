@@ -1678,10 +1678,42 @@
   color: var(--ds-warning);
 }
 
-/* Jam tab: the highway fills the page edge to edge; the open settings sidebar
-   sits beside it, not over its rows */
+/* Jam tab: a rail down the left edge holds back and the sidebar's button.
+   The sidebar slides out from under the rail and the highway or the grid
+   narrows beside it at the same pace, never covered. */
+.lesson-player.jam-only {
+  --jam-rail: 48px;
+  --jam-side: clamp(280px, 24vw, 380px);
+  --jam-side-pace: 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
 .lesson-player.jam-only .highway-container {
-  padding: 0;
+  padding: 0 0 0 var(--jam-rail);
+  transition: padding-left var(--jam-side-pace);
+}
+
+.jam-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 210;
+  width: var(--jam-rail);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 16px; /* level with the toolbar's buttons */
+  background: var(--ds-panel);
+  border-right: 1px solid var(--ds-border);
+}
+
+/* The sidebar's button: a ring round it while the sidebar is open */
+.jam-rail .jam-rail-btn.on {
+  border-color: var(--ds-text);
+  color: var(--ds-text);
+  background: var(--ds-raised);
+  box-shadow: 0 0 0 1px var(--ds-text);
 }
 
 .lesson-player.jam-only .note-highway {
@@ -1690,7 +1722,59 @@
 }
 
 .lesson-player.jam-only .highway-container.with-jam-settings {
-  padding-left: 280px;
+  padding-left: calc(var(--jam-rail) + var(--jam-side));
+}
+
+.lesson-player.jam-only .jam-sidebar {
+  left: var(--jam-rail);
+  width: var(--jam-side);
+  border-right: 1px solid var(--ds-border);
+  animation: jamSideIn var(--jam-side-pace);
+}
+
+.lesson-player.jam-only .jam-sidebar.leaving {
+  animation: jamSideOut var(--jam-side-pace) forwards;
+  pointer-events: none;
+}
+
+@keyframes jamSideIn {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes jamSideOut {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson-player.jam-only {
+    --jam-side-pace: 1ms linear;
+  }
+}
+
+/* The sidebar's close: a plain cross at the end of its header */
+.jam-side-close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px -6px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ds-text-dim);
+  cursor: pointer;
+}
+
+.jam-side-close:hover {
+  background: var(--ds-raised);
+  color: var(--ds-text);
 }
 
 .jam-corner-btn {
@@ -1963,19 +2047,173 @@
 }
 
 
-/* Phones (JAM_PHONE_WIDTH / JAM_PHONE_HEIGHT in LessonPlayer.tsx): the sidebar
-   opens over the highway instead of pushing it aside */
-@media (max-width: 700px), (max-height: 500px) {
-  .lesson-player.jam-only .highway-container.with-jam-settings {
-    padding-left: 0;
-  }
-
-  .lesson-player.jam-only .game-settings-sidebar {
-    width: min(300px, 88vw);
+/* Phones (JAM_PHONE_WIDTH / JAM_PHONE_HEIGHT in LessonPlayer.tsx): the
+   sidebar still pushes the page aside, leaving the track names beside it */
+@media (max-width: 700px) {
+  .lesson-player.jam-only {
+    --jam-side: min(300px, calc(100vw - var(--jam-rail) - 7rem));
   }
 }
 
 /* Jam rooms: playing together online */
+/* Invite: the room's link in a field, copied with the button at its end */
+.jam-invite-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.85rem;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-panel);
+}
+
+.jam-invite-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ds-text-dim);
+  font-size: 0.8rem;
+}
+
+.jam-invite-link .jam-pill-btn {
+  flex: none;
+}
+
+a.jam-pill-btn {
+  text-decoration: none;
+}
+
+/* Players met before, picked to invite: each with the email kept for them */
+.jam-invite-pick {
+  margin-top: 0.75rem;
+}
+
+.jam-invite-players {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.jam-invite-player {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.4rem 0.45rem 0.5rem;
+  border-radius: 12px;
+  background: var(--ds-panel);
+}
+
+.jam-invite-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.jam-invite-name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jam-invite-state {
+  flex: none;
+  padding: 1px 0.45rem;
+  border-radius: var(--ds-radius-pill);
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+.jam-invite-state.invited {
+  background: var(--ds-text);
+  color: var(--ds-on-light);
+}
+
+.jam-invite-state.offline {
+  background: var(--ds-raised);
+  color: var(--ds-text-dim);
+}
+
+.jam-invite-email {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--ds-text-dim);
+  font: inherit;
+  font-size: 0.76rem;
+}
+
+.jam-invite-email:focus {
+  color: var(--ds-text);
+}
+
+.jam-invite-email::placeholder {
+  color: var(--ds-text-dim);
+  opacity: 0.7;
+}
+
+.jam-invite-remove {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ds-text-dim);
+  cursor: pointer;
+}
+
+.jam-invite-remove:hover {
+  background: var(--ds-raised);
+  color: var(--ds-text);
+}
+
+.jam-invite-remove svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* A session's day on a line of its own, its time and length side by side */
+.jam-session-when {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.jam-session-day {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 700px) {
+  .jam-session-when {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The calendars' buttons share the line, or each take one when it is too narrow */
+.jam-session-add {
+  flex-wrap: wrap;
+}
+
 .jam-room-code {
   display: flex;
   gap: 0.5rem;
@@ -2435,4 +2673,17 @@
 .jam-sidebar .sound-toggle-list {
   scrollbar-width: thin;
   scrollbar-color: var(--ds-border-strong) transparent;
+}
+
+/* Short screens: the rail's buttons as small as the toolbar's, level with them */
+@media (max-height: 500px) {
+  .jam-rail {
+    padding-top: 4px;
+    gap: 0.3rem;
+  }
+
+  .jam-rail .jam-corner-btn {
+    width: 28px;
+    height: 28px;
+  }
 }

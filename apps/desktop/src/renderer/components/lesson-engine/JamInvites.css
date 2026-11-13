@@ -1,0 +1,75 @@
+/* Invites: cards stacked at the top of the page, over everything */
+.jam-invites {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(420px, calc(100vw - 32px));
+  transform: translateX(-50%);
+}
+
+.jam-invite {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.6rem 0.6rem 1rem;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: 14px;
+  background: var(--ds-panel);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  color: var(--ds-text);
+  font-size: 0.85rem;
+  animation: jamInviteIn 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes jamInviteIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.jam-invite-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.jam-invite-text b {
+  font-weight: 600;
+}
+
+.jam-invite-join {
+  flex: none;
+  padding: 0.4rem 0.9rem;
+  border: none;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-text);
+  color: var(--ds-on-light);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jam-invite-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ds-text-dim);
+  cursor: pointer;
+}
+
+.jam-invite-close:hover {
+  background: var(--ds-raised);
+  color: var(--ds-text);
+}

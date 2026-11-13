@@ -104,6 +104,9 @@ export type JamRoomSound = InstrumentChoice;
 
 export interface JamRoomPeer {
   id: string;
+  // The player's lasting id (jamPlayer.ts), the same in every room and
+  // visit: the one to invite them by later
+  player?: string;
   // The name on the player's ship; a numbered default until they give one
   name: string;
   color: string;
@@ -157,9 +160,15 @@ export type JamClientMessage =
       name: string;
       sound: JamRoomSound | null;
       need: number;
+      player?: string;
     }
   // Joins the room where a Daw song is edited
-  | { t: 'edit'; song: string; name: string; sound: JamRoomSound | null; need: number }
+  | { t: 'edit'; song: string; name: string; sound: JamRoomSound | null; need: number; player?: string }
+  // This app's inbox for invites: its lasting key, whose hash is its lasting id
+  | { t: 'inbox'; key: string }
+  // Invites players (by lasting id) to a Daw song or a room, from this
+  // player (its inbox open), by the name they have in rooms
+  | { t: 'invite'; c: number; to: string[]; at: JamInviteTarget; name: string }
   // Leaving the room, so the others and the lobby hear of it at once
   | { t: 'leave' }
   // The lobby: the Jam rooms and the Daw songs, now and whenever they change
@@ -184,6 +193,9 @@ export type JamClientMessage =
   | { t: 'presence'; presence: JamDawPresence }
   | { t: 'probe'; to: string; c: number; back: boolean };
 
+// Where an invite leads: a Daw song, or a room by its key
+export type JamInviteTarget = { kind: 'song'; id: string } | { kind: 'room'; key: string };
+
 export type JamServerMessage =
   | { t: 'welcome'; id: string; visibility: JamRoomVisibility; state: JamRoomState; peers: JamRoomPeer[] }
   | { t: 'full' }
@@ -195,6 +207,11 @@ export type JamServerMessage =
   // The new Daw song's id; null when it could not be made
   | { t: 'songMade'; c: number; id: string | null }
   | { t: 'checked'; c: number; ok: boolean }
+  // An invite for this app's player: who sent it, the song's title, where it
+  // leads (a lesson room's players pick their tracks on the way in)
+  | { t: 'invited'; from: { name: string; player: string }; title: string; at: JamInviteTarget; lesson: boolean }
+  // The invited players whose app was open to take it
+  | { t: 'inviteSent'; c: number; reached: string[] }
   | { t: 'pong'; c: number; s: number }
   // `by`: the player whose edit of a Daw song's grid this is
   | { t: 'state'; state: JamRoomState; by?: string }
@@ -222,3 +239,8 @@ export const JAM_ROOM_MAX_PLAYERS = 8;
 export const JAM_ROOM_CODE = /^[A-Z0-9]{4,8}$/;
 export const JAM_ROOM_NAME_MAX = 20;
 export const JAM_SONG_TITLE_MAX = 40;
+// A player's lasting key (kept by their app) and lasting id (its hash, shown to others)
+export const JAM_PLAYER_KEY = /^[0-9a-f]{64}$/;
+export const JAM_PLAYER_ID = /^[0-9a-f]{32}$/;
+// Players one invite goes to at most
+export const JAM_INVITE_MAX = 8;

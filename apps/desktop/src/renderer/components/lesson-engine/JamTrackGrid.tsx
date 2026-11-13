@@ -24,7 +24,7 @@ import {
 } from './jamAddedParts';
 import TrackZoom from '../../../../../../instrument-lab/client/TrackZoom.jsx';
 import { zoomWindow } from '../../../../../../instrument-lab/client/timeline.mjs';
-import { CollapseIcon, ExpandIcon, InstrumentsIcon, LanesIcon } from './JamIcons';
+import { CollapseIcon, ExpandIcon, InstrumentsIcon, LanesIcon, TempoIcon, VolumeIcon } from './JamIcons';
 import { gridTracks, type GridTrack } from './jamGridTracks';
 import type { JamDawPresence } from './jamRoomProtocol';
 import './JamTrackGrid.css';
@@ -171,6 +171,9 @@ interface JamTrackGridProps {
   // The song's tempo, when it can be changed here (a Daw song)
   tempo?: number;
   onTempoChange?: (bpm: number) => void;
+  // The whole song's volume (0 to 1), in the Daw
+  volume?: number;
+  onVolumeChange?: (volume: number) => void;
   // The instrument each track plays, by its key (see jamTrackInstruments.ts):
   // its name and a kit's pads' names; none for a track of the song's own
   // playing its original sound
@@ -244,7 +247,8 @@ function TempoControl({ tempo, onChange }: { tempo: number; onChange: (bpm: numb
     setDraft(null);
   };
   return (
-    <label className="jam-grid-tempo">
+    <label className="jam-grid-tempo" title="Tempo">
+      <TempoIcon />
       <input
         type="range"
         min={JAM_DAW_MIN_BPM}
@@ -283,6 +287,8 @@ export function JamTrackGrid({
   onSeek,
   tempo,
   onTempoChange,
+  volume,
+  onVolumeChange,
   trackSounds,
   onTrackInstrument,
   trackNames,
@@ -1147,6 +1153,23 @@ export function JamTrackGrid({
           {paused ? '▶' : '❚❚'}
         </button>
         {tempo !== undefined && onTempoChange && <TempoControl tempo={tempo} onChange={onTempoChange} />}
+        {volume !== undefined && onVolumeChange && (
+          <label className="jam-grid-tempo jam-grid-volume" title="Master">
+            <VolumeIcon />
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={volume}
+              aria-label="Master"
+              onChange={(event) => onVolumeChange(Number(event.target.value))}
+              onPointerUp={(event) => event.currentTarget.blur()}
+            />
+            <span className="jam-grid-tempo-value">{Math.round(volume * 100)}</span>
+            <span className="jam-grid-tempo-unit">%</span>
+          </label>
+        )}
         <TrackZoom view={view} duration={LOOP_STEPS} focus={zoomFocus()} minSpan={MIN_SPAN} onView={setView} />
         {edited && (
           <button className="jam-grid-reset" onClick={blurAfter(onReset)}>

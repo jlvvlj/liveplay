@@ -1,5 +1,5 @@
 import type { Server } from 'http';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { performance } from 'perf_hooks';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
@@ -21,6 +21,9 @@ import {
   type JamRoomVisibility,
   type JamServerMessage,
   JAM_ROOM_NAME_MAX,
+  JAM_INVITE_MAX,
+  JAM_PLAYER_ID,
+  JAM_PLAYER_KEY,
 } from '../apps/desktop/src/renderer/components/lesson-engine/jamRoomProtocol';
 import { JAM_SONGS, jamRoomSongOf } from '../apps/desktop/src/renderer/components/lesson-engine/jamSongs';
 import {
@@ -183,6 +186,8 @@ export function createJamRooms({
   const rooms = new Map<string, Room>();
   const dawRooms = new Map<string, Room>();
   const lobby = new Set<WebSocket>();
+  // Apps open to take invites, by their player's lasting id
+  const inboxes = new Map<string, Set<WebSocket>>();
   let lobbyTimer: ReturnType<typeof setTimeout> | null = null;
   let nextId = 1;
   let nextRoom = 1;
@@ -242,6 +247,8 @@ export function createJamRooms({
   wss.on('connection', (socket) => {
     let room: Room | null = null;
     const id = String(nextId++);
+    // This app's player's lasting id, once its inbox is open
+    let inboxOf: string | null = null;
 
     // Out of the room: the others hear of it; the last one out leaves the
     // room waiting, paused where it was, until it closes
@@ -290,6 +297,39 @@ export function createJamRooms({
         lobby.add(socket);
         send(socket, { t: 'rooms', rooms: summaries() });
         send(socket, { t: 'songs', songs: songSummaries() });
+        return;
+      }
+
+      // The lasting id is the key's hash: only the app holding the key takes its player's invites
+      if (message.t === 'inbox') {
+        if (inboxOf || typeof message.key !== 'string' || !JAM_PLAYER_KEY.test(message.key)) return;
+        inboxOf = createHash('sha256').update(message.key).digest('hex').slice(0, 32);
+        if (!inboxes.has(inboxOf)) inboxes.set(inboxOf, new Set());
+        inboxes.get(inboxOf)!.add(socket);
+        return;
+      }
+
+      if (message.t === 'invite') {
+        const { to, at } = message;
+        const valid =
+          inboxOf !== null &&
+          Array.isArray(to) &&
+          to.length > 0 &&
+          to.length <= JAM_INVITE_MAX &&
+          to.every((player) => typeof player === 'string' && JAM_PLAYER_ID.test(player));
+        // Where it leads: a Daw song kept here, or a room open now
+        const target = !valid || !at ? null : at.kind === 'song' ? songs.get(String(at.id)) : at.kind === 'room' ? rooms.get(String(at.key)) : null;
+        if (!valid || !target) {
+          send(socket, { t: 'inviteSent', c: message.c, reached: [] });
+          return;
+        }
+        const title = 'state' in target ? target.state.song.title : target.title;
+        const lesson = 'state' in target && target.state.lesson !== null;
+        const leadsTo = at.kind === 'song' ? { kind: 'song' as const, id: String(at.id) } : { kind: 'room' as const, key: String(at.key) };
+        const from = { name: String(message.name).trim().slice(0, JAM_ROOM_NAME_MAX), player: inboxOf! };
+        const reached = [...new Set(to)].filter((player) => player !== inboxOf && inboxes.get(player)?.size);
+        for (const player of reached) for (const inbox of inboxes.get(player)!) send(inbox, { t: 'invited', from, title, at: leadsTo, lesson });
+        send(socket, { t: 'inviteSent', c: message.c, reached });
         return;
       }
 
@@ -432,6 +472,7 @@ export function createJamRooms({
           sound: message.sound,
           need: message.need,
           row: null,
+          ...(typeof message.player === 'string' && JAM_PLAYER_ID.test(message.player) ? { player: message.player } : {}),
         };
         if (room.opener === id) room.host = peer.name;
         send(socket, {
@@ -548,6 +589,10 @@ export function createJamRooms({
 
     socket.on('close', () => {
       lobby.delete(socket);
+      if (inboxOf) {
+        inboxes.get(inboxOf)?.delete(socket);
+        if (!inboxes.get(inboxOf)?.size) inboxes.delete(inboxOf);
+      }
       leaveRoom();
     });
   });

@@ -6,7 +6,7 @@ import { MidiEvent, DeviceMapping } from '../../types/electron';
 import { NoteHighway, HighwayMode, JamNote, JamShip } from './NoteHighway';
 import { JamSettingsPanel } from './JamSettingsPanel';
 import { JamTrackGrid } from './JamTrackGrid';
-import { BackIcon, ExportIcon, ImportIcon, InstrumentsIcon, SidebarIcon } from './JamIcons';
+import { BackIcon, ExportIcon, ImportIcon, InstrumentsIcon, SidebarIcon, TogetherIcon } from './JamIcons';
 import { useAbletonImport } from './useAbletonImport';
 import type { JamImportStep } from './jamAbletonImport';
 import type { ProjectFile } from '../../utils/abletonImport';
@@ -48,7 +48,8 @@ import { JAM_RECORDED_TOP_DB, jamAbletonAudioUrl, jamAbletonLesson, jamAbletonLe
 import { JAM_ABLETON_FILE, type JamAbletonTrack, type JamDawSong } from './jamRoomProtocol';
 import { JamLessonVoices } from './jamLessonVoices';
 import type { JamLessonHit, JamLessonHold } from './NoteHighway';
-import type { JamRoomNote, JamRoomSound, JamRoomState, JamRoomVisibility } from './jamRoomProtocol';
+import type { JamInviteTarget, JamRoomNote, JamRoomSound, JamRoomState, JamRoomVisibility } from './jamRoomProtocol';
+import { jamPlayerIdentity, rememberPlayers } from './jamPlayer';
 import { JamRemoteVoices } from './jamRemoteVoices';
 import { holdToleranceMs, isHoldStep, stepDurationMs } from './holdNotes';
 import { stretchJamAudio } from './jamStretchWorker';
@@ -74,6 +75,9 @@ interface LessonPlayerProps {
   onJamRoomEnd?: (reason: JamRoomEnd) => void;
   // In the Daw: an Ableton project's folder made a Daw song, which opens
   onJamImport?: (files: ProjectFile[], onStep: (step: JamImportStep) => void) => Promise<void>;
+  // Invites players (by lasting id) to this song or room, from this player's
+  // name: those whose app was open to take it; null when the server could not be asked
+  onJamInvite?: (to: string[], at: JamInviteTarget, name: string) => Promise<string[] | null>;
   // The jam app's sections: the Daw shows only the backing track's grid, the
   // Jam only the highway; both play their room's song. Unset, the Jam tab
   // switches between them and picks its song in the sidebar.
@@ -325,6 +329,7 @@ export function LessonPlayer({
   jamRoomJoin,
   onJamRoomEnd,
   onJamImport,
+  onJamInvite,
   jamSection,
   jamHttpServer,
 }: LessonPlayerProps) {
@@ -339,6 +344,11 @@ export function LessonPlayer({
   const [jamRoom, setJamRoom] = useState<JamRoom | null>(null);
   const [jamRoomState, setJamRoomState] = useState<JamRoomState | null>(null);
   const [jamRoomPlayers, setJamRoomPlayers] = useState<JamRoomPlayer[]>([]);
+  // The players met here are remembered, to invite again later
+  useEffect(() => {
+    if (!jamRoomPlayers.some((player) => player.player && !player.you)) return;
+    jamPlayerIdentity().then(({ player: self }) => rememberPlayers(jamRoomPlayers, self));
+  }, [jamRoomPlayers]);
   // The last edit of a Daw song's grid made by another player: who, and a
   // count telling one edit from the next
   const [jamRemoteEdit, setJamRemoteEdit] = useState<{ by: string; seq: number } | null>(null);
@@ -720,6 +730,10 @@ export function LessonPlayer({
   >(() => undefined);
   // The Jam's sidebar starts folded away, leaving the room to the highway or the grid
   const [showJamSettings, setShowJamSettings] = useState<boolean>(false);
+  // The sidebar is sliding shut: it stays until its slide ends
+  const [jamSideLeaving, setJamSideLeaving] = useState<boolean>(false);
+  // The sidebar's page: the song's settings and instruments, or who plays together
+  const [jamSidePage, setJamSidePage] = useState<'settings' | 'together'>('settings');
   // The instruments panel, down the left side: for the played sound ('jam')
   // or for a track of the backing track's grid (its key)
   const [instrumentsFor, setInstrumentsFor] = useState<string | null>(null);
@@ -3293,6 +3307,7 @@ export function LessonPlayer({
   const [jamInstrumentsAsked, setJamInstrumentsAsked] = useState(0);
   const openJamInstruments = (key: string) => {
     setInstrumentsFor(key);
+    setJamSidePage('settings');
     setShowJamSettings(true);
     setJamInstrumentsAsked((asked) => asked + 1);
   };
@@ -3350,17 +3365,52 @@ export function LessonPlayer({
       />
     ) : null;
 
-  const jamToolbar =
-    jamOnly && !showJamSettings ? (
-      <>
-        {onComplete && (
-          <button className="jam-corner-btn jam-back-btn" onClick={onComplete} title="Back">
-            <BackIcon />
-          </button>
-        )}
-        <button className="jam-corner-btn" onClick={() => setShowJamSettings(true)} title="Show sidebar">
-          <SidebarIcon />
+  const closeJamSide = () => {
+    setShowJamSettings(false);
+    setJamSideLeaving(true);
+  };
+
+  // A page of the sidebar: pressed while it shows, the sidebar closes;
+  // otherwise the sidebar opens on it
+  const toggleJamSidePage = (page: 'settings' | 'together') => {
+    if (showJamSettings && jamSidePage === page) return closeJamSide();
+    setJamSidePage(page);
+    setShowJamSettings(true);
+  };
+
+  // The rail down the page's left edge: back, then a button for each of the
+  // sidebar's pages. The sidebar opens beside it and the page narrows to make room.
+  const jamRail = jamOnly ? (
+    <nav className="jam-rail">
+      {onComplete && (
+        <button className="jam-corner-btn jam-back-btn" onClick={onComplete} title="Back">
+          <BackIcon />
         </button>
+      )}
+      <button
+        className={`jam-corner-btn jam-rail-btn ${showJamSettings && jamSidePage === 'settings' ? 'on' : ''}`}
+        onClick={() => toggleJamSidePage('settings')}
+        title="Song"
+        aria-pressed={showJamSettings && jamSidePage === 'settings'}
+      >
+        <SidebarIcon />
+      </button>
+      {jamRoom && (
+        <button
+          className={`jam-corner-btn jam-rail-btn ${showJamSettings && jamSidePage === 'together' ? 'on' : ''}`}
+          onClick={() => toggleJamSidePage('together')}
+          title="Together"
+          aria-pressed={showJamSettings && jamSidePage === 'together'}
+        >
+          <TogetherIcon />
+        </button>
+      )}
+    </nav>
+  ) : null;
+
+  const jamToolbar =
+    jamOnly ? (
+      <>
         {jamSection !== 'daw' && !jamLesson && (
           <button className="jam-corner-btn" onClick={() => openJamInstruments('jam')} title="Instruments">
             <InstrumentsIcon />
@@ -3580,6 +3630,7 @@ export function LessonPlayer({
 
       {/* Note Highway Visualization - fullscreen only in actual game mode */}
       <div className={`highway-container ${isGameMode && !jamOnly ? 'fullscreen' : ''} ${jamOnly && showJamSettings ? 'with-jam-settings' : ''}`}>
+        {jamRail}
 
         {/* Sound selection panel */}
         {!isGameMode && showSoundSettings && (
@@ -3719,6 +3770,8 @@ export function LessonPlayer({
             onMixChange={(mix) => setJamSettings({ ...jamSettings, mixes: { ...jamSettings.mixes, [jamMixKey]: mix } })}
             tempo={jamSection === 'daw' && jamRoom && jamRoomState && !jamRoomAbleton ? lesson.bpm : undefined}
             onTempoChange={(bpm) => jamRoom?.setTempo(bpm)}
+            volume={jamSection === 'daw' ? backingTrackVolume : undefined}
+            onVolumeChange={setBackingTrackVolume}
             paused={jamIsPaused}
             onTogglePause={toggleJamPause}
             onChange={(parts, added, bars) => saveJamTrackEdit(parts, added, bars)}
@@ -3804,7 +3857,7 @@ export function LessonPlayer({
           </button>
         )}
 
-        {jamOnly && showJamSettings && jamSettings && jamSounds && (
+        {jamOnly && (showJamSettings || jamSideLeaving) && jamSettings && jamSounds && (
           <JamSettingsPanel
             instruments={jamInstrumentsPanel ?? undefined}
             section={jamSection}
@@ -3843,6 +3896,9 @@ export function LessonPlayer({
                     code: jamRoom.visibility === 'private' ? jamRoom.code : null,
                     joined: !!jamRoomState,
                     players: jamRoomPlayers,
+                    invite: onJamInvite
+                      ? (to) => onJamInvite(to, jamSection === 'daw' ? { kind: 'song', id: jamRoom.code } : { kind: 'room', key: jamRoom.code }, jamName.trim() || (jamRoomPlayers.find((player) => player.you)?.name ?? ''))
+                      : undefined,
                   }
                 : undefined
             }
@@ -3881,9 +3937,11 @@ export function LessonPlayer({
             onToggleKeys={() => setShowKeySettings(!showKeySettings)}
             labelMode={labelMode}
             onLabelModeChange={setLabelMode}
-            onBack={onComplete}
-            onClose={() => {
-              setShowJamSettings(false);
+            onClose={closeJamSide}
+            page={jamRoom ? jamSidePage : 'settings'}
+            leaving={!showJamSettings}
+            onLeft={() => {
+              setJamSideLeaving(false);
               setInstrumentsFor(null);
             }}
           />

@@ -12,6 +12,7 @@ import {
   type JamServerMessage,
   type JamSignal,
 } from './jamRoomProtocol';
+import { jamPlayerIdentity } from './jamPlayer';
 import type { JamTrackEdit } from './jamTrackEdits';
 
 // A jam room on this page: shares the room server's clock and the room's jam,
@@ -110,12 +111,14 @@ export class JamRoom {
     private events: JamRoomEvents
   ) {
     this.socket = new WebSocket(url);
-    this.socket.onopen = () => {
+    this.socket.onopen = async () => {
+      // The player's lasting id goes with them, for the others to invite them by later
+      const { player: lasting } = await jamPlayerIdentity();
       const { edit, create, tracks, ...player } = join;
       this.send(
         edit
-          ? { t: 'edit', song: code, ...player }
-          : { t: 'join', room: code, ...(create ? { create } : {}), ...(tracks ? { tracks } : {}), ...player }
+          ? { t: 'edit', song: code, ...player, player: lasting }
+          : { t: 'join', room: code, ...(create ? { create } : {}), ...(tracks ? { tracks } : {}), ...player, player: lasting }
       );
       for (let i = 0; i < CLOCK_BURST; i++) {
         this.timers.push(setTimeout(() => this.send({ t: 'ping', c: performance.now() }), i * CLOCK_BURST_MS));
