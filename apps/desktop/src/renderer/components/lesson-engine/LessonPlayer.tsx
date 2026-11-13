@@ -3223,7 +3223,12 @@ export function LessonPlayer({
     const kind = jamPartTrackList[part].kind;
     const own = instrumentsFor === 'drums' || instrumentsFor.startsWith('part-');
     const name = instrumentsFor === 'drums' ? 'Drums' : own ? (jamTrackParts(jamTrack)[part]?.name ?? '') : (jamTrackSounds[instrumentsFor]?.name ?? '');
-    return { name, kind, ...(own ? { original: () => setJamTrackInstrument(instrumentsFor, null) } : {}) };
+    // Titled with the track's name as the grid shows it, in the sidebar with its other sections
+    const trackName = gridTracks(jamTrackParts(jamTrack), jamTrackAdded, jamTrackEdit?.names).find((gridTrack) => gridTrack.id === instrumentsFor)?.name;
+    // (an added track not yet named is called Instrument itself)
+    const shownName = trackName ?? name;
+    const title = shownName === 'Instrument' ? shownName : `Instrument · ${shownName}`;
+    return { name, kind, title, ...(own ? { original: () => setJamTrackInstrument(instrumentsFor, null) } : {}) };
   })();
 
   // The Daw song as an Ableton Live project, downloaded as a zip
@@ -3268,6 +3273,83 @@ export function LessonPlayer({
     }
   };
 
+  // The sidebar always has instruments in it: in the Daw the first track's
+  // that plays an instrument (a recording plays none) until another track's
+  // are chosen, in a Jam room the played sound's
+  const jamDefaultInstrumentsFor = !jamOnly
+    ? null
+    : jamSection === 'daw'
+      ? jamTrack
+        ? (gridTracks(jamTrackParts(jamTrack), jamTrackAdded).find((gridTrack) => !gridTrack.recorded)?.id ?? null)
+        : null
+      : jamLesson
+        ? null
+        : 'jam';
+  useEffect(() => {
+    if (showJamSettings && instrumentsFor === null && jamDefaultInstrumentsFor !== null) setInstrumentsFor(jamDefaultInstrumentsFor);
+  }, [showJamSettings, instrumentsFor, jamDefaultInstrumentsFor]);
+  // The instruments chosen for the played sound ('jam') or a track: the
+  // sidebar opens with them in it, after its settings
+  const [jamInstrumentsAsked, setJamInstrumentsAsked] = useState(0);
+  const openJamInstruments = (key: string) => {
+    setInstrumentsFor(key);
+    setShowJamSettings(true);
+    setJamInstrumentsAsked((asked) => asked + 1);
+  };
+  // The instruments being chosen, for the played sound ('jam') or a track,
+  // a section of the sidebar
+  const jamInstrumentsPanel =
+    jamOnly && instrumentsFor === 'jam' && jamSettings && jamChoice ? (
+      <InstrumentPanel
+        embedded
+        reveal={jamInstrumentsAsked}
+        instruments={jamInstruments}
+        backing={
+          jamTrack && jamTrackMix
+            ? gridTracks(jamTrackParts(jamTrack), jamTrackAdded, jamTrackEdit?.names).map(({ id, name, parts }) => ({
+                id,
+                name,
+                muted: parts.every((part) => jamTrackMix.mutes[part]),
+                onMute: (muted: boolean) =>
+                  setJamSettings({
+                    ...jamSettings,
+                    mixes: {
+                      ...jamSettings.mixes,
+                      [jamMixKey]: { ...jamTrackMix, mutes: jamTrackMix.mutes.map((mute, part) => (parts.includes(part) ? muted : mute)) },
+                    },
+                  }),
+              }))
+            : undefined
+        }
+        choice={jamChoice}
+        loading={jamReadyInstrument !== jamChoice.instrument}
+        saved={jamSettings.instruments}
+        onChange={setJamChoice}
+        onPreview={() => {
+          jamPreviewRef.current = true;
+        }}
+        favorites={jamSettings.favorites}
+        onFavoritesChange={(favorites) => setJamSettings((settings) => (settings ? { ...settings, favorites } : settings))}
+        onClose={() => setInstrumentsFor(null)}
+      />
+    ) : jamOnly && instrumentsFor && instrumentsFor !== 'jam' && jamSettings && jamTrackInstrumentTarget ? (
+      <InstrumentPanel
+        embedded
+        reveal={jamInstrumentsAsked}
+        key={instrumentsFor}
+        instruments={jamInstruments}
+        choice={jamTrackChoices[instrumentsFor] ?? null}
+        track={jamTrackInstrumentTarget}
+        loading={false}
+        saved={jamSettings.instruments}
+        onChange={(choice) => setJamTrackInstrument(instrumentsFor, choice)}
+        onPreview={() => liveTracksRef.current?.preview(instrumentsFor)}
+        favorites={jamSettings.favorites}
+        onFavoritesChange={(favorites) => setJamSettings((settings) => (settings ? { ...settings, favorites } : settings))}
+        onClose={() => setInstrumentsFor(null)}
+      />
+    ) : null;
+
   const jamToolbar =
     jamOnly && !showJamSettings ? (
       <>
@@ -3280,7 +3362,7 @@ export function LessonPlayer({
           <SidebarIcon />
         </button>
         {jamSection !== 'daw' && !jamLesson && (
-          <button className="jam-corner-btn" onClick={() => setInstrumentsFor('jam')} title="Instruments">
+          <button className="jam-corner-btn" onClick={() => openJamInstruments('jam')} title="Instruments">
             <InstrumentsIcon />
           </button>
         )}
@@ -3643,7 +3725,7 @@ export function LessonPlayer({
             trackNames={jamTrackEdit?.names ?? {}}
             onTrackName={setJamTrackName}
             trackSounds={jamTrackSounds}
-            onTrackInstrument={(key) => setInstrumentsFor(key)}
+            onTrackInstrument={openJamInstruments}
             onLiveAudition={(part, pitch) => {
               const partTrack = jamPartTrackList[part];
               if (!partTrack || !jamTrackChoices[partTrack.key]) return false;
@@ -3724,6 +3806,7 @@ export function LessonPlayer({
 
         {jamOnly && showJamSettings && jamSettings && jamSounds && (
           <JamSettingsPanel
+            instruments={jamInstrumentsPanel ?? undefined}
             section={jamSection}
             lesson={
               jamLesson
@@ -3778,7 +3861,7 @@ export function LessonPlayer({
                   }
                 : null
             }
-            onOpenInstruments={() => setInstrumentsFor('jam')}
+            onOpenInstruments={() => openJamInstruments('jam')}
             holdDivisions={JAM_HOLD_DIVISIONS}
             holdDivision={jamKeyDivisions.length ? jamKeyDivisions[jamKeyDivisions.length - 1] : jamHoldDivision}
             onHoldDivisionChange={setJamHoldDivision}
@@ -3799,55 +3882,10 @@ export function LessonPlayer({
             labelMode={labelMode}
             onLabelModeChange={setLabelMode}
             onBack={onComplete}
-            onClose={() => setShowJamSettings(false)}
-          />
-        )}
-
-        {jamOnly && instrumentsFor === 'jam' && jamSettings && jamChoice && (
-          <InstrumentPanel
-            instruments={jamInstruments}
-            backing={
-              jamTrack && jamTrackMix
-                ? gridTracks(jamTrackParts(jamTrack), jamTrackAdded, jamTrackEdit?.names).map(({ id, name, parts }) => ({
-                    id,
-                    name,
-                    muted: parts.every((part) => jamTrackMix.mutes[part]),
-                    onMute: (muted: boolean) =>
-                      setJamSettings({
-                        ...jamSettings,
-                        mixes: {
-                          ...jamSettings.mixes,
-                          [jamMixKey]: { ...jamTrackMix, mutes: jamTrackMix.mutes.map((mute, part) => (parts.includes(part) ? muted : mute)) },
-                        },
-                      }),
-                  }))
-                : undefined
-            }
-            choice={jamChoice}
-            loading={jamReadyInstrument !== jamChoice.instrument}
-            saved={jamSettings.instruments}
-            onChange={setJamChoice}
-            onPreview={() => {
-              jamPreviewRef.current = true;
+            onClose={() => {
+              setShowJamSettings(false);
+              setInstrumentsFor(null);
             }}
-            favorites={jamSettings.favorites}
-            onFavoritesChange={(favorites) => setJamSettings((settings) => (settings ? { ...settings, favorites } : settings))}
-            onClose={() => setInstrumentsFor(null)}
-          />
-        )}
-        {jamOnly && instrumentsFor && instrumentsFor !== 'jam' && jamSettings && jamTrackInstrumentTarget && (
-          <InstrumentPanel
-            key={instrumentsFor}
-            instruments={jamInstruments}
-            choice={jamTrackChoices[instrumentsFor] ?? null}
-            track={jamTrackInstrumentTarget}
-            loading={false}
-            saved={jamSettings.instruments}
-            onChange={(choice) => setJamTrackInstrument(instrumentsFor, choice)}
-            onPreview={() => liveTracksRef.current?.preview(instrumentsFor)}
-            favorites={jamSettings.favorites}
-            onFavoritesChange={(favorites) => setJamSettings((settings) => (settings ? { ...settings, favorites } : settings))}
-            onClose={() => setInstrumentsFor(null)}
           />
         )}
 
