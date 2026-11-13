@@ -6,6 +6,7 @@ import os from 'os';
 import path from 'path';
 import http from 'http';
 import type { AddressInfo } from 'net';
+import { createHash } from 'crypto';
 import { WebSocket } from 'ws';
 import { createJamRooms } from '../server/jamRooms';
 import { createJamSongStore } from '../server/jamSongStore';
@@ -641,5 +642,39 @@ describe('songs imported from Ableton projects', () => {
     expect(slower.song).toMatchObject({ id, file: 'ableton', bpm: 61 });
     expect(createJamSongStore(songsDir).get(id)).toMatchObject({ bpm: 122 });
     [a, editor, lobby].forEach((p) => p.socket.close());
+  });
+
+  it('takes invites for a lasting id only in the app holding its key, and tells the sender who got them', async () => {
+    const key = (fill: string) => fill.repeat(64);
+    const idOf = (k: string) => createHash('sha256').update(k).digest('hex').slice(0, 32);
+    const host = await player(url);
+    host.send({ t: 'inbox', key: key('a') });
+    host.send({ t: 'join', room: 'INVT', create: opening(), name: 'Aiko', sound: null, need: 0, player: idOf(key('a')) });
+    expect((await host.next('welcome')).peers[0].player).toBe(idOf(key('a')));
+
+    const friend = await player(url);
+    friend.send({ t: 'inbox', key: key('b') });
+    const away = idOf(key('c'));
+    // The inbox is open once the server has the key (a ping's answer comes after it)
+    friend.send({ t: 'ping', c: 1 });
+    await friend.next('pong');
+
+    host.send({ t: 'invite', c: 7, to: [idOf(key('b')), away], at: { kind: 'room', key: 'INVT' }, name: 'Aiko' });
+    expect(await host.next('inviteSent')).toEqual({ t: 'inviteSent', c: 7, reached: [idOf(key('b'))] });
+    expect(await friend.next('invited')).toEqual({
+      t: 'invited',
+      from: { name: 'Aiko', player: idOf(key('a')) },
+      title: CHIP.title,
+      at: { kind: 'room', key: 'INVT' },
+      lesson: false,
+    });
+
+    // Nowhere to lead, or no inbox of its own: nobody is invited
+    host.send({ t: 'invite', c: 8, to: [idOf(key('b'))], at: { kind: 'song', id: 'NOSONG' }, name: 'Aiko' });
+    expect((await host.next('inviteSent')).reached).toEqual([]);
+    const stranger = await player(url);
+    stranger.send({ t: 'invite', c: 9, to: [idOf(key('b'))], at: { kind: 'room', key: 'INVT' }, name: 'X' });
+    expect((await stranger.next('inviteSent')).reached).toEqual([]);
+    [host, friend, stranger].forEach((p) => p.socket.close());
   });
 });

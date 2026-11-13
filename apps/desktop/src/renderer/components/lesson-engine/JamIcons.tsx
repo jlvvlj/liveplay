@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 
 // Icons for the Jam tab's toolbar buttons, drawn in the button's text color
 
@@ -8,14 +8,24 @@ const icon = (children: ReactNode) => (
   </svg>
 );
 
-// A window with a panel down its left side: shows or hides the settings sidebar
-export const SidebarIcon = () =>
-  icon(
-    <>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M9 4v16" />
-    </>
+// A folder holding a note: shows or hides the sidebar
+export const SidebarIcon = () => {
+  const cut = useId();
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <mask id={cut}>
+        <rect width="24" height="24" fill="#fff" />
+        <circle cx="10.6" cy="16.3" r="1.9" fill="#000" />
+        <path d="M11.6 16.3V10.6l4.2-1.2v2.1l-2.7.8" fill="none" stroke="#000" strokeWidth="1.6" strokeLinejoin="round" />
+      </mask>
+      <path
+        mask={`url(#${cut})`}
+        fill="currentColor"
+        d="M2.5 6.5A2.5 2.5 0 0 1 5 4h4.2l2.3 2.3H19a2.5 2.5 0 0 1 2.5 2.5v9.7A2.5 2.5 0 0 1 19 21H5a2.5 2.5 0 0 1-2.5-2.5z"
+      />
+    </svg>
   );
+};
 
 // Three faders: shows or hides the grid's track headers (name, solo, mute, level)
 export const LanesIcon = () =>
@@ -66,6 +76,22 @@ export const SearchIcon = () =>
     </>
   );
 
+// A metronome: the song's tempo
+export const TempoIcon = () => small(<path d="M9.5 3.5h5L19 20H5zM12 15l4.5-8.5M7.5 15.5h9" />);
+
+// A speaker: the song's volume
+export const VolumeIcon = () => small(<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />);
+
+// Two people: shows or hides who plays together, and inviting more
+export const TogetherIcon = () =>
+  icon(
+    <>
+      <circle cx="9" cy="8.5" r="3" />
+      <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+      <path d="M15.5 5.8a3 3 0 0 1 0 5.4M17.5 14a5.5 5.5 0 0 1 3 5" />
+    </>
+  );
+
 export const CloseIcon = () => icon(<path d="M6 6l12 12M18 6L6 18" />);
 
 // Small icons for the sidebar's buttons
@@ -82,6 +108,22 @@ export const LinkIcon = () =>
     <>
       <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2" />
       <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2" />
+    </>
+  );
+export const SendIcon = () => small(<path d="M20 4L9.5 14.5M20 4l-6.5 16-4-5.5L4 10.5z" />);
+export const CalendarIcon = () =>
+  small(
+    <>
+      <rect x="3.5" y="5" width="17" height="15" rx="2" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </>
+  );
+export const ShareIcon = () => small(<path d="M12 15V4M8 8l4-4 4 4M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" />);
+export const MailIcon = () =>
+  small(
+    <>
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+      <path d="M4 7l8 6 8-6" />
     </>
   );
 export const CheckIcon = () => small(<path d="M5 12.5l4.5 4.5L19 7.5" />);

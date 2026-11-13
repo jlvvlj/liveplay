@@ -72,6 +72,53 @@
   cursor: pointer;
 }
 
+/* A narrower grid (the sidebar open beside it): shorter sliders keep the
+   top bar on one line */
+.jam-grid {
+  container-type: inline-size;
+}
+
+@container (max-width: 1040px) {
+  .jam-grid-head {
+    gap: 0.6rem;
+  }
+
+  .jam-grid-tempo input,
+  .jam-grid-head .mix-zoom input {
+    width: 64px;
+  }
+}
+
+/* Too narrow for a slider (a phone with the sidebar open): the top bar keeps
+   its buttons, the tracks their names */
+@container (max-width: 200px) {
+  .jam-grid-tempo,
+  .jam-grid-head .mix-zoom {
+    display: none;
+  }
+}
+
+/* Very narrow: each slider takes a line of its own and shortens to fit it */
+@container (max-width: 360px) {
+  .jam-grid-tempo,
+  .jam-grid-head .mix-zoom {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .jam-grid-tempo input,
+  .jam-grid-head .mix-zoom input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+}
+
+.jam-grid-tempo svg {
+  flex: none;
+  color: var(--ds-text-dim);
+}
+
 .jam-grid-tempo-value {
   min-width: 1.6rem;
   color: var(--ds-text);

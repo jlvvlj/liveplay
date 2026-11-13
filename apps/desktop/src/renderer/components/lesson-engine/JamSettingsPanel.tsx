@@ -1,9 +1,12 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { Lesson, LessonScore } from '../../types/lesson';
-import { BackIcon, CheckIcon, LinkIcon, PauseIcon, PlayIcon, RestartIcon, SYNTH_TAG_ICONS, SidebarIcon } from './JamIcons';
+import { CalendarIcon, CheckIcon, CloseIcon, ExportIcon, LinkIcon, MailIcon, SendIcon, ShareIcon, PauseIcon, PlayIcon, RestartIcon, SYNTH_TAG_ICONS } from './JamIcons';
 import { CategoryArt } from './instruments/CategoryArt';
 import type { JamRoomPlayer } from './jamRoom';
 import { JAM_ROOM_NAME_MAX } from './jamRoomProtocol';
+import { JamDropdown } from './JamDropdown';
+import { setKnownEmail, useKnownPlayers, type JamKnownPlayer } from './jamPlayer';
+import { SESSION_LENGTHS, SESSION_TIMES, googleCalendarUrl, icsFile, nextHalfHour, sessionDays, type JamSession } from './jamCalendar';
 import { jamBpmLabel } from './jamTracks';
 import type { HighwayMode } from './NoteHighway';
 
@@ -26,7 +29,14 @@ interface JamSettingsPanelProps {
   onSongChange: (id: string) => void;
   // Playing together online: the room this player is in (a private room's
   // code, null for an open room) and its players once joined
-  room?: { code: string | null; joined: boolean; players: JamRoomPlayer[] };
+  room?: {
+    code: string | null;
+    joined: boolean;
+    players: JamRoomPlayer[];
+    // Invites players met before (by lasting id) in their app: those whose app
+    // was open to take it; null when the server could not be asked
+    invite?: (to: string[]) => Promise<string[] | null>;
+  };
   // A lesson room's lesson, with lesson mode's settings: this player's
   // score, the lanes to practise and how loud its notes play by themselves
   // (0: they don't)
@@ -90,9 +100,12 @@ interface JamSettingsPanelProps {
   onToggleKeys: () => void;
   labelMode: 'letters' | 'numbers';
   onLabelModeChange: (mode: 'letters' | 'numbers') => void;
-  // Leaves the Jam; none in the standalone jam app
-  onBack?: () => void;
   onClose: () => void;
+  // What it shows: the song's settings and instruments, or who plays together
+  page: 'settings' | 'together';
+  // Closing: the sidebar slides back under the rail, then onLeft
+  leaving: boolean;
+  onLeft: () => void;
 }
 
 // A section of the sidebar: its title, and a control beside it
@@ -247,31 +260,43 @@ export function JamSettingsPanel({
   onToggleKeys,
   labelMode,
   onLabelModeChange,
-  onBack,
   onClose,
+  page,
+  leaving,
+  onLeft,
   instruments,
 }: JamSettingsPanelProps) {
   const playing = section !== 'daw';
-  const [linkCopied, setLinkCopied] = useState(false);
 
   return (
-    <div className="game-settings-sidebar jam-sidebar">
+    <div
+      className={`game-settings-sidebar jam-sidebar ${leaving ? 'leaving' : ''}`}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget && leaving) onLeft();
+      }}
+    >
       <div className="game-settings-header jam-settings-header">
-        {onBack && (
-          <button className="jam-corner-btn jam-back-btn" onClick={onBack} title="Back">
-            <BackIcon />
-          </button>
+        {page === 'together' ? (
+          <div className="jam-song">
+            <span className="jam-song-title">Together</span>
+          </div>
+        ) : (
+          <div className="jam-song">
+            <span className="jam-song-title">{title}</span>
+            <span className="toolbar-badge">{jamBpmLabel(bpm)}</span>
+          </div>
         )}
-        <div className="jam-song">
-          <span className="jam-song-title">{title}</span>
-          <span className="toolbar-badge">{jamBpmLabel(bpm)}</span>
-        </div>
-        <button className="jam-corner-btn on" onClick={onClose} title="Hide sidebar">
-          <SidebarIcon />
+        <button className="jam-side-close" onClick={onClose} title="Close">
+          <CloseIcon />
         </button>
       </div>
 
-      <div className="game-settings-content">
+      {page === 'together' && room ? (
+        <div className="game-settings-content" key="together">
+          <TogetherPage room={room} roomName={roomName} onRoomNameChange={onRoomNameChange} songTitle={title} />
+        </div>
+      ) : (
+      <div className="game-settings-content" key="settings">
         {(songs.length > 1 || onViewChange) && (
           <Section
             title="Track"
@@ -305,8 +330,9 @@ export function JamSettingsPanel({
           </Section>
         )}
 
+        {playing && (
         <Section title="Volume">
-          {playing && (
+          {(
             <Slider
               label="Notes"
               value={notesVolume}
@@ -328,6 +354,7 @@ export function JamSettingsPanel({
             onChange={onBackingVolumeChange}
           />
         </Section>
+        )}
 
         {lesson && (
           <Section
@@ -447,63 +474,6 @@ export function JamSettingsPanel({
         </Section>
         )}
 
-        {room && (
-          <Section
-            title="Together"
-            aside={
-              navigator.clipboard && (
-                <button
-                  className="jam-pill-btn small"
-                  onClick={() =>
-                    navigator.clipboard.writeText(location.href).then(() => {
-                      setLinkCopied(true);
-                      setTimeout(() => setLinkCopied(false), 1500);
-                    })
-                  }
-                >
-                  {linkCopied ? <CheckIcon /> : <LinkIcon />}
-                  {linkCopied ? 'Copied' : 'Copy link'}
-                </button>
-              )
-            }
-          >
-            <div className="jam-room-code">
-              {room.code ? <span className="jam-room-key">{room.code}</span> : <span className="jam-room-open">Open room</span>}
-            </div>
-            {room.joined && (
-              <div className="jam-room-players">
-                {room.players.map((player) =>
-                  player.you ? (
-                    <label key={player.id} className="jam-room-player jam-room-you">
-                      <span className="jam-room-avatar" style={{ background: player.color }}>
-                        {initials(roomName || player.name)}
-                      </span>
-                      <input
-                        className="jam-room-name"
-                        value={roomName}
-                        placeholder={player.name}
-                        maxLength={JAM_ROOM_NAME_MAX}
-                        autoComplete="off"
-                        spellCheck={false}
-                        onChange={(event) => onRoomNameChange?.(event.target.value)}
-                      />
-                    </label>
-                  ) : (
-                    <span key={player.id} className="jam-room-player" title={player.direct ? 'Direct' : 'Through the server'}>
-                      <span className="jam-room-avatar" style={{ background: player.color }}>
-                        {initials(player.name)}
-                      </span>
-                      <span className="jam-room-player-name">{player.name}</span>
-                      <span className="jam-room-latency">
-                        {player.latency === null ? '…' : `${Math.round(player.latency * 1000)} ms`}
-                      </span>
-                    </span>
-                  )
-                )}
-              </div>
-            )}
-          </Section>
-        )}
 
         {playing && (
         <>
@@ -557,6 +527,240 @@ export function JamSettingsPanel({
         )}
         {instruments && <section className="setting-group jam-side-section jam-side-instruments">{instruments}</section>}
       </div>
+      )}
     </div>
+  );
+}
+
+type JamRoomShown = NonNullable<JamSettingsPanelProps['room']>;
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const dayLabel = (day: Date, i: number) =>
+  i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : day.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+const timeLabel = (minutes: number) =>
+  new Date(2000, 0, 1, Math.floor(minutes / 60), minutes % 60).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+const lengthLabel = (minutes: number) => (minutes < 60 ? `${minutes} min` : `${minutes / 60} h`.replace('.5 h', ' h 30'));
+
+// The sidebar's Together page: who is in the room (your own name typed here),
+// inviting players met before (in the app when it is open, or by email) or
+// anyone with the link, and planning a session in a calendar
+function TogetherPage({
+  room,
+  roomName,
+  onRoomNameChange,
+  songTitle,
+}: {
+  room: JamRoomShown;
+  roomName: string;
+  onRoomNameChange?: (name: string) => void;
+  songTitle: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const known = useKnownPlayers();
+  // Players met before who are not here now
+  const here = new Set(room.players.map((player) => player.player));
+  const invitable = known.filter((player) => !here.has(player.player));
+  const [picked, setPicked] = useState<string[]>([]);
+  const chosen = picked.map((id) => known.find((player) => player.player === id)).filter((player): player is JamKnownPlayer => !!player);
+  // What became of each live invite: their app took it, or was not open
+  const [sent, setSent] = useState<Record<string, 'invited' | 'offline'>>({});
+  const [sending, setSending] = useState(false);
+  const days = useMemo(() => sessionDays(), []);
+  const [day, setDay] = useState(0);
+  const [time, setTime] = useState(nextHalfHour);
+  const [length, setLength] = useState(60);
+
+  const link = location.href;
+  const invite = `Play ${songTitle} with me`;
+  const emails = chosen.map((player) => player.email.trim()).filter((email) => EMAIL.test(email));
+  const session: JamSession = {
+    title: invite,
+    link,
+    start: new Date(days[day].getFullYear(), days[day].getMonth(), days[day].getDate(), Math.floor(time / 60), time % 60),
+    minutes: length,
+    guests: emails,
+  };
+
+  const copy = () =>
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  const share = () =>
+    navigator.share({ title: invite, url: link }).catch((error: unknown) => {
+      // Closing the share sheet is no failure
+      if (!(error instanceof DOMException && error.name === 'AbortError')) throw error;
+    });
+  const sendInvites = async () => {
+    if (!room.invite) return;
+    setSending(true);
+    const reached = await room.invite(picked);
+    setSending(false);
+    if (reached === null) return;
+    setSent((before) => ({ ...before, ...Object.fromEntries(picked.map((id) => [id, reached.includes(id) ? 'invited' : 'offline'])) }));
+  };
+  const downloadIcs = () => {
+    const url = URL.createObjectURL(new Blob([icsFile(session, `${Date.now()}-${Math.random().toString(36).slice(2)}@melodics-jam`)], { type: 'text/calendar' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${songTitle}.ics`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <>
+      <Section title="Players" aside={room.joined && <span className="jam-side-value">{room.players.length}</span>}>
+        <div className="jam-room-code">
+          {room.code ? <span className="jam-room-key">{room.code}</span> : <span className="jam-room-open">Open room</span>}
+        </div>
+        {room.joined && (
+          <div className="jam-room-players">
+            {room.players.map((player) =>
+              player.you ? (
+                <label key={player.id} className="jam-room-player jam-room-you">
+                  <span className="jam-room-avatar" style={{ background: player.color }}>
+                    {initials(roomName || player.name)}
+                  </span>
+                  <input
+                    className="jam-room-name"
+                    value={roomName}
+                    placeholder={player.name}
+                    maxLength={JAM_ROOM_NAME_MAX}
+                    autoComplete="off"
+                    spellCheck={false}
+                    onChange={(event) => onRoomNameChange?.(event.target.value)}
+                  />
+                </label>
+              ) : (
+                <span key={player.id} className="jam-room-player" title={player.direct ? 'Direct' : 'Through the server'}>
+                  <span className="jam-room-avatar" style={{ background: player.color }}>
+                    {initials(player.name)}
+                  </span>
+                  <span className="jam-room-player-name">{player.name}</span>
+                  <span className="jam-room-latency">
+                    {player.latency === null ? '…' : `${Math.round(player.latency * 1000)} ms`}
+                  </span>
+                </span>
+              )
+            )}
+          </div>
+        )}
+      </Section>
+
+      <Section title="Invite">
+        {invitable.length > 0 && (
+          <JamDropdown
+            multiple
+            className="jam-invite-pick"
+            placeholder="Players you've played with"
+            groups={[{ options: invitable.map((player) => ({ value: player.player, label: player.name, detail: player.email })) }]}
+            value={picked}
+            onChange={setPicked}
+            summary={(value) => (value.length === 1 ? '1 player' : `${value.length} players`)}
+          />
+        )}
+        {chosen.length > 0 && (
+          <div className="jam-invite-players">
+            {chosen.map((player) => (
+              <div key={player.player} className="jam-invite-player">
+                <span className="jam-room-avatar" style={{ background: player.color }}>
+                  {initials(player.name)}
+                </span>
+                <span className="jam-invite-who">
+                  <span className="jam-invite-name">
+                    {player.name}
+                    {sent[player.player] && <span className={`jam-invite-state ${sent[player.player]}`}>{sent[player.player] === 'invited' ? 'Invited' : 'Offline'}</span>}
+                  </span>
+                  <input
+                    className="jam-invite-email"
+                    type="email"
+                    value={player.email}
+                    placeholder="Email"
+                    autoComplete="off"
+                    spellCheck={false}
+                    onChange={(event) => setKnownEmail(player.player, event.target.value)}
+                    aria-label={`${player.name}'s email`}
+                  />
+                </span>
+                <button className="jam-invite-remove" onClick={() => setPicked(picked.filter((id) => id !== player.player))} title={`Remove ${player.name}`}>
+                  <CloseIcon />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {chosen.length > 0 && (
+          <div className="jam-side-buttons">
+            {room.invite && (
+              <button className="jam-pill-btn" onClick={sendInvites} disabled={sending}>
+                <SendIcon />
+                Invite
+              </button>
+            )}
+            <a className="jam-pill-btn" href={`mailto:${emails.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent(invite)}&body=${encodeURIComponent(link)}`}>
+              <MailIcon />
+              Email
+            </a>
+          </div>
+        )}
+        <div className="jam-invite-link">
+          <span className="jam-invite-url" title={link}>
+            {link.replace(/^https?:\/\//, '')}
+          </span>
+          <button className="jam-pill-btn small" onClick={copy}>
+            {copied ? <CheckIcon /> : <LinkIcon />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+        <div className="jam-side-buttons">
+          {typeof navigator.share === 'function' && (
+            <button className="jam-pill-btn" onClick={share}>
+              <ShareIcon />
+              Share
+            </button>
+          )}
+          {chosen.length === 0 && (
+            <a className="jam-pill-btn" href={`mailto:?subject=${encodeURIComponent(invite)}&body=${encodeURIComponent(link)}`}>
+              <MailIcon />
+              Email
+            </a>
+          )}
+        </div>
+      </Section>
+
+      <Section title="Plan a session">
+        <div className="jam-session-when">
+          <JamDropdown
+            className="jam-session-day"
+            groups={[{ options: days.map((date, i) => ({ value: String(i), label: dayLabel(date, i) })) }]}
+            value={String(day)}
+            onChange={(value) => setDay(Number(value))}
+          />
+          <JamDropdown
+            className="jam-session-time"
+            groups={[{ options: SESSION_TIMES.map((minutes) => ({ value: String(minutes), label: timeLabel(minutes) })) }]}
+            value={String(time)}
+            onChange={(value) => setTime(Number(value))}
+          />
+          <JamDropdown
+            className="jam-session-length"
+            groups={[{ options: SESSION_LENGTHS.map((minutes) => ({ value: String(minutes), label: lengthLabel(minutes) })) }]}
+            value={String(length)}
+            onChange={(value) => setLength(Number(value))}
+          />
+        </div>
+        <div className="jam-side-buttons jam-session-add">
+          <a className="jam-pill-btn" href={googleCalendarUrl(session)} target="_blank" rel="noreferrer">
+            <CalendarIcon />
+            Google Calendar
+          </a>
+          <button className="jam-pill-btn" onClick={downloadIcs}>
+            <ExportIcon />
+            Other calendar
+          </button>
+        </div>
+      </Section>
+    </>
   );
 }
