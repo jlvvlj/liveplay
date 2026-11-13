@@ -704,3 +704,115 @@
 .instrument-detail-head .instrument-detail-title {
   flex: 1;
 }
+
+/* An instrument's or effect's knobs, in rows across the panel */
+.instrument-knobs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+  gap: 0.75rem 0.25rem;
+  margin-top: 0.6rem;
+}
+
+.knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.knob-dial {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+.knob-dial svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.knob-track,
+.knob-lit {
+  fill: none;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+
+.knob-track {
+  stroke: var(--ds-raised-strong);
+}
+
+.knob-lit {
+  stroke: var(--ds-accent);
+}
+
+/* The knob's cap, its mark pointing at its value */
+.knob-cap {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, #d4d4d8 0%, #a1a1aa 70%, #8b8b93 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: background 0.12s;
+}
+
+.knob-dial:hover .knob-cap,
+.knob.turning .knob-cap {
+  background: radial-gradient(circle at 50% 30%, #e4e4e7 0%, #b4b4bc 70%, #9a9aa2 100%);
+}
+
+.knob-dial:focus-visible .knob-cap {
+  box-shadow: 0 0 0 2px var(--ds-accent), 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.knob-mark {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 2.5px;
+  height: 40%;
+  margin-left: -1.25px;
+  border-radius: 2px;
+  background: #27272a;
+}
+
+.knob-label {
+  max-width: 100%;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--ds-text-dim);
+  overflow-wrap: anywhere;
+}
+
+.knob.turning .knob-label {
+  color: var(--ds-text);
+}
+
+/* A knob's value, over it */
+.knob-tip {
+  position: fixed;
+  z-index: 1000;
+  transform: translate(-50%, calc(-100% - 8px));
+  padding: 0.3rem 0.55rem;
+  border-radius: 8px;
+  background: #111113;
+  border: 1px solid var(--ds-border-strong);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  color: var(--ds-text);
+  font-family: var(--ds-font);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}

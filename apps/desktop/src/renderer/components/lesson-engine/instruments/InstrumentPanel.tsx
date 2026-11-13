@@ -12,6 +12,7 @@ import {
 } from '../JamIcons';
 import { JamDropdown } from '../JamDropdown';
 import { CategoryArt } from './CategoryArt';
+import { Knob } from './Knob';
 import { CATEGORY_ORDER, choiceEdited, presetChoice } from './catalog';
 import { EFFECTS, availableEffects, effectSlot } from './effects';
 import type { EffectKind, EffectSlot, InstrumentChoice, InstrumentDef, ParamSpec, ParamValues, Preset } from './types';
@@ -63,6 +64,10 @@ type View =
   | { at: 'instrument'; id: string };
 
 const SECONDS = new Set(['attack', 'decay', 'hold', 'release', 'sweepTime', 'size']);
+// Frequencies (Hz) and times: their knobs turn through octaves
+const isHz = (spec: ParamSpec) =>
+  ['frequency', 'rate'].includes(spec.key) || (['cutoff', 'cutoffEnd'].includes(spec.key) && spec.max > 32);
+const turnsByOctave = (spec: ParamSpec) => SECONDS.has(spec.key) || isHz(spec);
 
 function formatParam(spec: ParamSpec, value: number): string {
   if (spec.options) return spec.options[Math.round(value)] ?? '';
@@ -83,7 +88,7 @@ function formatParam(spec: ParamSpec, value: number): string {
 // A choice of more options than fit as buttons opens as a list
 const MAX_OPTION_BUTTONS = 8;
 
-function Param({ spec, value, onChange }: { spec: ParamSpec; value: number; onChange: (value: number) => void }) {
+function Param({ spec, value, initial, onChange }: { spec: ParamSpec; value: number; initial: number; onChange: (value: number) => void }) {
   if (spec.options && spec.options.length > MAX_OPTION_BUTTONS)
     return (
       <div className="jam-slider">
@@ -114,38 +119,56 @@ function Param({ spec, value, onChange }: { spec: ParamSpec; value: number; onCh
       </div>
     );
   return (
-    <div className="jam-slider">
-      <div className="jam-slider-head">
-        <span>{spec.label}</span>
-        <span className="jam-slider-value">{formatParam(spec, value)}</span>
-      </div>
-      <input
-        type="range"
-        min={spec.min}
-        max={spec.max}
-        step={spec.step}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="volume-slider"
-      />
-    </div>
+    <Knob
+      label={spec.label}
+      value={value}
+      min={spec.min}
+      max={spec.max}
+      step={spec.step}
+      default={initial}
+      log={turnsByOctave(spec)}
+      format={(v) => formatParam(spec, v)}
+      onChange={onChange}
+    />
   );
 }
 
-function Params({ specs, values, onChange }: { specs: ParamSpec[]; values: ParamValues; onChange: (values: ParamValues) => void }) {
+// `initial`: the values a knob goes back to (its preset's), the others their own defaults
+function Params({
+  specs,
+  values,
+  initial = {},
+  onChange,
+}: {
+  specs: ParamSpec[];
+  values: ParamValues;
+  initial?: ParamValues;
+  onChange: (values: ParamValues) => void;
+}) {
   const groups = [...new Set(specs.map((spec) => spec.group ?? ''))];
+  const param = (spec: ParamSpec) => (
+    <Param
+      key={spec.key}
+      spec={spec}
+      value={paramValue(specs, values, spec.key)}
+      initial={paramValue(specs, initial, spec.key)}
+      onChange={(value) => onChange({ ...values, [spec.key]: value })}
+    />
+  );
   return (
     <>
-      {groups.map((group) => (
-        <div key={group} className="instrument-param-group">
-          {group && <div className="jam-subhead">{group}</div>}
-          {specs
-            .filter((spec) => (spec.group ?? '') === group)
-            .map((spec) => (
-              <Param key={spec.key} spec={spec} value={paramValue(specs, values, spec.key)} onChange={(value) => onChange({ ...values, [spec.key]: value })} />
-            ))}
-        </div>
-      ))}
+      {groups.map((group) => {
+        const inGroup = specs.filter((spec) => (spec.group ?? '') === group);
+        const knobs = inGroup.filter((spec) => !spec.options);
+        // Its choices each across the panel, then its knobs in rows
+        return (
+          <div key={group} className="instrument-param-group">
+            {group && <div className="jam-subhead">{group}</div>}
+            {inGroup.filter((spec) => spec.options).map(param)}
+            {knobs.length > 0 && <div className="instrument-knobs">{knobs.map(param)}</div>}
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -510,13 +533,13 @@ export function InstrumentPanel({
     onPreview?.();
   };
   // Up and down step through the presets, but never out of a field that takes
-  // them (a slider, a list of options); the preset search lets them through
+  // them (a slider, a knob, a list of options); the preset search lets them through
   useEffect(() => {
     if (!openId) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
       const target = event.target instanceof Element ? event.target : null;
-      const typing = target?.closest('input, textarea, select, [contenteditable="true"], [role="listbox"]');
+      const typing = target?.closest('input, textarea, select, [contenteditable="true"], [role="listbox"], [role="slider"]');
       if (typing && !target!.classList.contains('instrument-preset-search')) return;
       event.preventDefault();
       stepRef.current(event.key === 'ArrowDown' ? 1 : -1);
@@ -723,7 +746,12 @@ export function InstrumentPanel({
               </div>
             )}
 
-            <Params specs={current.params} values={choice.params} onChange={(params) => onChange({ ...choice, params })} />
+            <Params
+              specs={current.params}
+              values={choice.params}
+              initial={current.presets.find((preset) => preset.id === choice.preset)?.params}
+              onChange={(params) => onChange({ ...choice, params })}
+            />
 
             <div className="instrument-effects-head">
               <div className="jam-subhead">Effects</div>
