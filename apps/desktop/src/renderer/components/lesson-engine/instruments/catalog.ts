@@ -83,7 +83,6 @@ const SYNTH_TAGS: Record<string, string> = {
   bell: 'Bell',
   'bell-stab': 'Bell',
 };
-export const SYNTH_TAG_ORDER = ['Lead', 'Pad', 'Bass', 'Mallets & Keys', 'Pluck & Stab', 'Bell'];
 // Sampled categories in this order; songs' sounds and others after them
 export const CATEGORY_ORDER = ['Keys', 'Orchestra', 'Band', 'General MIDI', 'Drums', 'Drum machines'];
 
