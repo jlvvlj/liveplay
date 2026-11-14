@@ -121,9 +121,9 @@ const JAM_ROOM_START_LEAD_MS = 400;
 const JAM_ROOM_RESYNC_S = 0.015;
 const JAM_ROOM_RESYNC_MS = 1000;
 
-// Jam tab volumes: the played notes start below the backing track (see
-// JAM_BACKING_TOP_DB), so the groove stays clearly audible
-const DEFAULT_JAM_NOTES_VOLUME = 0.75;
+// Jam tab volumes: the played notes start well below the backing track (see
+// JAM_BACKING_TOP_DB, 1 dB per 5%), so the groove stays clearly audible under them
+const DEFAULT_JAM_NOTES_VOLUME = 0.55;
 
 // Jam tab settings remembered in this browser: chosen song, the instrument
 // played (its preset, parameters and effects as edited), and each other
