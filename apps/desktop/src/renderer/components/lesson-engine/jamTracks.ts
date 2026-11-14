@@ -278,13 +278,15 @@ export const JAM_TRACKS: JamTrack[] = [
   },
   {
     // Plink's background: a deep kick on every beat, its echoes bouncing left
-    // and right, at Plink's tempo
+    // and right, at Plink's tempo. Its pitch drops fast from high and it is
+    // driven, so its punch and overtones are heard on speakers too small for
+    // its 50 Hz body.
     file: 'plink.wav',
     bpm: 90,
     chords: [],
     layers: [],
     drums: [
-      drum('kick', 'Kick', { frequency: 50, sweep: 55, sweepDecay: 0.06, toneLevel: 1, toneDecay: 0.35, noiseLevel: 0 }, {},
+      drum('kick', 'Kick', { frequency: 50, sweep: 250, sweepDecay: 0.04, toneLevel: 1, toneDecay: 0.35, noiseLevel: 0 }, { drive: 0.8 },
         [[0, 127], [4, 127], [8, 127], [12, 127]]),
     ],
     echo: { beats: 0.75, feedback: 0.5, wet: 0.25 },
